@@ -1,0 +1,15 @@
+# Android Keystore Configuration
+# 
+# SETUP INSTRUCTIONS:
+# 1. Copy this file to key.properties (which is gitignored)
+# 2. Generate your keystore using:
+#    keytool -genkey -v -keystore android/app/keystore/workout-tracker-release.jks \
+#            -keyalg RSA -keysize 2048 -validity 10000 -alias workout-tracker-key
+# 3. Fill in your actual passwords below
+#
+# WARNING: Never commit the actual key.properties file!
+
+storePassword=YOUR_KEYSTORE_PASSWORD_HERE
+keyPassword=YOUR_KEY_PASSWORD_HERE
+keyAlias=workout-tracker-key
+storeFile=app/keystore/workout-tracker-release.jks

@@ -176,10 +176,8 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
 
   Future<void> _playTimerSound() async {
     try {
-      // Play a simple beep sound (royalty-free)
-      await audioPlayer.play(
-        UrlSource('https://www.soundjay.com/buttons/beep-01a.mp3'),
-      );
+      // Play local beep sound (no internet permission needed)
+      await audioPlayer.play(AssetSource('audio/timer_beep.wav'));
 
       if (mounted) {
         showDialog(

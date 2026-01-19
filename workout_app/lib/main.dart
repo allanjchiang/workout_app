@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:share_plus/share_plus.dart';
+import 'l10n/app_localizations.dart';
 
 void main() {
   runApp(const WorkoutTrackerApp());
@@ -19,6 +21,14 @@ class WorkoutTrackerApp extends StatelessWidget {
     return MaterialApp(
       title: 'Workout Tracker',
       debugShowCheckedModeBanner: false,
+      // Localization support
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.amber,
@@ -41,41 +51,44 @@ class WorkoutTrackerApp extends StatelessWidget {
 
 // Shoulder exercises for yellow (lightest) resistance band
 class Exercise {
-  final String name;
-  final String description;
+  final String nameKey;
+  final String descriptionKey;
   final IconData icon;
 
   const Exercise({
-    required this.name,
-    required this.description,
+    required this.nameKey,
+    required this.descriptionKey,
     required this.icon,
   });
+
+  String getName(AppLocalizations l10n) => l10n.get(nameKey);
+  String getDescription(AppLocalizations l10n) => l10n.get(descriptionKey);
 }
 
 const List<Exercise> shoulderExercises = [
   Exercise(
-    name: 'Shoulder Press',
-    description: 'Stand on band, press handles overhead',
+    nameKey: 'shoulderPress',
+    descriptionKey: 'shoulderPressDesc',
     icon: Icons.arrow_upward,
   ),
   Exercise(
-    name: 'Lateral Raise',
-    description: 'Stand on band, raise arms to sides',
+    nameKey: 'lateralRaise',
+    descriptionKey: 'lateralRaiseDesc',
     icon: Icons.open_with,
   ),
   Exercise(
-    name: 'Front Raise',
-    description: 'Stand on band, raise arms forward',
+    nameKey: 'frontRaise',
+    descriptionKey: 'frontRaiseDesc',
     icon: Icons.arrow_forward,
   ),
   Exercise(
-    name: 'Reverse Fly',
-    description: 'Bend forward, pull band apart',
+    nameKey: 'reverseFly',
+    descriptionKey: 'reverseFlyDesc',
     icon: Icons.compare_arrows,
   ),
   Exercise(
-    name: 'Shrugs',
-    description: 'Stand on band, lift shoulders up',
+    nameKey: 'shrugs',
+    descriptionKey: 'shrugsDesc',
     icon: Icons.keyboard_double_arrow_up,
   ),
 ];
@@ -126,21 +139,23 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
   Future<void> _saveWorkout() async {
     if (selectedExercise == null || reps <= 0) return;
 
+    final l10n = AppLocalizations.of(context)!;
     final prefs = await SharedPreferences.getInstance();
-    savedWorkouts[selectedExercise!.name] = reps;
+    savedWorkouts[selectedExercise!.nameKey] = reps;
     await prefs.setString('workouts', jsonEncode(savedWorkouts));
 
     if (mounted) {
+      final exerciseName = selectedExercise!.getName(l10n);
       // Announce to screen reader
       SemanticsService.announce(
-        'Saved ${selectedExercise!.name} with $reps reps. Rest timer started for 1 minute.',
+        '${l10n.get('saved')} $exerciseName $reps ${l10n.reps}. ${l10n.get('restTimerStarted')}',
         TextDirection.ltr,
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Saved: ${selectedExercise!.name} - $reps reps',
+            '${l10n.get('saved')}: $exerciseName - $reps ${l10n.reps}',
             style: const TextStyle(fontSize: 18),
           ),
           backgroundColor: Colors.green,
@@ -585,15 +600,17 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: Colors.amber.shade50,
       appBar: AppBar(
         backgroundColor: Colors.amber.shade300,
         title: Semantics(
           header: true,
-          child: const Text(
-            'Shoulder Workout',
-            style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+          child: Text(
+            l10n.shoulderWorkout,
+            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
           ),
         ),
         centerTitle: true,
@@ -601,11 +618,11 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
           // Info/About button
           Semantics(
             button: true,
-            label: 'About and Disclaimer',
+            label: l10n.get('aboutAndDisclaimerButton'),
             child: IconButton(
               onPressed: _showAboutAndDisclaimer,
               icon: const Icon(Icons.info_outline, size: 28),
-              tooltip: 'About & Disclaimer',
+              tooltip: l10n.aboutAndDisclaimer,
             ),
           ),
           // Export button
@@ -690,19 +707,21 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _ExerciseButton(
                     exercise: exercise,
-                    isSelected: selectedExercise?.name == exercise.name,
-                    lastReps: savedWorkouts[exercise.name],
+                    isSelected: selectedExercise?.nameKey == exercise.nameKey,
+                    lastReps: savedWorkouts[exercise.nameKey],
+                    l10n: l10n,
                     onTap: () {
                       setState(() {
                         selectedExercise = exercise;
-                        reps = savedWorkouts[exercise.name] ?? 0;
+                        reps = savedWorkouts[exercise.nameKey] ?? 0;
                       });
                       // Announce selection to screen reader
-                      final lastRepsInfo = savedWorkouts[exercise.name] != null
-                          ? ', last recorded ${savedWorkouts[exercise.name]} reps'
+                      final lastRepsInfo =
+                          savedWorkouts[exercise.nameKey] != null
+                          ? ', ${l10n.get('lastRecorded')} ${savedWorkouts[exercise.nameKey]} ${l10n.reps}'
                           : '';
                       SemanticsService.announce(
-                        'Selected ${exercise.name}. ${exercise.description}$lastRepsInfo',
+                        '${l10n.get('selected')} ${exercise.getName(l10n)}. ${exercise.getDescription(l10n)}$lastRepsInfo',
                         TextDirection.ltr,
                       );
                     },
@@ -716,7 +735,7 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
               if (selectedExercise != null) ...[
                 Semantics(
                   container: true,
-                  label: 'Rep counter for ${selectedExercise!.name}',
+                  label: 'Rep counter for ${selectedExercise!.getName(l10n)}',
                   child: Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -733,7 +752,7 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                     child: Column(
                       children: [
                         Text(
-                          selectedExercise!.name,
+                          selectedExercise!.getName(l10n),
                           style: const TextStyle(
                             fontSize: 26,
                             fontWeight: FontWeight.bold,
@@ -742,7 +761,7 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          selectedExercise!.description,
+                          selectedExercise!.getDescription(l10n),
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey.shade600,
@@ -751,9 +770,9 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                         ),
                         const SizedBox(height: 24),
 
-                        const Text(
-                          'How many reps?',
-                          style: TextStyle(fontSize: 22),
+                        Text(
+                          l10n.howManyReps,
+                          style: const TextStyle(fontSize: 22),
                         ),
                         const SizedBox(height: 16),
 
@@ -764,12 +783,12 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                             _RoundButton(
                               icon: Icons.remove,
                               color: Colors.red.shade400,
-                              semanticLabel: 'Decrease reps',
+                              semanticLabel: l10n.get('decreaseReps'),
                               onPressed: () {
                                 if (reps > 0) {
                                   setState(() => reps--);
                                   SemanticsService.announce(
-                                    '$reps reps',
+                                    '$reps ${l10n.reps}',
                                     TextDirection.ltr,
                                   );
                                 }
@@ -777,7 +796,7 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                             ),
                             const SizedBox(width: 24),
                             Semantics(
-                              label: '$reps reps',
+                              label: '$reps ${l10n.reps}',
                               liveRegion: true,
                               child: Container(
                                 width: 100,
@@ -931,26 +950,31 @@ class _ExerciseButton extends StatelessWidget {
   final bool isSelected;
   final int? lastReps;
   final VoidCallback onTap;
+  final AppLocalizations l10n;
 
   const _ExerciseButton({
     required this.exercise,
     required this.isSelected,
     required this.lastReps,
     required this.onTap,
+    required this.l10n,
   });
 
   @override
   Widget build(BuildContext context) {
+    final exerciseName = exercise.getName(l10n);
+    final exerciseDesc = exercise.getDescription(l10n);
     final String lastRepsText = lastReps != null
-        ? ', last recorded $lastReps reps'
+        ? ', ${l10n.get('lastRecorded')} $lastReps ${l10n.reps}'
         : '';
-    final String selectedText = isSelected ? ', currently selected' : '';
+    final String selectedText = isSelected
+        ? ', ${l10n.get('currentlySelected')}'
+        : '';
 
     return Semantics(
       button: true,
       selected: isSelected,
-      label:
-          '${exercise.name}. ${exercise.description}$lastRepsText$selectedText',
+      label: '$exerciseName. $exerciseDesc$lastRepsText$selectedText',
       child: Material(
         color: isSelected ? Colors.amber.shade200 : Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -992,7 +1016,7 @@ class _ExerciseButton extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        exercise.name,
+                        exerciseName,
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -1000,7 +1024,7 @@ class _ExerciseButton extends StatelessWidget {
                       ),
                       if (lastReps != null)
                         Text(
-                          'Last: $lastReps reps',
+                          '${l10n.get('lastReps')} $lastReps ${l10n.reps}',
                           style: TextStyle(
                             fontSize: 16,
                             color: Colors.green.shade700,

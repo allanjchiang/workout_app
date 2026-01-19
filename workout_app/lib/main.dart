@@ -499,6 +499,65 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                 ),
               ),
               const SizedBox(height: 20),
+              // License section
+              Semantics(
+                container: true,
+                label: 'License section',
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.shade300),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Open Source',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        '• Licensed under MIT License',
+                        style: TextStyle(fontSize: 15),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        '• Version 1.0.0',
+                        style: TextStyle(fontSize: 15),
+                      ),
+                      const SizedBox(height: 12),
+                      // View licenses button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            showLicensePage(
+                              context: context,
+                              applicationName: 'Workout Tracker',
+                              applicationVersion: '1.0.0',
+                              applicationLegalese:
+                                  '© 2026 Allan Chiang\nLicensed under MIT License',
+                            );
+                          },
+                          icon: const Icon(Icons.description_outlined),
+                          label: const Text('View Open Source Licenses'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.blue.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
               const Text(
                 'Contact',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),

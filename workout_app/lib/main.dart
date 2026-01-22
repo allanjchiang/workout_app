@@ -200,18 +200,20 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
   }
 
   void _stopTimer() {
+    final l10n = AppLocalizations.of(context)!;
     restTimer?.cancel();
     setState(() {
       isTimerRunning = false;
       timerSeconds = 60;
     });
-    SemanticsService.announce('Timer stopped', TextDirection.ltr);
+    SemanticsService.announce(l10n.get('timerStopped'), TextDirection.ltr);
   }
 
   Future<void> _playTimerSound() async {
+    final l10n = AppLocalizations.of(context)!;
     // Announce to screen reader
     SemanticsService.announce(
-      'Rest time is over! Time to do your next set.',
+      '${l10n.restTimeOver} ${l10n.timeForNextSet}',
       TextDirection.ltr,
     );
 
@@ -225,21 +227,21 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
           builder: (context) => AlertDialog(
             title: Semantics(
               header: true,
-              child: const Text(
-                'Rest Time Over!',
-                style: TextStyle(fontSize: 28),
+              child: Text(
+                l10n.restTimeOver,
+                style: const TextStyle(fontSize: 28),
                 textAlign: TextAlign.center,
               ),
             ),
-            content: const Text(
-              'Time to do your next set!',
-              style: TextStyle(fontSize: 22),
+            content: Text(
+              l10n.timeForNextSet,
+              style: const TextStyle(fontSize: 22),
               textAlign: TextAlign.center,
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('OK', style: TextStyle(fontSize: 22)),
+                child: Text(l10n.ok, style: const TextStyle(fontSize: 22)),
               ),
             ],
           ),
@@ -253,21 +255,21 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
           builder: (context) => AlertDialog(
             title: Semantics(
               header: true,
-              child: const Text(
-                'Rest Time Over!',
-                style: TextStyle(fontSize: 28),
+              child: Text(
+                l10n.restTimeOver,
+                style: const TextStyle(fontSize: 28),
                 textAlign: TextAlign.center,
               ),
             ),
-            content: const Text(
-              'Time to do your next set!',
-              style: TextStyle(fontSize: 22),
+            content: Text(
+              l10n.timeForNextSet,
+              style: const TextStyle(fontSize: 22),
               textAlign: TextAlign.center,
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('OK', style: TextStyle(fontSize: 22)),
+                child: Text(l10n.ok, style: const TextStyle(fontSize: 22)),
               ),
             ],
           ),
@@ -277,17 +279,18 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
   }
 
   Future<void> _exportData() async {
+    final l10n = AppLocalizations.of(context)!;
     if (savedWorkouts.isEmpty) {
       if (mounted) {
         SemanticsService.announce(
-          'No workout data to export yet',
+          l10n.get('noDataToExport'),
           TextDirection.ltr,
         );
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              'No workout data to export yet!',
-              style: TextStyle(fontSize: 18),
+              l10n.get('noDataToExport'),
+              style: const TextStyle(fontSize: 18),
             ),
             backgroundColor: Colors.orange,
           ),
@@ -298,14 +301,14 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
 
     // Create a readable text summary
     final buffer = StringBuffer();
-    buffer.writeln('Workout Tracker - Export');
+    buffer.writeln('${l10n.appTitle} - Export');
     buffer.writeln('Date: ${DateTime.now().toString().split('.')[0]}');
     buffer.writeln('');
-    buffer.writeln('Yellow Band (Lightest) - Shoulder Exercises:');
+    buffer.writeln('${l10n.yellowBand} - ${l10n.shoulderWorkout}:');
     buffer.writeln('─' * 40);
 
     for (final entry in savedWorkouts.entries) {
-      buffer.writeln('${entry.key}: ${entry.value} reps');
+      buffer.writeln('${entry.key}: ${entry.value} ${l10n.reps}');
     }
 
     buffer.writeln('');
@@ -314,21 +317,21 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
     final exportText = buffer.toString();
 
     try {
-      await Share.share(exportText, subject: 'My Workout Data');
-      SemanticsService.announce('Sharing workout data', TextDirection.ltr);
+      await Share.share(exportText, subject: l10n.appTitle);
+      SemanticsService.announce(l10n.get('sharingData'), TextDirection.ltr);
     } catch (e) {
       // Fallback: copy to clipboard
       await Clipboard.setData(ClipboardData(text: exportText));
       if (mounted) {
         SemanticsService.announce(
-          'Workout data copied to clipboard',
+          l10n.get('copiedToClipboard'),
           TextDirection.ltr,
         );
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              'Copied to clipboard!',
-              style: TextStyle(fontSize: 18),
+              l10n.get('copiedToClipboard'),
+              style: const TextStyle(fontSize: 18),
             ),
             backgroundColor: Colors.blue,
           ),
@@ -338,21 +341,25 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
   }
 
   Future<void> _deleteAllData() async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Semantics(
           header: true,
-          child: const Text('Delete All Data?', style: TextStyle(fontSize: 24)),
+          child: Text(
+            l10n.get('deleteAllData'),
+            style: const TextStyle(fontSize: 24),
+          ),
         ),
-        content: const Text(
-          'This will delete all your saved workout data.\n\nThis cannot be undone!',
-          style: TextStyle(fontSize: 18),
+        content: Text(
+          l10n.get('deleteWarning'),
+          style: const TextStyle(fontSize: 18),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(fontSize: 20)),
+            child: Text(l10n.cancel, style: const TextStyle(fontSize: 20)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -360,7 +367,7 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Delete All', style: TextStyle(fontSize: 20)),
+            child: Text(l10n.deleteAll, style: const TextStyle(fontSize: 20)),
           ),
         ],
       ),
@@ -377,10 +384,16 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
       });
 
       if (mounted) {
-        SemanticsService.announce('All data deleted', TextDirection.ltr);
+        SemanticsService.announce(
+          l10n.get('allDataDeleted'),
+          TextDirection.ltr,
+        );
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('All data deleted', style: TextStyle(fontSize: 18)),
+          SnackBar(
+            content: Text(
+              l10n.get('allDataDeleted'),
+              style: const TextStyle(fontSize: 18),
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -389,24 +402,28 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
   }
 
   void _showAboutAndDisclaimer() {
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Semantics(
           header: true,
-          child: const Row(
+          child: Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.info_outline,
                 size: 32,
                 color: Colors.amber,
                 semanticLabel: 'Information',
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'About & Disclaimer',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  l10n.aboutAndDisclaimer,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -417,19 +434,22 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Workout Tracker',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              Text(
+                l10n.appTitle,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
-                'A simple app to track your resistance band exercises.',
+                l10n.get('workoutTrackerDesc'),
                 style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
               ),
               const SizedBox(height: 20),
               Semantics(
                 container: true,
-                label: 'Important Disclaimers section',
+                label: l10n.get('importantDisclaimers'),
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -437,36 +457,36 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.orange.shade300),
                   ),
-                  child: const Column(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Important Disclaimers',
-                        style: TextStyle(
+                        l10n.get('importantDisclaimers'),
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           color: Colors.deepOrange,
                         ),
                       ),
-                      SizedBox(height: 12),
+                      const SizedBox(height: 12),
                       Text(
-                        '• This app is for informational and tracking purposes only.',
-                        style: TextStyle(fontSize: 15),
+                        '• ${l10n.get('disclaimer1')}',
+                        style: const TextStyle(fontSize: 15),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
-                        '• Consult a healthcare professional before starting any exercise program.',
-                        style: TextStyle(fontSize: 15),
+                        '• ${l10n.get('disclaimer2')}',
+                        style: const TextStyle(fontSize: 15),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
-                        '• Not intended to diagnose, treat, cure, or prevent any medical condition.',
-                        style: TextStyle(fontSize: 15),
+                        '• ${l10n.get('disclaimer3')}',
+                        style: const TextStyle(fontSize: 15),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
-                        '• Use at your own risk.',
-                        style: TextStyle(fontSize: 15),
+                        '• ${l10n.get('disclaimer4')}',
+                        style: const TextStyle(fontSize: 15),
                       ),
                     ],
                   ),
@@ -475,7 +495,7 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
               const SizedBox(height: 20),
               Semantics(
                 container: true,
-                label: 'Privacy section',
+                label: l10n.get('yourPrivacy'),
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -483,31 +503,31 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.green.shade300),
                   ),
-                  child: const Column(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Your Privacy',
-                        style: TextStyle(
+                        l10n.get('yourPrivacy'),
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           color: Colors.green,
                         ),
                       ),
-                      SizedBox(height: 12),
+                      const SizedBox(height: 12),
                       Text(
-                        '• All data is stored locally on your device',
-                        style: TextStyle(fontSize: 15),
+                        '• ${l10n.get('privacy1')}',
+                        style: const TextStyle(fontSize: 15),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
-                        '• We do not collect, transmit, or sell your data',
-                        style: TextStyle(fontSize: 15),
+                        '• ${l10n.get('privacy2')}',
+                        style: const TextStyle(fontSize: 15),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
-                        '• You can export or delete your data anytime',
-                        style: TextStyle(fontSize: 15),
+                        '• ${l10n.get('privacy3')}',
+                        style: const TextStyle(fontSize: 15),
                       ),
                     ],
                   ),
@@ -517,7 +537,7 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
               // License section
               Semantics(
                 container: true,
-                label: 'License section',
+                label: l10n.get('openSource'),
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -528,23 +548,23 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Open Source',
-                        style: TextStyle(
+                      Text(
+                        l10n.get('openSource'),
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           color: Colors.blue,
                         ),
                       ),
                       const SizedBox(height: 12),
-                      const Text(
-                        '• Licensed under MIT License',
-                        style: TextStyle(fontSize: 15),
+                      Text(
+                        '• ${l10n.get('licensedUnderMIT')}',
+                        style: const TextStyle(fontSize: 15),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        '• Version 1.0.0',
-                        style: TextStyle(fontSize: 15),
+                      Text(
+                        '• ${l10n.get('version')} 1.0.1',
+                        style: const TextStyle(fontSize: 15),
                       ),
                       const SizedBox(height: 12),
                       // View licenses button
@@ -555,14 +575,14 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                             Navigator.pop(context);
                             showLicensePage(
                               context: context,
-                              applicationName: 'Workout Tracker',
-                              applicationVersion: '1.0.0',
+                              applicationName: l10n.appTitle,
+                              applicationVersion: '1.0.1',
                               applicationLegalese:
-                                  '© 2026 Allan Chiang\nLicensed under MIT License',
+                                  '© 2026 Allan Chiang\n${l10n.get('licensedUnderMIT')}',
                             );
                           },
                           icon: const Icon(Icons.description_outlined),
-                          label: const Text('View Open Source Licenses'),
+                          label: Text(l10n.get('viewLicenses')),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.blue.shade700,
                           ),
@@ -573,9 +593,12 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Contact',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                l10n.get('contact'),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               Semantics(
@@ -591,7 +614,7 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close', style: TextStyle(fontSize: 18)),
+            child: Text(l10n.close, style: const TextStyle(fontSize: 18)),
           ),
         ],
       ),
@@ -628,21 +651,21 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
           // Export button
           Semantics(
             button: true,
-            label: 'Export workout data',
+            label: l10n.get('exportDataButton'),
             child: IconButton(
               onPressed: _exportData,
               icon: const Icon(Icons.share, size: 28),
-              tooltip: 'Export Data',
+              tooltip: l10n.get('exportDataButton'),
             ),
           ),
           // Delete button
           Semantics(
             button: true,
-            label: 'Delete all workout data',
+            label: l10n.get('deleteDataButton'),
             child: IconButton(
               onPressed: _deleteAllData,
               icon: const Icon(Icons.delete_forever, size: 28),
-              tooltip: 'Delete All Data',
+              tooltip: l10n.get('deleteAllData'),
             ),
           ),
           const SizedBox(width: 8),
@@ -656,8 +679,7 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
             children: [
               // Band indicator
               Semantics(
-                label:
-                    'Current resistance band: Yellow, which is the lightest resistance level',
+                label: l10n.get('bandDescription'),
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -677,9 +699,9 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      const Text(
-                        'Yellow Band (Lightest)',
-                        style: TextStyle(
+                      Text(
+                        l10n.yellowBand,
+                        style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                         ),
@@ -694,9 +716,12 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
               // Exercise selection header
               Semantics(
                 header: true,
-                child: const Text(
-                  'Select Exercise:',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                child: Text(
+                  l10n.selectExercise,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -845,17 +870,17 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                           button: true,
                           enabled: reps > 0,
                           label: reps > 0
-                              ? 'Save $reps reps and start 1 minute rest timer'
-                              : 'Save button disabled, add reps first',
+                              ? '${l10n.saveAndStartTimer} - $reps ${l10n.reps}'
+                              : l10n.get('saveButtonDisabled'),
                           child: SizedBox(
                             width: double.infinity,
                             height: 70,
                             child: ElevatedButton.icon(
                               onPressed: reps > 0 ? _saveWorkout : null,
                               icon: const Icon(Icons.save, size: 30),
-                              label: const Text(
-                                'Save & Start Rest Timer',
-                                style: TextStyle(fontSize: 20),
+                              label: Text(
+                                l10n.saveAndStartTimer,
+                                style: const TextStyle(fontSize: 20),
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.green,
@@ -882,7 +907,7 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                   container: true,
                   liveRegion: true,
                   label:
-                      'Rest timer: ${timerSeconds ~/ 60} minutes ${timerSeconds % 60} seconds remaining',
+                      '${l10n.restTimer}: ${timerSeconds ~/ 60}:${(timerSeconds % 60).toString().padLeft(2, '0')} ${l10n.get('secondsRemaining')}',
                   child: Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
@@ -899,9 +924,9 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                     ),
                     child: Column(
                       children: [
-                        const Text(
-                          'Rest Timer',
-                          style: TextStyle(
+                        Text(
+                          l10n.restTimer,
+                          style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
                           ),
@@ -920,13 +945,13 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                         const SizedBox(height: 16),
                         Semantics(
                           button: true,
-                          label: 'Stop rest timer',
+                          label: l10n.stopTimer,
                           child: TextButton.icon(
                             onPressed: _stopTimer,
                             icon: const Icon(Icons.stop, size: 24),
-                            label: const Text(
-                              'Stop Timer',
-                              style: TextStyle(fontSize: 18),
+                            label: Text(
+                              l10n.stopTimer,
+                              style: const TextStyle(fontSize: 18),
                             ),
                             style: TextButton.styleFrom(
                               foregroundColor: Colors.red.shade700,

@@ -2,7 +2,6 @@
 *.class
 *.log
 *.pyc
-crash_log.txt
 *.swp
 .DS_Store
 .atom/

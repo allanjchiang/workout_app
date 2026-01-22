@@ -7,6 +7,9 @@
 -keep class io.flutter.plugins.**  { *; }
 -keep class io.flutter.embedding.** { *; }
 
+# Keep the app's MainActivity
+-keep class com.allanchiang.workouttracker.MainActivity { *; }
+
 # Keep audioplayers
 -keep class xyz.luan.audioplayers.** { *; }
 

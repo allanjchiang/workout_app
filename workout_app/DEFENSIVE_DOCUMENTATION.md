@@ -15,10 +15,12 @@
 |----------|-------|
 | **Application Name** | Workout Tracker (運動追蹤) |
 | **Bundle ID (Android)** | `com.allanchiang.workouttracker` |
-| **Bundle ID (iOS)** | `com.allanchiang.workouttracker` |
+| **Bundle ID (iOS)** | `com.logicphile.workouttracker` |
 | **Current Version** | 1.1.1+4 |
 | **License** | MIT License |
 | **Repository** | https://github.com/allanchiang/workout_app |
+| **iOS Publisher** | Logicphile Limited |
+| **Website** | https://logicphile.com |
 
 ---
 
@@ -256,6 +258,8 @@ git log --all --full-history > git_history_export.txt
 ## 12. Contact Information
 
 **Developer:** Allan Chiang  
+**Company:** Logicphile Limited  
+**Website:** https://logicphile.com  
 **Email:** allanchiangviolin@gmail.com  
 **Location:** New Zealand
 

@@ -52,3 +52,6 @@ key.properties
 /android/app/keystore/
 **/keystore/
 **/release-signing.properties
+
+# Debug/crash logs
+crash_log.txt

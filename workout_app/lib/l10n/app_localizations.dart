@@ -216,6 +216,10 @@ class AppLocalizations {
     'workoutPlan': 'Workout Plan',
     'current': 'Current',
     'tapToJump': 'Tap an exercise to jump to it',
+    'shoulderWorkoutTemplate': 'Shoulder Workout',
+    'shoulderWorkoutTemplateDesc': 'Yellow Band (Lightest) - 5 shoulder exercises',
+    'fiveShoulderExercises': '5 shoulder exercises',
+    'previousData': 'Previous data',
   };
 
   // Chinese Traditional strings
@@ -396,6 +400,10 @@ class AppLocalizations {
     'workoutPlan': '運動計畫',
     'current': '目前',
     'tapToJump': '點擊動作即可跳轉',
+    'shoulderWorkoutTemplate': '肩部運動',
+    'shoulderWorkoutTemplateDesc': '黃色彈力帶（最輕）- 5 個肩部動作',
+    'fiveShoulderExercises': '5 個肩部動作',
+    'previousData': '舊資料',
   };
 
   // Convenience getters for common strings

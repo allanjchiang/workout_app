@@ -295,11 +295,18 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
   int _currentIndex = 0;
   List<WorkoutTemplate> templates = [];
   List<WorkoutSession> history = [];
+  Map<String, int> _pendingOldWorkouts = {};
+  bool _postFrameInitialized = false;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _ensureDefaultTemplateAndMigrate();
+      }
+    });
   }
 
   Future<void> _loadData() async {
@@ -329,116 +336,131 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
 
     // MIGRATION: Check for old workout data from previous app version
     final oldWorkoutsJson = prefs.getString('workouts');
-    Map<String, int> oldWorkouts = {};
     if (oldWorkoutsJson != null) {
-      oldWorkouts = Map<String, int>.from(jsonDecode(oldWorkoutsJson));
+      _pendingOldWorkouts =
+          Map<String, int>.from(jsonDecode(oldWorkoutsJson));
     }
+  }
 
-    // Create default Shoulder Workout template if no templates exist
-    if (templates.isEmpty) {
-      final shoulderTemplate = _createDefaultShoulderTemplate();
+  Future<void> _ensureDefaultTemplateAndMigrate() async {
+    if (_postFrameInitialized) return;
+    _postFrameInitialized = true;
+
+    final l10n = AppLocalizations.of(context)!;
+    const defaultTemplateId = 'default_shoulder_workout';
+
+    final hasDefault = templates.any((t) => t.id == defaultTemplateId);
+    if (!hasDefault) {
+      final shoulderTemplate = _createDefaultShoulderTemplate(l10n);
       setState(() {
-        templates.add(shoulderTemplate);
+        templates.insert(0, shoulderTemplate);
       });
       await _saveTemplates();
+    }
 
-      // If there's old workout data, create a history entry to preserve the rep counts
-      if (oldWorkouts.isNotEmpty) {
-        final migrationLogs = <ExerciseLog>[];
-        final exerciseNames = {
-          'shoulderPress': 'Shoulder Press',
-          'lateralRaise': 'Lateral Raise',
-          'frontRaise': 'Front Raise',
-          'reverseFly': 'Reverse Fly',
-          'shrugs': 'Shrugs',
-        };
+    // If there's old workout data, create a history entry to preserve the rep counts
+    if (_pendingOldWorkouts.isNotEmpty) {
+      final migrationLogs = <ExerciseLog>[];
+      final exerciseNames = {
+        'shoulderPress': l10n.get('shoulderPress'),
+        'lateralRaise': l10n.get('lateralRaise'),
+        'frontRaise': l10n.get('frontRaise'),
+        'reverseFly': l10n.get('reverseFly'),
+        'shrugs': l10n.get('shrugs'),
+      };
 
-        for (final entry in oldWorkouts.entries) {
-          final exerciseName = exerciseNames[entry.key] ?? entry.key;
-          migrationLogs.add(ExerciseLog(
-            exerciseId: entry.key,
-            exerciseName: exerciseName,
-            setNumber: 1,
-            reps: entry.value,
-            weight: 0,
-            timestamp: DateTime.now(),
-          ));
-        }
-
-        if (migrationLogs.isNotEmpty) {
-          final migrationSession = WorkoutSession(
-            id: 'migrated_${DateTime.now().millisecondsSinceEpoch}',
-            templateId: shoulderTemplate.id,
-            templateName: 'Shoulder Workout (Previous Data)',
-            startTime: DateTime.now().subtract(const Duration(minutes: 30)),
-            endTime: DateTime.now(),
-            durationSeconds: 1800,
-            logs: migrationLogs,
-          );
-          setState(() {
-            history.insert(0, migrationSession);
-          });
-          await _saveHistory();
-        }
-
-        // Clear old data format after migration
-        await prefs.remove('workouts');
+      for (final entry in _pendingOldWorkouts.entries) {
+        final exerciseName = exerciseNames[entry.key] ?? entry.key;
+        migrationLogs.add(ExerciseLog(
+          exerciseId: entry.key,
+          exerciseName: exerciseName,
+          setNumber: 1,
+          reps: entry.value,
+          weight: 0,
+          timestamp: DateTime.now(),
+        ));
       }
+
+      if (migrationLogs.isNotEmpty) {
+        final defaultTemplate = templates.firstWhere(
+          (t) => t.id == defaultTemplateId,
+          orElse: () => _createDefaultShoulderTemplate(l10n),
+        );
+        final migrationSession = WorkoutSession(
+          id: 'migrated_${DateTime.now().millisecondsSinceEpoch}',
+          templateId: defaultTemplate.id,
+          templateName:
+              '${l10n.get('shoulderWorkoutTemplate')} (${l10n.get('previousData')})',
+          startTime: DateTime.now().subtract(const Duration(minutes: 30)),
+          endTime: DateTime.now(),
+          durationSeconds: 1800,
+          logs: migrationLogs,
+        );
+        setState(() {
+          history.insert(0, migrationSession);
+        });
+        await _saveHistory();
+      }
+
+      // Clear old data format after migration
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('workouts');
+      _pendingOldWorkouts = {};
     }
   }
 
   /// Creates the default Shoulder Workout template with the 5 original exercises
-  WorkoutTemplate _createDefaultShoulderTemplate() {
+  WorkoutTemplate _createDefaultShoulderTemplate(AppLocalizations l10n) {
     return WorkoutTemplate(
       id: 'default_shoulder_workout',
-      name: 'Shoulder Workout',
-      description: 'Yellow Band (Lightest) - 5 shoulder exercises',
+      name: l10n.get('shoulderWorkoutTemplate'),
+      description: l10n.get('shoulderWorkoutTemplateDesc'),
       exercises: [
         TemplateExercise(
-          exercise: const Exercise(
+          exercise: Exercise(
             id: 'shoulderPress',
-            name: 'Shoulder Press',
-            description: 'Stand on band, press handles overhead',
+            name: l10n.get('shoulderPress'),
+            description: l10n.get('shoulderPressDesc'),
             iconCodePoint: 0xe5d8, // arrow_upward
           ),
           targetReps: 10,
           sets: 3,
         ),
         TemplateExercise(
-          exercise: const Exercise(
+          exercise: Exercise(
             id: 'lateralRaise',
-            name: 'Lateral Raise',
-            description: 'Stand on band, raise arms to sides',
+            name: l10n.get('lateralRaise'),
+            description: l10n.get('lateralRaiseDesc'),
             iconCodePoint: 0xe89f, // open_with
           ),
           targetReps: 10,
           sets: 3,
         ),
         TemplateExercise(
-          exercise: const Exercise(
+          exercise: Exercise(
             id: 'frontRaise',
-            name: 'Front Raise',
-            description: 'Stand on band, raise arms forward',
+            name: l10n.get('frontRaise'),
+            description: l10n.get('frontRaiseDesc'),
             iconCodePoint: 0xe5c8, // arrow_forward
           ),
           targetReps: 10,
           sets: 3,
         ),
         TemplateExercise(
-          exercise: const Exercise(
+          exercise: Exercise(
             id: 'reverseFly',
-            name: 'Reverse Fly',
-            description: 'Bend forward, pull band apart',
+            name: l10n.get('reverseFly'),
+            description: l10n.get('reverseFlyDesc'),
             iconCodePoint: 0xe915, // compare_arrows
           ),
           targetReps: 10,
           sets: 3,
         ),
         TemplateExercise(
-          exercise: const Exercise(
+          exercise: Exercise(
             id: 'shrugs',
-            name: 'Shrugs',
-            description: 'Stand on band, lift shoulders up',
+            name: l10n.get('shrugs'),
+            description: l10n.get('shrugsDesc'),
             iconCodePoint: 0xf579, // keyboard_double_arrow_up
           ),
           targetReps: 10,

@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:share_plus/share_plus.dart';
 import 'l10n/app_localizations.dart';
 
 void main() {
@@ -21,7 +20,6 @@ class WorkoutTrackerApp extends StatelessWidget {
     return MaterialApp(
       title: 'Workout Tracker',
       debugShowCheckedModeBanner: false,
-      // Localization support
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -35,7 +33,6 @@ class WorkoutTrackerApp extends StatelessWidget {
           brightness: Brightness.light,
         ),
         useMaterial3: true,
-        // Large text for elderly users
         textTheme: const TextTheme(
           headlineLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
           headlineMedium: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
@@ -44,123 +41,232 @@ class WorkoutTrackerApp extends StatelessWidget {
           labelLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
       ),
-      home: const WorkoutHomePage(),
+      home: const MainNavigationPage(),
     );
   }
 }
 
-// Exercise model that supports both default and custom exercises
+// ============== DATA MODELS ==============
+
+/// Individual exercise definition
 class Exercise {
   final String id;
-  final String nameKey;
-  final String descriptionKey;
-  final IconData icon;
-  final bool isCustom;
-  final String? customName;
-  final String? customDescription;
+  final String name;
+  final String? description;
+  final int iconCodePoint;
 
   const Exercise({
     required this.id,
-    required this.nameKey,
-    required this.descriptionKey,
-    required this.icon,
-    this.isCustom = false,
-    this.customName,
-    this.customDescription,
+    required this.name,
+    this.description,
+    this.iconCodePoint = 0xe1a3, // fitness_center
   });
 
-  String getName(AppLocalizations l10n) {
-    if (isCustom && customName != null) {
-      return customName!;
-    }
-    return l10n.get(nameKey);
-  }
+  IconData get icon => IconData(iconCodePoint, fontFamily: 'MaterialIcons');
 
-  String getDescription(AppLocalizations l10n) {
-    if (isCustom && customDescription != null) {
-      return customDescription!;
-    }
-    return l10n.get(descriptionKey);
-  }
-
-  // Convert to JSON for storage
   Map<String, dynamic> toJson() => {
         'id': id,
-        'nameKey': nameKey,
-        'descriptionKey': descriptionKey,
-        'iconCodePoint': icon.codePoint,
-        'isCustom': isCustom,
-        'customName': customName,
-        'customDescription': customDescription,
+        'name': name,
+        'description': description,
+        'iconCodePoint': iconCodePoint,
       };
 
-  // Create from JSON
   factory Exercise.fromJson(Map<String, dynamic> json) => Exercise(
         id: json['id'] as String,
-        nameKey: json['nameKey'] as String,
-        descriptionKey: json['descriptionKey'] as String,
-        icon: IconData(json['iconCodePoint'] as int, fontFamily: 'MaterialIcons'),
-        isCustom: json['isCustom'] as bool? ?? false,
-        customName: json['customName'] as String?,
-        customDescription: json['customDescription'] as String?,
+        name: json['name'] as String,
+        description: json['description'] as String?,
+        iconCodePoint: json['iconCodePoint'] as int? ?? 0xe1a3,
       );
 
-  // Copy with modifications
   Exercise copyWith({
     String? id,
-    String? nameKey,
-    String? descriptionKey,
-    IconData? icon,
-    bool? isCustom,
-    String? customName,
-    String? customDescription,
+    String? name,
+    String? description,
+    int? iconCodePoint,
   }) =>
       Exercise(
         id: id ?? this.id,
-        nameKey: nameKey ?? this.nameKey,
-        descriptionKey: descriptionKey ?? this.descriptionKey,
-        icon: icon ?? this.icon,
-        isCustom: isCustom ?? this.isCustom,
-        customName: customName ?? this.customName,
-        customDescription: customDescription ?? this.customDescription,
+        name: name ?? this.name,
+        description: description ?? this.description,
+        iconCodePoint: iconCodePoint ?? this.iconCodePoint,
       );
 }
 
-// Default shoulder exercises for yellow (lightest) resistance band
-const List<Exercise> defaultExercises = [
-  Exercise(
-    id: 'shoulderPress',
-    nameKey: 'shoulderPress',
-    descriptionKey: 'shoulderPressDesc',
-    icon: Icons.arrow_upward,
-  ),
-  Exercise(
-    id: 'lateralRaise',
-    nameKey: 'lateralRaise',
-    descriptionKey: 'lateralRaiseDesc',
-    icon: Icons.open_with,
-  ),
-  Exercise(
-    id: 'frontRaise',
-    nameKey: 'frontRaise',
-    descriptionKey: 'frontRaiseDesc',
-    icon: Icons.arrow_forward,
-  ),
-  Exercise(
-    id: 'reverseFly',
-    nameKey: 'reverseFly',
-    descriptionKey: 'reverseFlyDesc',
-    icon: Icons.compare_arrows,
-  ),
-  Exercise(
-    id: 'shrugs',
-    nameKey: 'shrugs',
-    descriptionKey: 'shrugsDesc',
-    icon: Icons.keyboard_double_arrow_up,
-  ),
-];
+/// Exercise within a template with target reps/weight
+class TemplateExercise {
+  final Exercise exercise;
+  final int targetReps;
+  final double targetWeight;
+  final int sets;
 
-// Available icons for custom exercises
+  const TemplateExercise({
+    required this.exercise,
+    this.targetReps = 10,
+    this.targetWeight = 0,
+    this.sets = 3,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'exercise': exercise.toJson(),
+        'targetReps': targetReps,
+        'targetWeight': targetWeight,
+        'sets': sets,
+      };
+
+  factory TemplateExercise.fromJson(Map<String, dynamic> json) =>
+      TemplateExercise(
+        exercise: Exercise.fromJson(json['exercise'] as Map<String, dynamic>),
+        targetReps: json['targetReps'] as int? ?? 10,
+        targetWeight: (json['targetWeight'] as num?)?.toDouble() ?? 0,
+        sets: json['sets'] as int? ?? 3,
+      );
+
+  TemplateExercise copyWith({
+    Exercise? exercise,
+    int? targetReps,
+    double? targetWeight,
+    int? sets,
+  }) =>
+      TemplateExercise(
+        exercise: exercise ?? this.exercise,
+        targetReps: targetReps ?? this.targetReps,
+        targetWeight: targetWeight ?? this.targetWeight,
+        sets: sets ?? this.sets,
+      );
+}
+
+/// Workout template containing multiple exercises
+class WorkoutTemplate {
+  final String id;
+  final String name;
+  final String? description;
+  final List<TemplateExercise> exercises;
+  final DateTime createdAt;
+
+  const WorkoutTemplate({
+    required this.id,
+    required this.name,
+    this.description,
+    required this.exercises,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'exercises': exercises.map((e) => e.toJson()).toList(),
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  factory WorkoutTemplate.fromJson(Map<String, dynamic> json) =>
+      WorkoutTemplate(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        description: json['description'] as String?,
+        exercises: (json['exercises'] as List<dynamic>)
+            .map((e) => TemplateExercise.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        createdAt: DateTime.parse(json['createdAt'] as String),
+      );
+
+  WorkoutTemplate copyWith({
+    String? id,
+    String? name,
+    String? description,
+    List<TemplateExercise>? exercises,
+    DateTime? createdAt,
+  }) =>
+      WorkoutTemplate(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        description: description ?? this.description,
+        exercises: exercises ?? this.exercises,
+        createdAt: createdAt ?? this.createdAt,
+      );
+}
+
+/// Logged set during a workout
+class ExerciseLog {
+  final String exerciseId;
+  final String exerciseName;
+  final int setNumber;
+  final int reps;
+  final double weight;
+  final DateTime timestamp;
+
+  const ExerciseLog({
+    required this.exerciseId,
+    required this.exerciseName,
+    required this.setNumber,
+    required this.reps,
+    required this.weight,
+    required this.timestamp,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'exerciseId': exerciseId,
+        'exerciseName': exerciseName,
+        'setNumber': setNumber,
+        'reps': reps,
+        'weight': weight,
+        'timestamp': timestamp.toIso8601String(),
+      };
+
+  factory ExerciseLog.fromJson(Map<String, dynamic> json) => ExerciseLog(
+        exerciseId: json['exerciseId'] as String,
+        exerciseName: json['exerciseName'] as String,
+        setNumber: json['setNumber'] as int,
+        reps: json['reps'] as int,
+        weight: (json['weight'] as num).toDouble(),
+        timestamp: DateTime.parse(json['timestamp'] as String),
+      );
+}
+
+/// Completed workout session
+class WorkoutSession {
+  final String id;
+  final String templateId;
+  final String templateName;
+  final DateTime startTime;
+  final DateTime endTime;
+  final int durationSeconds;
+  final List<ExerciseLog> logs;
+
+  const WorkoutSession({
+    required this.id,
+    required this.templateId,
+    required this.templateName,
+    required this.startTime,
+    required this.endTime,
+    required this.durationSeconds,
+    required this.logs,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'templateId': templateId,
+        'templateName': templateName,
+        'startTime': startTime.toIso8601String(),
+        'endTime': endTime.toIso8601String(),
+        'durationSeconds': durationSeconds,
+        'logs': logs.map((l) => l.toJson()).toList(),
+      };
+
+  factory WorkoutSession.fromJson(Map<String, dynamic> json) => WorkoutSession(
+        id: json['id'] as String,
+        templateId: json['templateId'] as String,
+        templateName: json['templateName'] as String,
+        startTime: DateTime.parse(json['startTime'] as String),
+        endTime: DateTime.parse(json['endTime'] as String),
+        durationSeconds: json['durationSeconds'] as int,
+        logs: (json['logs'] as List<dynamic>)
+            .map((l) => ExerciseLog.fromJson(l as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
+// Available icons for exercises
 const List<IconData> exerciseIcons = [
   Icons.fitness_center,
   Icons.sports_gymnastics,
@@ -176,386 +282,320 @@ const List<IconData> exerciseIcons = [
   Icons.pan_tool,
 ];
 
-class WorkoutHomePage extends StatefulWidget {
-  const WorkoutHomePage({super.key});
+// ============== MAIN NAVIGATION ==============
+
+class MainNavigationPage extends StatefulWidget {
+  const MainNavigationPage({super.key});
 
   @override
-  State<WorkoutHomePage> createState() => _WorkoutHomePageState();
+  State<MainNavigationPage> createState() => _MainNavigationPageState();
 }
 
-class _WorkoutHomePageState extends State<WorkoutHomePage> {
-  Exercise? selectedExercise;
-  int reps = 0;
-  Map<String, int> savedWorkouts = {};
-
-  // Custom exercises
-  List<Exercise> customExercises = [];
-
-  // All exercises (default + custom)
-  List<Exercise> get allExercises => [...defaultExercises, ...customExercises];
-
-  // Timer state
-  int timerSeconds = 60;
-  Timer? restTimer;
-  bool isTimerRunning = false;
-
-  // Audio player
-  final AudioPlayer audioPlayer = AudioPlayer();
+class _MainNavigationPageState extends State<MainNavigationPage> {
+  int _currentIndex = 0;
+  List<WorkoutTemplate> templates = [];
+  List<WorkoutSession> history = [];
 
   @override
   void initState() {
     super.initState();
-    _loadSavedWorkouts();
-    _loadCustomExercises();
+    _loadData();
   }
 
-  @override
-  void dispose() {
-    restTimer?.cancel();
-    audioPlayer.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadSavedWorkouts() async {
+  Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? workoutsJson = prefs.getString('workouts');
-    if (workoutsJson != null) {
+
+    // Load templates
+    final templatesJson = prefs.getString('workout_templates');
+    if (templatesJson != null) {
+      final List<dynamic> decoded = jsonDecode(templatesJson);
       setState(() {
-        savedWorkouts = Map<String, int>.from(jsonDecode(workoutsJson));
+        templates = decoded
+            .map((e) => WorkoutTemplate.fromJson(e as Map<String, dynamic>))
+            .toList();
       });
     }
-  }
 
-  Future<void> _loadCustomExercises() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? exercisesJson = prefs.getString('customExercises');
-    if (exercisesJson != null) {
-      final List<dynamic> decoded = jsonDecode(exercisesJson);
+    // Load history
+    final historyJson = prefs.getString('workout_history');
+    if (historyJson != null) {
+      final List<dynamic> decoded = jsonDecode(historyJson);
       setState(() {
-        customExercises = decoded
-            .map((e) => Exercise.fromJson(e as Map<String, dynamic>))
+        history = decoded
+            .map((e) => WorkoutSession.fromJson(e as Map<String, dynamic>))
             .toList();
       });
     }
   }
 
-  Future<void> _saveCustomExercises() async {
+  Future<void> _saveTemplates() async {
     final prefs = await SharedPreferences.getInstance();
-    final String encoded = jsonEncode(customExercises.map((e) => e.toJson()).toList());
-    await prefs.setString('customExercises', encoded);
-  }
-
-  void _showAddExerciseDialog() {
-    final l10n = AppLocalizations.of(context)!;
-    final nameController = TextEditingController();
-    final descController = TextEditingController();
-    IconData selectedIcon = exerciseIcons.first;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Semantics(
-            header: true,
-            child: Text(
-              l10n.get('addExercise'),
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Exercise name input
-                TextField(
-                  controller: nameController,
-                  style: const TextStyle(fontSize: 20),
-                  decoration: InputDecoration(
-                    labelText: l10n.get('exerciseName'),
-                    hintText: l10n.get('exerciseNameHint'),
-                    labelStyle: const TextStyle(fontSize: 18),
-                    hintStyle: const TextStyle(fontSize: 16),
-                    border: const OutlineInputBorder(),
-                    contentPadding: const EdgeInsets.all(16),
-                  ),
-                  textCapitalization: TextCapitalization.words,
-                ),
-                const SizedBox(height: 16),
-                // Description input
-                TextField(
-                  controller: descController,
-                  style: const TextStyle(fontSize: 18),
-                  decoration: InputDecoration(
-                    labelText: l10n.get('exerciseDescription'),
-                    hintText: l10n.get('exerciseDescHint'),
-                    labelStyle: const TextStyle(fontSize: 18),
-                    hintStyle: const TextStyle(fontSize: 16),
-                    border: const OutlineInputBorder(),
-                    contentPadding: const EdgeInsets.all(16),
-                  ),
-                  maxLines: 2,
-                  textCapitalization: TextCapitalization.sentences,
-                ),
-                const SizedBox(height: 20),
-                // Icon picker
-                Text(
-                  l10n.get('chooseIcon'),
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: exerciseIcons.map((icon) {
-                    final isSelected = icon == selectedIcon;
-                    return Semantics(
-                      button: true,
-                      selected: isSelected,
-                      label: 'Exercise icon',
-                      child: InkWell(
-                        onTap: () => setDialogState(() => selectedIcon = icon),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: isSelected ? Colors.amber.shade200 : Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSelected ? Colors.amber.shade600 : Colors.grey.shade300,
-                              width: isSelected ? 3 : 1,
-                            ),
-                          ),
-                          child: Icon(icon, size: 28, color: Colors.amber.shade800),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(l10n.cancel, style: const TextStyle(fontSize: 18)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        l10n.get('enterExerciseName'),
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                  return;
-                }
-                final newExercise = Exercise(
-                  id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
-                  nameKey: 'custom',
-                  descriptionKey: 'custom',
-                  icon: selectedIcon,
-                  isCustom: true,
-                  customName: nameController.text.trim(),
-                  customDescription: descController.text.trim().isEmpty
-                      ? null
-                      : descController.text.trim(),
-                );
-                setState(() {
-                  customExercises.add(newExercise);
-                });
-                _saveCustomExercises();
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      l10n.get('exerciseAdded'),
-                      style: const TextStyle(fontSize: 18),
-                    ),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-              child: Text(l10n.get('add'), style: const TextStyle(fontSize: 18)),
-            ),
-          ],
-        ),
-      ),
+    await prefs.setString(
+      'workout_templates',
+      jsonEncode(templates.map((t) => t.toJson()).toList()),
     );
   }
 
-  void _showEditExerciseDialog(Exercise exercise) {
-    final l10n = AppLocalizations.of(context)!;
-    final nameController = TextEditingController(text: exercise.customName ?? '');
-    final descController = TextEditingController(text: exercise.customDescription ?? '');
-    IconData selectedIcon = exercise.icon;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Semantics(
-            header: true,
-            child: Text(
-              l10n.get('editExercise'),
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: nameController,
-                  style: const TextStyle(fontSize: 20),
-                  decoration: InputDecoration(
-                    labelText: l10n.get('exerciseName'),
-                    labelStyle: const TextStyle(fontSize: 18),
-                    border: const OutlineInputBorder(),
-                    contentPadding: const EdgeInsets.all(16),
-                  ),
-                  textCapitalization: TextCapitalization.words,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descController,
-                  style: const TextStyle(fontSize: 18),
-                  decoration: InputDecoration(
-                    labelText: l10n.get('exerciseDescription'),
-                    labelStyle: const TextStyle(fontSize: 18),
-                    border: const OutlineInputBorder(),
-                    contentPadding: const EdgeInsets.all(16),
-                  ),
-                  maxLines: 2,
-                  textCapitalization: TextCapitalization.sentences,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  l10n.get('chooseIcon'),
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: exerciseIcons.map((icon) {
-                    final isSelected = icon == selectedIcon;
-                    return InkWell(
-                      onTap: () => setDialogState(() => selectedIcon = icon),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: isSelected ? Colors.amber.shade200 : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isSelected ? Colors.amber.shade600 : Colors.grey.shade300,
-                            width: isSelected ? 3 : 1,
-                          ),
-                        ),
-                        child: Icon(icon, size: 28, color: Colors.amber.shade800),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(l10n.cancel, style: const TextStyle(fontSize: 18)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        l10n.get('enterExerciseName'),
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                  return;
-                }
-                final index = customExercises.indexWhere((e) => e.id == exercise.id);
-                if (index != -1) {
-                  setState(() {
-                    customExercises[index] = exercise.copyWith(
-                      icon: selectedIcon,
-                      customName: nameController.text.trim(),
-                      customDescription: descController.text.trim().isEmpty
-                          ? null
-                          : descController.text.trim(),
-                    );
-                    // Update selected exercise if it was being edited
-                    if (selectedExercise?.id == exercise.id) {
-                      selectedExercise = customExercises[index];
-                    }
-                  });
-                  _saveCustomExercises();
-                }
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      l10n.get('exerciseUpdated'),
-                      style: const TextStyle(fontSize: 18),
-                    ),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-              child: Text(l10n.get('save'), style: const TextStyle(fontSize: 18)),
-            ),
-          ],
-        ),
-      ),
+  Future<void> _saveHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'workout_history',
+      jsonEncode(history.map((h) => h.toJson()).toList()),
     );
   }
 
-  Future<void> _deleteExercise(Exercise exercise) async {
+  void _addTemplate(WorkoutTemplate template) {
+    setState(() {
+      templates.add(template);
+    });
+    _saveTemplates();
+  }
+
+  void _updateTemplate(WorkoutTemplate template) {
+    setState(() {
+      final index = templates.indexWhere((t) => t.id == template.id);
+      if (index != -1) {
+        templates[index] = template;
+      }
+    });
+    _saveTemplates();
+  }
+
+  void _deleteTemplate(String id) {
+    setState(() {
+      templates.removeWhere((t) => t.id == id);
+    });
+    _saveTemplates();
+  }
+
+  void _addSession(WorkoutSession session) {
+    setState(() {
+      history.insert(0, session);
+    });
+    _saveHistory();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
+
+    final pages = [
+      TemplatesPage(
+        templates: templates,
+        onAddTemplate: _addTemplate,
+        onUpdateTemplate: _updateTemplate,
+        onDeleteTemplate: _deleteTemplate,
+        onStartWorkout: (template) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ActiveWorkoutPage(
+                template: template,
+                onComplete: _addSession,
+              ),
+            ),
+          );
+        },
+      ),
+      HistoryPage(history: history),
+      StatisticsPage(history: history),
+    ];
+
+    return Scaffold(
+      body: pages[_currentIndex],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        height: 80,
+        destinations: [
+          NavigationDestination(
+            icon: const Icon(Icons.fitness_center, size: 28),
+            selectedIcon: Icon(Icons.fitness_center, size: 28, color: Colors.amber.shade700),
+            label: l10n.get('workouts'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.history, size: 28),
+            selectedIcon: Icon(Icons.history, size: 28, color: Colors.amber.shade700),
+            label: l10n.get('history'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.bar_chart, size: 28),
+            selectedIcon: Icon(Icons.bar_chart, size: 28, color: Colors.amber.shade700),
+            label: l10n.get('statistics'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============== TEMPLATES PAGE ==============
+
+class TemplatesPage extends StatelessWidget {
+  final List<WorkoutTemplate> templates;
+  final Function(WorkoutTemplate) onAddTemplate;
+  final Function(WorkoutTemplate) onUpdateTemplate;
+  final Function(String) onDeleteTemplate;
+  final Function(WorkoutTemplate) onStartWorkout;
+
+  const TemplatesPage({
+    super.key,
+    required this.templates,
+    required this.onAddTemplate,
+    required this.onUpdateTemplate,
+    required this.onDeleteTemplate,
+    required this.onStartWorkout,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return Scaffold(
+      backgroundColor: Colors.amber.shade50,
+      appBar: AppBar(
+        backgroundColor: Colors.amber.shade300,
         title: Semantics(
           header: true,
           child: Text(
-            l10n.get('confirmDeleteExercise'),
-            style: const TextStyle(fontSize: 22),
+            l10n.get('myWorkouts'),
+            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
           ),
         ),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            onPressed: () => _showAboutDialog(context, l10n),
+            icon: const Icon(Icons.info_outline, size: 28),
+            tooltip: l10n.aboutAndDisclaimer,
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: templates.isEmpty
+            ? _buildEmptyState(context, l10n)
+            : _buildTemplateList(context, l10n),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showCreateTemplateDialog(context, l10n),
+        backgroundColor: Colors.amber.shade600,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add, size: 28),
+        label: Text(
+          l10n.get('newWorkout'),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context, AppLocalizations l10n) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.fitness_center,
+              size: 80,
+              color: Colors.amber.shade300,
+            ),
+            const SizedBox(height: 24),
+            Text(
+              l10n.get('noWorkoutsYet'),
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              l10n.get('tapToCreateFirst'),
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey.shade600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTemplateList(BuildContext context, AppLocalizations l10n) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: templates.length,
+      itemBuilder: (context, index) {
+        final template = templates[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: _TemplateCard(
+            template: template,
+            onTap: () => onStartWorkout(template),
+            onEdit: () => _showEditTemplateDialog(context, l10n, template),
+            onDelete: () => _confirmDelete(context, l10n, template),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showCreateTemplateDialog(BuildContext context, AppLocalizations l10n) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TemplateEditorPage(
+          onSave: onAddTemplate,
+        ),
+      ),
+    );
+  }
+
+  void _showEditTemplateDialog(
+      BuildContext context, AppLocalizations l10n, WorkoutTemplate template) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TemplateEditorPage(
+          template: template,
+          onSave: onUpdateTemplate,
+        ),
+      ),
+    );
+  }
+
+  void _confirmDelete(
+      BuildContext context, AppLocalizations l10n, WorkoutTemplate template) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          l10n.get('deleteWorkout'),
+          style: const TextStyle(fontSize: 22),
+        ),
         content: Text(
-          l10n.get('deleteExerciseWarning'),
+          '${l10n.get('deleteWorkoutConfirm')} "${template.name}"?',
           style: const TextStyle(fontSize: 18),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(context),
             child: Text(l10n.cancel, style: const TextStyle(fontSize: 18)),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              Navigator.pop(context);
+              onDeleteTemplate(template.id);
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
@@ -565,323 +605,23 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
         ],
       ),
     );
-
-    if (confirmed == true) {
-      setState(() {
-        customExercises.removeWhere((e) => e.id == exercise.id);
-        // Clear selection if deleted exercise was selected
-        if (selectedExercise?.id == exercise.id) {
-          selectedExercise = null;
-          reps = 0;
-        }
-      });
-      _saveCustomExercises();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              l10n.get('exerciseDeleted'),
-              style: const TextStyle(fontSize: 18),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 
-  Future<void> _saveWorkout() async {
-    if (selectedExercise == null || reps <= 0) return;
-
-    final l10n = AppLocalizations.of(context)!;
-    final prefs = await SharedPreferences.getInstance();
-    savedWorkouts[selectedExercise!.id] = reps;
-    await prefs.setString('workouts', jsonEncode(savedWorkouts));
-
-    if (mounted) {
-      final exerciseName = selectedExercise!.getName(l10n);
-      // Announce to screen reader
-      SemanticsService.announce(
-        '${l10n.get('saved')} $exerciseName $reps ${l10n.reps}. ${l10n.get('restTimerStarted')}',
-        TextDirection.ltr,
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${l10n.get('saved')}: $exerciseName - $reps ${l10n.reps}',
-            style: const TextStyle(fontSize: 18),
-          ),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-
-      // Start the 1-minute rest timer
-      _startRestTimer();
-    }
-  }
-
-  void _startRestTimer() {
-    restTimer?.cancel();
-    setState(() {
-      timerSeconds = 60;
-      isTimerRunning = true;
-    });
-
-    restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        if (timerSeconds > 0) {
-          timerSeconds--;
-          // Announce every 15 seconds for screen readers
-          if (timerSeconds == 45 || timerSeconds == 30 || timerSeconds == 15) {
-            SemanticsService.announce(
-              '$timerSeconds seconds remaining',
-              TextDirection.ltr,
-            );
-          }
-          // Announce last 5 seconds
-          if (timerSeconds <= 5 && timerSeconds > 0) {
-            SemanticsService.announce('$timerSeconds', TextDirection.ltr);
-          }
-        } else {
-          timer.cancel();
-          isTimerRunning = false;
-          _playTimerSound();
-        }
-      });
-    });
-  }
-
-  void _stopTimer() {
-    final l10n = AppLocalizations.of(context)!;
-    restTimer?.cancel();
-    setState(() {
-      isTimerRunning = false;
-      timerSeconds = 60;
-    });
-    SemanticsService.announce(l10n.get('timerStopped'), TextDirection.ltr);
-  }
-
-  Future<void> _playTimerSound() async {
-    final l10n = AppLocalizations.of(context)!;
-    // Announce to screen reader
-    SemanticsService.announce(
-      '${l10n.restTimeOver} ${l10n.timeForNextSet}',
-      TextDirection.ltr,
-    );
-
-    try {
-      // Play local beep sound (no internet permission needed)
-      await audioPlayer.play(AssetSource('audio/timer_beep.wav'));
-
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Semantics(
-              header: true,
-              child: Text(
-                l10n.restTimeOver,
-                style: const TextStyle(fontSize: 28),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            content: Text(
-              l10n.timeForNextSet,
-              style: const TextStyle(fontSize: 22),
-              textAlign: TextAlign.center,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(l10n.ok, style: const TextStyle(fontSize: 22)),
-              ),
-            ],
-          ),
-        );
-      }
-    } catch (e) {
-      // If sound fails, just show the dialog
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Semantics(
-              header: true,
-              child: Text(
-                l10n.restTimeOver,
-                style: const TextStyle(fontSize: 28),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            content: Text(
-              l10n.timeForNextSet,
-              style: const TextStyle(fontSize: 22),
-              textAlign: TextAlign.center,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(l10n.ok, style: const TextStyle(fontSize: 22)),
-              ),
-            ],
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _exportData() async {
-    final l10n = AppLocalizations.of(context)!;
-    if (savedWorkouts.isEmpty) {
-      if (mounted) {
-        SemanticsService.announce(
-          l10n.get('noDataToExport'),
-          TextDirection.ltr,
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              l10n.get('noDataToExport'),
-              style: const TextStyle(fontSize: 18),
-            ),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-      return;
-    }
-
-    // Create a readable text summary
-    final buffer = StringBuffer();
-    buffer.writeln('${l10n.appTitle} - Export');
-    buffer.writeln('Date: ${DateTime.now().toString().split('.')[0]}');
-    buffer.writeln('');
-    buffer.writeln('${l10n.yellowBand} - ${l10n.shoulderWorkout}:');
-    buffer.writeln('─' * 40);
-
-    for (final entry in savedWorkouts.entries) {
-      buffer.writeln('${entry.key}: ${entry.value} ${l10n.reps}');
-    }
-
-    buffer.writeln('');
-    buffer.writeln('Keep up the great work!');
-
-    final exportText = buffer.toString();
-
-    try {
-      await Share.share(exportText, subject: l10n.appTitle);
-      SemanticsService.announce(l10n.get('sharingData'), TextDirection.ltr);
-    } catch (e) {
-      // Fallback: copy to clipboard
-      await Clipboard.setData(ClipboardData(text: exportText));
-      if (mounted) {
-        SemanticsService.announce(
-          l10n.get('copiedToClipboard'),
-          TextDirection.ltr,
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              l10n.get('copiedToClipboard'),
-              style: const TextStyle(fontSize: 18),
-            ),
-            backgroundColor: Colors.blue,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _deleteAllData() async {
-    final l10n = AppLocalizations.of(context)!;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Semantics(
-          header: true,
-          child: Text(
-            l10n.get('deleteAllData'),
-            style: const TextStyle(fontSize: 24),
-          ),
-        ),
-        content: Text(
-          l10n.get('deleteWarning'),
-          style: const TextStyle(fontSize: 18),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.cancel, style: const TextStyle(fontSize: 20)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: Text(l10n.deleteAll, style: const TextStyle(fontSize: 20)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('workouts');
-
-      setState(() {
-        savedWorkouts.clear();
-        selectedExercise = null;
-        reps = 0;
-      });
-
-      if (mounted) {
-        SemanticsService.announce(
-          l10n.get('allDataDeleted'),
-          TextDirection.ltr,
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              l10n.get('allDataDeleted'),
-              style: const TextStyle(fontSize: 18),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _showAboutAndDisclaimer() {
-    final l10n = AppLocalizations.of(context)!;
+  void _showAboutDialog(BuildContext context, AppLocalizations l10n) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Semantics(
-          header: true,
-          child: Row(
-            children: [
-              const Icon(
-                Icons.info_outline,
-                size: 32,
-                color: Colors.amber,
-                semanticLabel: 'Information',
+        title: Row(
+          children: [
+            const Icon(Icons.info_outline, size: 32, color: Colors.amber),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                l10n.aboutAndDisclaimer,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  l10n.aboutAndDisclaimer,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -890,10 +630,7 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
             children: [
               Text(
                 l10n.appTitle,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
@@ -901,165 +638,61 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
                 style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
               ),
               const SizedBox(height: 20),
-              Semantics(
-                container: true,
-                label: l10n.get('importantDisclaimers'),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.orange.shade300),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.get('importantDisclaimers'),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.deepOrange,
-                        ),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.get('importantDisclaimers'),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.deepOrange,
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '• ${l10n.get('disclaimer1')}',
-                        style: const TextStyle(fontSize: 15),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '• ${l10n.get('disclaimer2')}',
-                        style: const TextStyle(fontSize: 15),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '• ${l10n.get('disclaimer3')}',
-                        style: const TextStyle(fontSize: 15),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '• ${l10n.get('disclaimer4')}',
-                        style: const TextStyle(fontSize: 15),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text('• ${l10n.get('disclaimer1')}', style: const TextStyle(fontSize: 15)),
+                    const SizedBox(height: 8),
+                    Text('• ${l10n.get('disclaimer2')}', style: const TextStyle(fontSize: 15)),
+                    const SizedBox(height: 8),
+                    Text('• ${l10n.get('disclaimer3')}', style: const TextStyle(fontSize: 15)),
+                    const SizedBox(height: 8),
+                    Text('• ${l10n.get('disclaimer4')}', style: const TextStyle(fontSize: 15)),
+                  ],
                 ),
               ),
-              const SizedBox(height: 20),
-              Semantics(
-                container: true,
-                label: l10n.get('yourPrivacy'),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green.shade300),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.get('yourPrivacy'),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '• ${l10n.get('privacy1')}',
-                        style: const TextStyle(fontSize: 15),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '• ${l10n.get('privacy2')}',
-                        style: const TextStyle(fontSize: 15),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '• ${l10n.get('privacy3')}',
-                        style: const TextStyle(fontSize: 15),
-                      ),
-                    ],
-                  ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade300),
                 ),
-              ),
-              const SizedBox(height: 20),
-              // License section
-              Semantics(
-                container: true,
-                label: l10n.get('openSource'),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blue.shade300),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.get('openSource'),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                        ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.get('yourPrivacy'),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '• ${l10n.get('licensedUnderMIT')}',
-                        style: const TextStyle(fontSize: 15),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '• ${l10n.get('version')} 1.0.1',
-                        style: const TextStyle(fontSize: 15),
-                      ),
-                      const SizedBox(height: 12),
-                      // View licenses button
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            showLicensePage(
-                              context: context,
-                              applicationName: l10n.appTitle,
-                              applicationVersion: '1.0.1',
-                              applicationLegalese:
-                                  '© 2026 Allan Chiang\n${l10n.get('licensedUnderMIT')}',
-                            );
-                          },
-                          icon: const Icon(Icons.description_outlined),
-                          label: Text(l10n.get('viewLicenses')),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.blue.shade700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                l10n.get('contact'),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Semantics(
-                label: 'Contact email: allanchiangviolin@gmail.com',
-                child: const SelectableText(
-                  'allanchiangviolin@gmail.com',
-                  style: TextStyle(fontSize: 16, color: Colors.blue),
+                    ),
+                    const SizedBox(height: 12),
+                    Text('• ${l10n.get('privacy1')}', style: const TextStyle(fontSize: 15)),
+                    const SizedBox(height: 8),
+                    Text('• ${l10n.get('privacy2')}', style: const TextStyle(fontSize: 15)),
+                    const SizedBox(height: 8),
+                    Text('• ${l10n.get('privacy3')}', style: const TextStyle(fontSize: 15)),
+                  ],
                 ),
               ),
             ],
@@ -1074,6 +707,1027 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
       ),
     );
   }
+}
+
+class _TemplateCard extends StatelessWidget {
+  final WorkoutTemplate template;
+  final VoidCallback onTap;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _TemplateCard({
+    required this.template,
+    required this.onTap,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return Semantics(
+      button: true,
+      label: '${template.name}, ${template.exercises.length} ${l10n.get('exercises')}',
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        elevation: 3,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade100,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.fitness_center,
+                        size: 32,
+                        color: Colors.amber.shade800,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            template.name,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${template.exercises.length} ${l10n.get('exercises')}',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: onEdit,
+                      icon: Icon(Icons.edit, color: Colors.blue.shade600, size: 28),
+                      tooltip: l10n.get('edit'),
+                    ),
+                    IconButton(
+                      onPressed: onDelete,
+                      icon: Icon(Icons.delete, color: Colors.red.shade600, size: 28),
+                      tooltip: l10n.get('delete'),
+                    ),
+                  ],
+                ),
+                if (template.description != null && template.description!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    template.description!,
+                    style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                // Start workout button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton.icon(
+                    onPressed: onTap,
+                    icon: const Icon(Icons.play_arrow, size: 28),
+                    label: Text(
+                      l10n.get('startWorkout'),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============== TEMPLATE EDITOR PAGE ==============
+
+class TemplateEditorPage extends StatefulWidget {
+  final WorkoutTemplate? template;
+  final Function(WorkoutTemplate) onSave;
+
+  const TemplateEditorPage({
+    super.key,
+    this.template,
+    required this.onSave,
+  });
+
+  @override
+  State<TemplateEditorPage> createState() => _TemplateEditorPageState();
+}
+
+class _TemplateEditorPageState extends State<TemplateEditorPage> {
+  late TextEditingController _nameController;
+  late TextEditingController _descController;
+  List<TemplateExercise> exercises = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.template?.name ?? '');
+    _descController =
+        TextEditingController(text: widget.template?.description ?? '');
+    if (widget.template != null) {
+      exercises = List.from(widget.template!.exercises);
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
+  void _addExercise() {
+    final l10n = AppLocalizations.of(context)!;
+    final nameController = TextEditingController();
+    final descController = TextEditingController();
+    int selectedIconIndex = 0;
+    int targetReps = 10;
+    int sets = 3;
+    double targetWeight = 0;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(
+            l10n.get('addExercise'),
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: nameController,
+                  style: const TextStyle(fontSize: 20),
+                  decoration: InputDecoration(
+                    labelText: l10n.get('exerciseName'),
+                    hintText: l10n.get('exerciseNameHint'),
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.all(16),
+                  ),
+                  textCapitalization: TextCapitalization.words,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: descController,
+                  style: const TextStyle(fontSize: 18),
+                  decoration: InputDecoration(
+                    labelText: l10n.get('exerciseDescription'),
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.all(16),
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 16),
+                // Target sets and reps
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(l10n.get('sets'), style: const TextStyle(fontSize: 16)),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              IconButton(
+                                onPressed: () {
+                                  if (sets > 1) {
+                                    setDialogState(() => sets--);
+                                  }
+                                },
+                                icon: const Icon(Icons.remove_circle_outline),
+                              ),
+                              Text('$sets', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                              IconButton(
+                                onPressed: () => setDialogState(() => sets++),
+                                icon: const Icon(Icons.add_circle_outline),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(l10n.get('targetReps'), style: const TextStyle(fontSize: 16)),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              IconButton(
+                                onPressed: () {
+                                  if (targetReps > 1) {
+                                    setDialogState(() => targetReps--);
+                                  }
+                                },
+                                icon: const Icon(Icons.remove_circle_outline),
+                              ),
+                              Text('$targetReps', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                              IconButton(
+                                onPressed: () => setDialogState(() => targetReps++),
+                                icon: const Icon(Icons.add_circle_outline),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Icon picker
+                Text(l10n.get('chooseIcon'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: List.generate(exerciseIcons.length, (index) {
+                    final isSelected = index == selectedIconIndex;
+                    return InkWell(
+                      onTap: () => setDialogState(() => selectedIconIndex = index),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: isSelected ? Colors.amber.shade200 : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected ? Colors.amber.shade600 : Colors.grey.shade300,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Icon(exerciseIcons[index], size: 24, color: Colors.amber.shade800),
+                      ),
+                    );
+                  }),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(l10n.cancel, style: const TextStyle(fontSize: 18)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (nameController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.get('enterExerciseName')),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  return;
+                }
+                final exercise = Exercise(
+                  id: 'ex_${DateTime.now().millisecondsSinceEpoch}',
+                  name: nameController.text.trim(),
+                  description: descController.text.trim().isEmpty ? null : descController.text.trim(),
+                  iconCodePoint: exerciseIcons[selectedIconIndex].codePoint,
+                );
+                setState(() {
+                  exercises.add(TemplateExercise(
+                    exercise: exercise,
+                    targetReps: targetReps,
+                    targetWeight: targetWeight,
+                    sets: sets,
+                  ));
+                });
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(l10n.get('add'), style: const TextStyle(fontSize: 18)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _saveTemplate() {
+    final l10n = AppLocalizations.of(context)!;
+
+    if (_nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.get('enterWorkoutName')),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    if (exercises.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.get('addAtLeastOneExercise')),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final template = WorkoutTemplate(
+      id: widget.template?.id ?? 'template_${DateTime.now().millisecondsSinceEpoch}',
+      name: _nameController.text.trim(),
+      description: _descController.text.trim().isEmpty ? null : _descController.text.trim(),
+      exercises: exercises,
+      createdAt: widget.template?.createdAt ?? DateTime.now(),
+    );
+
+    widget.onSave(template);
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final isEditing = widget.template != null;
+
+    return Scaffold(
+      backgroundColor: Colors.amber.shade50,
+      appBar: AppBar(
+        backgroundColor: Colors.amber.shade300,
+        title: Text(
+          isEditing ? l10n.get('editWorkout') : l10n.get('newWorkout'),
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _saveTemplate,
+            child: Text(
+              l10n.get('save'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Template name
+              TextField(
+                controller: _nameController,
+                style: const TextStyle(fontSize: 22),
+                decoration: InputDecoration(
+                  labelText: l10n.get('workoutName'),
+                  hintText: l10n.get('workoutNameHint'),
+                  labelStyle: const TextStyle(fontSize: 18),
+                  border: const OutlineInputBorder(),
+                  contentPadding: const EdgeInsets.all(20),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: 16),
+              // Description
+              TextField(
+                controller: _descController,
+                style: const TextStyle(fontSize: 18),
+                decoration: InputDecoration(
+                  labelText: l10n.get('descriptionOptional'),
+                  labelStyle: const TextStyle(fontSize: 18),
+                  border: const OutlineInputBorder(),
+                  contentPadding: const EdgeInsets.all(20),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 24),
+              // Exercises header
+              Text(
+                l10n.get('exercises'),
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              // Exercise list
+              ...exercises.asMap().entries.map((entry) {
+                final index = entry.key;
+                final templateExercise = entry.value;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _ExerciseListItem(
+                    templateExercise: templateExercise,
+                    onDelete: () {
+                      setState(() {
+                        exercises.removeAt(index);
+                      });
+                    },
+                  ),
+                );
+              }),
+              // Add exercise button
+              SizedBox(
+                height: 60,
+                child: OutlinedButton.icon(
+                  onPressed: _addExercise,
+                  icon: const Icon(Icons.add, size: 28),
+                  label: Text(
+                    l10n.get('addExercise'),
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.green.shade700,
+                    side: BorderSide(color: Colors.green.shade400, width: 2),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExerciseListItem extends StatelessWidget {
+  final TemplateExercise templateExercise;
+  final VoidCallback onDelete;
+
+  const _ExerciseListItem({
+    required this.templateExercise,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final exercise = templateExercise.exercise;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade100,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(exercise.icon, size: 28, color: Colors.amber.shade800),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  exercise.name,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  '${templateExercise.sets} ${l10n.get('sets')} × ${templateExercise.targetReps} ${l10n.reps}',
+                  style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onDelete,
+            icon: Icon(Icons.delete, color: Colors.red.shade600, size: 28),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============== ACTIVE WORKOUT PAGE ==============
+
+class ActiveWorkoutPage extends StatefulWidget {
+  final WorkoutTemplate template;
+  final Function(WorkoutSession) onComplete;
+
+  const ActiveWorkoutPage({
+    super.key,
+    required this.template,
+    required this.onComplete,
+  });
+
+  @override
+  State<ActiveWorkoutPage> createState() => _ActiveWorkoutPageState();
+}
+
+class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
+  late DateTime startTime;
+  Timer? workoutTimer;
+  int elapsedSeconds = 0;
+  int currentExerciseIndex = 0;
+  int currentSet = 1;
+  int currentReps = 0;
+  double currentWeight = 0;
+  List<ExerciseLog> logs = [];
+  final AudioPlayer audioPlayer = AudioPlayer();
+
+  // Rest timer
+  Timer? restTimer;
+  int restSeconds = 0;
+  bool isResting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    startTime = DateTime.now();
+    _startWorkoutTimer();
+    _initializeCurrentExercise();
+  }
+
+  @override
+  void dispose() {
+    workoutTimer?.cancel();
+    restTimer?.cancel();
+    audioPlayer.dispose();
+    super.dispose();
+  }
+
+  void _initializeCurrentExercise() {
+    if (widget.template.exercises.isNotEmpty) {
+      final current = widget.template.exercises[currentExerciseIndex];
+      currentReps = current.targetReps;
+      currentWeight = current.targetWeight;
+    }
+  }
+
+  void _startWorkoutTimer() {
+    workoutTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        elapsedSeconds++;
+      });
+    });
+  }
+
+  void _logSet() {
+    final current = widget.template.exercises[currentExerciseIndex];
+    final log = ExerciseLog(
+      exerciseId: current.exercise.id,
+      exerciseName: current.exercise.name,
+      setNumber: currentSet,
+      reps: currentReps,
+      weight: currentWeight,
+      timestamp: DateTime.now(),
+    );
+    logs.add(log);
+
+    // Move to next set or exercise
+    if (currentSet < current.sets) {
+      setState(() {
+        currentSet++;
+      });
+      _startRestTimer();
+    } else if (currentExerciseIndex < widget.template.exercises.length - 1) {
+      setState(() {
+        currentExerciseIndex++;
+        currentSet = 1;
+        _initializeCurrentExercise();
+      });
+      _startRestTimer();
+    } else {
+      _finishWorkout();
+    }
+  }
+
+  void _startRestTimer() {
+    setState(() {
+      isResting = true;
+      restSeconds = 60;
+    });
+
+    restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (restSeconds > 0) {
+          restSeconds--;
+        } else {
+          timer.cancel();
+          isResting = false;
+          _playBeep();
+        }
+      });
+    });
+  }
+
+  void _skipRest() {
+    restTimer?.cancel();
+    setState(() {
+      isResting = false;
+      restSeconds = 0;
+    });
+  }
+
+  Future<void> _playBeep() async {
+    try {
+      await audioPlayer.play(AssetSource('audio/timer_beep.wav'));
+    } catch (e) {
+      // Ignore audio errors
+    }
+  }
+
+  void _finishWorkout() {
+    workoutTimer?.cancel();
+    restTimer?.cancel();
+
+    final session = WorkoutSession(
+      id: 'session_${DateTime.now().millisecondsSinceEpoch}',
+      templateId: widget.template.id,
+      templateName: widget.template.name,
+      startTime: startTime,
+      endTime: DateTime.now(),
+      durationSeconds: elapsedSeconds,
+      logs: logs,
+    );
+
+    widget.onComplete(session);
+    Navigator.pop(context);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Workout completed!', style: TextStyle(fontSize: 18)),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _confirmExit() {
+    final l10n = AppLocalizations.of(context)!;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.get('endWorkout'), style: const TextStyle(fontSize: 22)),
+        content: Text(l10n.get('endWorkoutConfirm'), style: const TextStyle(fontSize: 18)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.cancel, style: const TextStyle(fontSize: 18)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (logs.isNotEmpty) {
+                _finishWorkout();
+              } else {
+                workoutTimer?.cancel();
+                restTimer?.cancel();
+                Navigator.pop(context);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(l10n.get('endNow'), style: const TextStyle(fontSize: 18)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
+    if (hours > 0) {
+      return '${hours}:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+    }
+    return '${minutes}:${secs.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final current = widget.template.exercises[currentExerciseIndex];
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          _confirmExit();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.amber.shade50,
+        appBar: AppBar(
+          backgroundColor: Colors.amber.shade300,
+          title: Text(
+            widget.template.name,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          leading: IconButton(
+            onPressed: _confirmExit,
+            icon: const Icon(Icons.close, size: 28),
+          ),
+          actions: [
+            // Workout duration timer
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.timer, size: 24, color: Colors.deepOrange),
+                  const SizedBox(width: 8),
+                  Text(
+                    _formatDuration(elapsedSeconds),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.deepOrange,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: isResting ? _buildRestScreen(l10n) : _buildExerciseScreen(l10n, current),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRestScreen(AppLocalizations l10n) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              l10n.get('rest'),
+              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              _formatDuration(restSeconds),
+              style: TextStyle(
+                fontSize: 80,
+                fontWeight: FontWeight.bold,
+                color: restSeconds <= 10 ? Colors.red : Colors.blue,
+              ),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: 200,
+              height: 60,
+              child: ElevatedButton(
+                onPressed: _skipRest,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: Text(
+                  l10n.get('skipRest'),
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExerciseScreen(AppLocalizations l10n, TemplateExercise current) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Progress indicator
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade100,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '${l10n.get('exercise')} ${currentExerciseIndex + 1}/${widget.template.exercises.length}',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  '${l10n.get('set')} $currentSet/${current.sets}',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Current exercise
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.shade300,
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Icon(current.exercise.icon, size: 60, color: Colors.amber.shade700),
+                const SizedBox(height: 16),
+                Text(
+                  current.exercise.name,
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                if (current.exercise.description != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    current.exercise.description!,
+                    style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Reps counter
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  l10n.reps,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _RoundButton(
+                      icon: Icons.remove,
+                      color: Colors.red.shade400,
+                      onPressed: () {
+                        if (currentReps > 0) {
+                          setState(() => currentReps--);
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 24),
+                    Container(
+                      width: 100,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade100,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.amber.shade400, width: 2),
+                      ),
+                      child: Text(
+                        '$currentReps',
+                        style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    _RoundButton(
+                      icon: Icons.add,
+                      color: Colors.green.shade400,
+                      onPressed: () => setState(() => currentReps++),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Log set button
+          SizedBox(
+            height: 70,
+            child: ElevatedButton.icon(
+              onPressed: currentReps > 0 ? _logSet : null,
+              icon: const Icon(Icons.check, size: 30),
+              label: Text(
+                currentExerciseIndex == widget.template.exercises.length - 1 &&
+                        currentSet == current.sets
+                    ? l10n.get('finishWorkout')
+                    : l10n.get('logSet'),
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade300,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Logged sets for this exercise
+          if (logs.where((l) => l.exerciseId == current.exercise.id).isNotEmpty) ...[
+            Text(
+              l10n.get('completedSets'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            ...logs
+                .where((l) => l.exerciseId == current.exercise.id)
+                .map((log) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.green.shade300),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.check_circle, color: Colors.green.shade600, size: 24),
+                            const SizedBox(width: 12),
+                            Text(
+                              '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}',
+                              style: const TextStyle(fontSize: 18),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ============== HISTORY PAGE ==============
+
+class HistoryPage extends StatelessWidget {
+  final List<WorkoutSession> history;
+
+  const HistoryPage({super.key, required this.history});
 
   @override
   Widget build(BuildContext context) {
@@ -1086,590 +1740,433 @@ class _WorkoutHomePageState extends State<WorkoutHomePage> {
         title: Semantics(
           header: true,
           child: Text(
-            l10n.shoulderWorkout,
+            l10n.get('workoutHistory'),
             style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
           ),
         ),
         centerTitle: true,
-        actions: [
-          // Info/About button
-          Semantics(
-            button: true,
-            label: l10n.get('aboutAndDisclaimerButton'),
-            child: IconButton(
-              onPressed: _showAboutAndDisclaimer,
-              icon: const Icon(Icons.info_outline, size: 28),
-              tooltip: l10n.aboutAndDisclaimer,
-            ),
-          ),
-          // Export button
-          Semantics(
-            button: true,
-            label: l10n.get('exportDataButton'),
-            child: IconButton(
-              onPressed: _exportData,
-              icon: const Icon(Icons.share, size: 28),
-              tooltip: l10n.get('exportDataButton'),
-            ),
-          ),
-          // Delete button
-          Semantics(
-            button: true,
-            label: l10n.get('deleteDataButton'),
-            child: IconButton(
-              onPressed: _deleteAllData,
-              icon: const Icon(Icons.delete_forever, size: 28),
-              tooltip: l10n.get('deleteAllData'),
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Band indicator
-              Semantics(
-                label: l10n.get('bandDescription'),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.yellow.shade200,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.yellow.shade700, width: 3),
-                  ),
-                  child: Row(
+        child: history.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Decorative icon - excluded from semantics
-                      ExcludeSemantics(
-                        child: Icon(
-                          Icons.circle,
-                          color: Colors.yellow.shade600,
-                          size: 30,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
+                      Icon(Icons.history, size: 80, color: Colors.amber.shade300),
+                      const SizedBox(height: 24),
                       Text(
-                        l10n.yellowBand,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        l10n.get('noHistoryYet'),
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        l10n.get('completeWorkoutToSee'),
+                        style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
                 ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: history.length,
+                itemBuilder: (context, index) {
+                  final session = history[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: _HistoryCard(session: session),
+                  );
+                },
               ),
-
-              const SizedBox(height: 24),
-
-              // Exercise selection header
-              Semantics(
-                header: true,
-                child: Text(
-                  l10n.selectExercise,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Exercise list
-              ...allExercises.map(
-                (exercise) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _ExerciseButton(
-                    exercise: exercise,
-                    isSelected: selectedExercise?.id == exercise.id,
-                    lastReps: savedWorkouts[exercise.id],
-                    l10n: l10n,
-                    onTap: () {
-                      setState(() {
-                        selectedExercise = exercise;
-                        reps = savedWorkouts[exercise.id] ?? 0;
-                      });
-                      // Announce selection to screen reader
-                      final lastRepsInfo =
-                          savedWorkouts[exercise.id] != null
-                          ? ', ${l10n.get('lastRecorded')} ${savedWorkouts[exercise.id]} ${l10n.reps}'
-                          : '';
-                      SemanticsService.announce(
-                        '${l10n.get('selected')} ${exercise.getName(l10n)}. ${exercise.getDescription(l10n)}$lastRepsInfo',
-                        TextDirection.ltr,
-                      );
-                    },
-                    onEdit: exercise.isCustom ? () => _showEditExerciseDialog(exercise) : null,
-                    onDelete: exercise.isCustom ? () => _deleteExercise(exercise) : null,
-                  ),
-                ),
-              ),
-
-              // Add Exercise button
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Semantics(
-                  button: true,
-                  label: l10n.get('addExercise'),
-                  child: Material(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(16),
-                    elevation: 2,
-                    child: InkWell(
-                      onTap: _showAddExerciseDialog,
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.green.shade300,
-                            width: 2,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.add_circle_outline,
-                              size: 32,
-                              color: Colors.green.shade700,
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              l10n.get('addExercise'),
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Rep counter
-              if (selectedExercise != null) ...[
-                Semantics(
-                  container: true,
-                  label: 'Rep counter for ${selectedExercise!.getName(l10n)}',
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.shade300,
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          selectedExercise!.getName(l10n),
-                          style: const TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          selectedExercise!.getDescription(l10n),
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey.shade600,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 24),
-
-                        Text(
-                          l10n.howManyReps,
-                          style: const TextStyle(fontSize: 22),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Rep counter buttons
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _RoundButton(
-                              icon: Icons.remove,
-                              color: Colors.red.shade400,
-                              semanticLabel: l10n.get('decreaseReps'),
-                              onPressed: () {
-                                if (reps > 0) {
-                                  setState(() => reps--);
-                                  SemanticsService.announce(
-                                    '$reps ${l10n.reps}',
-                                    TextDirection.ltr,
-                                  );
-                                }
-                              },
-                            ),
-                            const SizedBox(width: 24),
-                            Semantics(
-                              label: '$reps ${l10n.reps}',
-                              liveRegion: true,
-                              child: Container(
-                                width: 100,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.amber.shade100,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: Colors.amber.shade400,
-                                    width: 2,
-                                  ),
-                                ),
-                                child: Text(
-                                  '$reps',
-                                  style: const TextStyle(
-                                    fontSize: 40,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 24),
-                            _RoundButton(
-                              icon: Icons.add,
-                              color: Colors.green.shade400,
-                              semanticLabel: 'Increase reps',
-                              onPressed: () {
-                                setState(() => reps++);
-                                SemanticsService.announce(
-                                  '$reps reps',
-                                  TextDirection.ltr,
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 24),
-
-                        // Save button
-                        Semantics(
-                          button: true,
-                          enabled: reps > 0,
-                          label: reps > 0
-                              ? '${l10n.saveAndStartTimer} - $reps ${l10n.reps}'
-                              : l10n.get('saveButtonDisabled'),
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: 70,
-                            child: ElevatedButton.icon(
-                              onPressed: reps > 0 ? _saveWorkout : null,
-                              icon: const Icon(Icons.save, size: 30),
-                              label: Text(
-                                l10n.saveAndStartTimer,
-                                style: const TextStyle(fontSize: 20),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                                foregroundColor: Colors.white,
-                                disabledBackgroundColor: Colors.grey.shade300,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-              ],
-
-              // Rest timer display
-              if (isTimerRunning)
-                Semantics(
-                  container: true,
-                  liveRegion: true,
-                  label:
-                      '${l10n.restTimer}: ${timerSeconds ~/ 60}:${(timerSeconds % 60).toString().padLeft(2, '0')} ${l10n.get('secondsRemaining')}',
-                  child: Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: timerSeconds <= 10
-                          ? Colors.red.shade100
-                          : Colors.blue.shade100,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: timerSeconds <= 10
-                            ? Colors.red.shade400
-                            : Colors.blue.shade400,
-                        width: 3,
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          l10n.restTimer,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          '${timerSeconds ~/ 60}:${(timerSeconds % 60).toString().padLeft(2, '0')}',
-                          style: TextStyle(
-                            fontSize: 60,
-                            fontWeight: FontWeight.bold,
-                            color: timerSeconds <= 10
-                                ? Colors.red.shade700
-                                : Colors.blue.shade700,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Semantics(
-                          button: true,
-                          label: l10n.stopTimer,
-                          child: TextButton.icon(
-                            onPressed: _stopTimer,
-                            icon: const Icon(Icons.stop, size: 24),
-                            label: Text(
-                              l10n.stopTimer,
-                              style: const TextStyle(fontSize: 18),
-                            ),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.red.shade700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
       ),
     );
   }
 }
 
-class _ExerciseButton extends StatelessWidget {
-  final Exercise exercise;
-  final bool isSelected;
-  final int? lastReps;
-  final VoidCallback onTap;
-  final VoidCallback? onEdit;
-  final VoidCallback? onDelete;
-  final AppLocalizations l10n;
+class _HistoryCard extends StatelessWidget {
+  final WorkoutSession session;
 
-  const _ExerciseButton({
-    required this.exercise,
-    required this.isSelected,
-    required this.lastReps,
-    required this.onTap,
-    required this.l10n,
-    this.onEdit,
-    this.onDelete,
+  const _HistoryCard({required this.session});
+
+  String _formatDuration(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    if (hours > 0) {
+      return '${hours}h ${minutes}m';
+    }
+    return '${minutes}m';
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final sessionDate = DateTime(date.year, date.month, date.day);
+
+    if (sessionDate == today) {
+      return 'Today';
+    } else if (sessionDate == yesterday) {
+      return 'Yesterday';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final totalReps = session.logs.fold<int>(0, (sum, log) => sum + log.reps);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade200,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.check, size: 28, color: Colors.green.shade700),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      session.templateName,
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      _formatDate(session.startTime),
+                      style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _StatItem(
+                icon: Icons.timer,
+                value: _formatDuration(session.durationSeconds),
+                label: l10n.get('duration'),
+              ),
+              _StatItem(
+                icon: Icons.fitness_center,
+                value: '${session.logs.length}',
+                label: l10n.get('sets'),
+              ),
+              _StatItem(
+                icon: Icons.repeat,
+                value: '$totalReps',
+                label: l10n.reps,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatItem extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+
+  const _StatItem({
+    required this.icon,
+    required this.value,
+    required this.label,
   });
 
   @override
   Widget build(BuildContext context) {
-    final exerciseName = exercise.getName(l10n);
-    final exerciseDesc = exercise.getDescription(l10n);
-    final String lastRepsText = lastReps != null
-        ? ', ${l10n.get('lastRecorded')} $lastReps ${l10n.reps}'
-        : '';
-    final String selectedText = isSelected
-        ? ', ${l10n.get('currentlySelected')}'
-        : '';
+    return Column(
+      children: [
+        Icon(icon, size: 24, color: Colors.amber.shade700),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        Text(
+          label,
+          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+        ),
+      ],
+    );
+  }
+}
 
-    return Semantics(
-      button: true,
-      selected: isSelected,
-      label: '$exerciseName. $exerciseDesc$lastRepsText$selectedText',
-      child: Material(
-        color: isSelected ? Colors.amber.shade200 : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        elevation: isSelected ? 4 : 2,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isSelected
-                    ? Colors.amber.shade600
-                    : Colors.grey.shade300,
-                width: isSelected ? 3 : 1,
-              ),
-            ),
-            child: Row(
-              children: [
-                // Decorative icon - excluded from semantics
-                ExcludeSemantics(
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.shade100,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      exercise.icon,
-                      size: 32,
-                      color: Colors.amber.shade800,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
+// ============== STATISTICS PAGE ==============
+
+class StatisticsPage extends StatelessWidget {
+  final List<WorkoutSession> history;
+
+  const StatisticsPage({super.key, required this.history});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    // Calculate statistics
+    final totalWorkouts = history.length;
+    final totalDuration = history.fold<int>(0, (sum, s) => sum + s.durationSeconds);
+    final totalReps = history.fold<int>(0, (sum, s) => sum + s.logs.fold<int>(0, (s2, l) => s2 + l.reps));
+
+    // Workouts this week
+    final now = DateTime.now();
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+    final workoutsThisWeek = history.where((s) => s.startTime.isAfter(weekStart)).length;
+
+    // Most common exercises
+    final exerciseCounts = <String, int>{};
+    for (final session in history) {
+      for (final log in session.logs) {
+        exerciseCounts[log.exerciseName] = (exerciseCounts[log.exerciseName] ?? 0) + log.reps;
+      }
+    }
+    final topExercises = exerciseCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Scaffold(
+      backgroundColor: Colors.amber.shade50,
+      appBar: AppBar(
+        backgroundColor: Colors.amber.shade300,
+        title: Semantics(
+          header: true,
+          child: Text(
+            l10n.get('statistics'),
+            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: history.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              exerciseName,
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          if (exercise.isCustom)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.shade100,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                l10n.get('customExercise'),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.blue.shade700,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                        ],
+                      Icon(Icons.bar_chart, size: 80, color: Colors.amber.shade300),
+                      const SizedBox(height: 24),
+                      Text(
+                        l10n.get('noStatsYet'),
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
                       ),
-                      if (lastReps != null)
-                        Text(
-                          '${l10n.get('lastReps')} $lastReps ${l10n.reps}',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.green.shade700,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                      const SizedBox(height: 12),
+                      Text(
+                        l10n.get('completeWorkoutToSee'),
+                        style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+                        textAlign: TextAlign.center,
+                      ),
                     ],
                   ),
                 ),
-                // Edit and delete buttons for custom exercises
-                if (exercise.isCustom && onEdit != null)
-                  Semantics(
-                    button: true,
-                    label: l10n.get('edit'),
-                    child: IconButton(
-                      onPressed: onEdit,
-                      icon: Icon(
-                        Icons.edit,
-                        color: Colors.blue.shade600,
-                        size: 28,
+              )
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Overview stats
+                    Text(
+                      l10n.get('overview'),
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _StatCard(
+                            icon: Icons.fitness_center,
+                            value: '$totalWorkouts',
+                            label: l10n.get('totalWorkouts'),
+                            color: Colors.blue,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _StatCard(
+                            icon: Icons.calendar_today,
+                            value: '$workoutsThisWeek',
+                            label: l10n.get('thisWeek'),
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _StatCard(
+                            icon: Icons.timer,
+                            value: '${(totalDuration / 60).round()}',
+                            label: l10n.get('totalMinutes'),
+                            color: Colors.orange,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _StatCard(
+                            icon: Icons.repeat,
+                            value: '$totalReps',
+                            label: l10n.get('totalReps'),
+                            color: Colors.purple,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+                    // Top exercises
+                    if (topExercises.isNotEmpty) ...[
+                      Text(
+                        l10n.get('topExercises'),
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                       ),
-                      tooltip: l10n.get('edit'),
-                    ),
-                  ),
-                if (exercise.isCustom && onDelete != null)
-                  Semantics(
-                    button: true,
-                    label: l10n.get('delete'),
-                    child: IconButton(
-                      onPressed: onDelete,
-                      icon: Icon(
-                        Icons.delete,
-                        color: Colors.red.shade600,
-                        size: 28,
-                      ),
-                      tooltip: l10n.get('delete'),
-                    ),
-                  ),
-                if (isSelected)
-                  ExcludeSemantics(
-                    child: Icon(
-                      Icons.check_circle,
-                      color: Colors.amber.shade700,
-                      size: 32,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
+                      const SizedBox(height: 16),
+                      ...topExercises.take(5).map((entry) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.fitness_center, color: Colors.amber.shade700, size: 28),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Text(
+                                      entry.key,
+                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                  Text(
+                                    '${entry.value} ${l10n.reps}',
+                                    style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )),
+                    ],
+                  ],
+                ),
+              ),
       ),
     );
   }
 }
+
+class _StatCard extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+  final MaterialColor color;
+
+  const _StatCard({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade200,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 36, color: color.shade600),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: color.shade700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============== REUSABLE WIDGETS ==============
 
 class _RoundButton extends StatelessWidget {
   final IconData icon;
   final Color color;
   final VoidCallback onPressed;
-  final String semanticLabel;
 
   const _RoundButton({
     required this.icon,
     required this.color,
     required this.onPressed,
-    required this.semanticLabel,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: semanticLabel,
-      child: Material(
-        color: color,
-        shape: const CircleBorder(),
-        elevation: 4,
-        child: InkWell(
-          onTap: onPressed,
-          customBorder: const CircleBorder(),
-          child: Container(
-            width: 70,
-            height: 70,
-            alignment: Alignment.center,
-            child: ExcludeSemantics(
-              child: Icon(icon, size: 40, color: Colors.white),
-            ),
-          ),
+    return Material(
+      color: color,
+      shape: const CircleBorder(),
+      elevation: 4,
+      child: InkWell(
+        onTap: onPressed,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 60,
+          height: 60,
+          alignment: Alignment.center,
+          child: Icon(icon, size: 32, color: Colors.white),
         ),
       ),
     );

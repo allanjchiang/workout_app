@@ -39,6 +39,80 @@ class AppLocalizations {
     'appTitle': 'Workout Tracker',
     'shoulderWorkout': 'Shoulder Workout',
 
+    // Navigation
+    'workouts': 'Workouts',
+    'history': 'History',
+    'statistics': 'Statistics',
+
+    // Templates page
+    'myWorkouts': 'My Workouts',
+    'noWorkoutsYet': 'No workouts yet',
+    'tapToCreateFirst': 'Tap the button below to create your first workout template',
+    'newWorkout': 'New Workout',
+    'startWorkout': 'Start Workout',
+    'deleteWorkout': 'Delete Workout',
+    'deleteWorkoutConfirm': 'Are you sure you want to delete',
+    'editWorkout': 'Edit Workout',
+
+    // Template editor
+    'workoutName': 'Workout Name',
+    'workoutNameHint': 'e.g., Upper Body, Leg Day',
+    'descriptionOptional': 'Description (optional)',
+    'exercises': 'Exercises',
+    'addAtLeastOneExercise': 'Please add at least one exercise',
+    'enterWorkoutName': 'Please enter a workout name',
+
+    // Exercise
+    'addExercise': 'Add Exercise',
+    'editExercise': 'Edit Exercise',
+    'deleteExercise': 'Delete Exercise',
+    'exerciseName': 'Exercise Name',
+    'exerciseDescription': 'Description (optional)',
+    'exerciseNameHint': 'e.g., Bicep Curl',
+    'exerciseDescHint': 'e.g., Stand on band, curl arms up',
+    'enterExerciseName': 'Please enter an exercise name',
+    'exercise': 'Exercise',
+    'sets': 'Sets',
+    'set': 'Set',
+    'targetReps': 'Target Reps',
+    'chooseIcon': 'Choose Icon:',
+
+    // Active workout
+    'endWorkout': 'End Workout?',
+    'endWorkoutConfirm': 'Your progress will be saved. End workout now?',
+    'endNow': 'End Now',
+    'rest': 'Rest',
+    'skipRest': 'Skip Rest',
+    'logSet': 'Log Set',
+    'finishWorkout': 'Finish Workout',
+    'completedSets': 'Completed Sets',
+    'workoutComplete': 'Workout Complete!',
+
+    // History
+    'workoutHistory': 'Workout History',
+    'noHistoryYet': 'No workout history yet',
+    'completeWorkoutToSee': 'Complete a workout to see your history and statistics',
+    'duration': 'Duration',
+
+    // Statistics
+    'noStatsYet': 'No statistics yet',
+    'overview': 'Overview',
+    'totalWorkouts': 'Total Workouts',
+    'thisWeek': 'This Week',
+    'totalMinutes': 'Total Minutes',
+    'totalReps': 'Total Reps',
+    'topExercises': 'Top Exercises',
+
+    // Common actions
+    'save': 'Save',
+    'add': 'Add',
+    'delete': 'Delete',
+    'edit': 'Edit',
+    'close': 'Close',
+    'ok': 'OK',
+    'cancel': 'Cancel',
+    'deleteAll': 'Delete All',
+
     // Band indicator
     'yellowBand': 'Yellow Band (Lightest)',
     'bandDescription':
@@ -64,16 +138,14 @@ class AppLocalizations {
     'decreaseReps': 'Decrease reps',
     'increaseReps': 'Increase reps',
 
-    // Buttons
-    'saveAndStartTimer': 'Save & Start Rest Timer',
-    'stopTimer': 'Stop Timer',
-
     // Timer
     'restTimer': 'Rest Timer',
     'restTimeOver': 'Rest Time Over!',
     'timeForNextSet': 'Time to do your next set!',
     'secondsRemaining': 'seconds remaining',
     'timerStopped': 'Timer stopped',
+    'saveAndStartTimer': 'Save & Start Rest Timer',
+    'stopTimer': 'Stop Timer',
 
     // Messages
     'saved': 'Saved',
@@ -87,7 +159,7 @@ class AppLocalizations {
     // About dialog
     'aboutAndDisclaimer': 'About & Disclaimer',
     'workoutTrackerDesc':
-        'A simple app to track your resistance band exercises.',
+        'A simple app to track your workouts and measure your progress.',
 
     // Disclaimers
     'importantDisclaimers': 'Important Disclaimers',
@@ -113,12 +185,6 @@ class AppLocalizations {
     // Contact
     'contact': 'Contact',
 
-    // Actions
-    'close': 'Close',
-    'ok': 'OK',
-    'cancel': 'Cancel',
-    'deleteAll': 'Delete All',
-
     // Delete dialog
     'deleteAllData': 'Delete All Data?',
     'deleteWarning':
@@ -135,17 +201,6 @@ class AppLocalizations {
 
     // Exercise management
     'manageExercises': 'Manage Exercises',
-    'addExercise': 'Add Exercise',
-    'editExercise': 'Edit Exercise',
-    'deleteExercise': 'Delete Exercise',
-    'exerciseName': 'Exercise Name',
-    'exerciseDescription': 'Description (optional)',
-    'exerciseNameHint': 'e.g., Bicep Curl',
-    'exerciseDescHint': 'e.g., Stand on band, curl arms up',
-    'save': 'Save',
-    'add': 'Add',
-    'delete': 'Delete',
-    'edit': 'Edit',
     'customExercise': 'Custom',
     'defaultExercise': 'Default',
     'confirmDeleteExercise': 'Delete this exercise?',
@@ -153,12 +208,10 @@ class AppLocalizations {
     'exerciseAdded': 'Exercise added',
     'exerciseUpdated': 'Exercise updated',
     'exerciseDeleted': 'Exercise deleted',
-    'enterExerciseName': 'Please enter an exercise name',
     'yourExercises': 'Your Exercises',
     'tapToSelect': 'Tap an exercise to select it',
     'swipeToDelete': 'Swipe left to delete custom exercises',
     'noExercises': 'No exercises yet. Add your first one!',
-    'chooseIcon': 'Choose Icon:',
   };
 
   // Chinese Traditional strings
@@ -166,6 +219,80 @@ class AppLocalizations {
     // App title
     'appTitle': '運動追蹤器',
     'shoulderWorkout': '肩部運動',
+
+    // Navigation
+    'workouts': '運動',
+    'history': '歷史',
+    'statistics': '統計',
+
+    // Templates page
+    'myWorkouts': '我的運動',
+    'noWorkoutsYet': '還沒有運動',
+    'tapToCreateFirst': '點擊下方按鈕建立您的第一個運動模板',
+    'newWorkout': '新運動',
+    'startWorkout': '開始運動',
+    'deleteWorkout': '刪除運動',
+    'deleteWorkoutConfirm': '確定要刪除',
+    'editWorkout': '編輯運動',
+
+    // Template editor
+    'workoutName': '運動名稱',
+    'workoutNameHint': '例如：上半身、腿部訓練',
+    'descriptionOptional': '說明（選填）',
+    'exercises': '動作',
+    'addAtLeastOneExercise': '請至少新增一個動作',
+    'enterWorkoutName': '請輸入運動名稱',
+
+    // Exercise
+    'addExercise': '新增動作',
+    'editExercise': '編輯動作',
+    'deleteExercise': '刪除動作',
+    'exerciseName': '動作名稱',
+    'exerciseDescription': '說明（選填）',
+    'exerciseNameHint': '例如：二頭彎舉',
+    'exerciseDescHint': '例如：站在彈力帶上，手臂向上彎曲',
+    'enterExerciseName': '請輸入動作名稱',
+    'exercise': '動作',
+    'sets': '組',
+    'set': '組',
+    'targetReps': '目標次數',
+    'chooseIcon': '選擇圖示：',
+
+    // Active workout
+    'endWorkout': '結束運動？',
+    'endWorkoutConfirm': '您的進度將被儲存。確定要結束嗎？',
+    'endNow': '立即結束',
+    'rest': '休息',
+    'skipRest': '跳過休息',
+    'logSet': '記錄這組',
+    'finishWorkout': '完成運動',
+    'completedSets': '已完成的組數',
+    'workoutComplete': '運動完成！',
+
+    // History
+    'workoutHistory': '運動歷史',
+    'noHistoryYet': '還沒有運動歷史',
+    'completeWorkoutToSee': '完成運動後即可查看歷史和統計',
+    'duration': '時長',
+
+    // Statistics
+    'noStatsYet': '還沒有統計資料',
+    'overview': '總覽',
+    'totalWorkouts': '總運動次數',
+    'thisWeek': '本週',
+    'totalMinutes': '總分鐘數',
+    'totalReps': '總次數',
+    'topExercises': '熱門動作',
+
+    // Common actions
+    'save': '儲存',
+    'add': '新增',
+    'delete': '刪除',
+    'edit': '編輯',
+    'close': '關閉',
+    'ok': '確定',
+    'cancel': '取消',
+    'deleteAll': '全部刪除',
 
     // Band indicator
     'yellowBand': '黃色彈力帶（最輕）',
@@ -191,16 +318,14 @@ class AppLocalizations {
     'decreaseReps': '減少次數',
     'increaseReps': '增加次數',
 
-    // Buttons
-    'saveAndStartTimer': '儲存並開始休息計時',
-    'stopTimer': '停止計時',
-
     // Timer
     'restTimer': '休息計時器',
     'restTimeOver': '休息時間結束！',
     'timeForNextSet': '開始下一組吧！',
     'secondsRemaining': '秒剩餘',
     'timerStopped': '計時器已停止',
+    'saveAndStartTimer': '儲存並開始休息計時',
+    'stopTimer': '停止計時',
 
     // Messages
     'saved': '已儲存',
@@ -213,7 +338,7 @@ class AppLocalizations {
 
     // About dialog
     'aboutAndDisclaimer': '關於與免責聲明',
-    'workoutTrackerDesc': '一款簡單的彈力帶運動追蹤應用程式。',
+    'workoutTrackerDesc': '一款簡單的運動追蹤應用程式，幫助您記錄並追蹤進度。',
 
     // Disclaimers
     'importantDisclaimers': '重要聲明',
@@ -237,12 +362,6 @@ class AppLocalizations {
     // Contact
     'contact': '聯絡方式',
 
-    // Actions
-    'close': '關閉',
-    'ok': '確定',
-    'cancel': '取消',
-    'deleteAll': '全部刪除',
-
     // Delete dialog
     'deleteAllData': '刪除所有資料？',
     'deleteWarning': '這將刪除您所有儲存的運動資料。\n\n此操作無法復原！',
@@ -257,31 +376,18 @@ class AppLocalizations {
     'saveButtonDisabled': '儲存按鈕已停用，請先新增次數',
 
     // Exercise management
-    'manageExercises': '管理運動',
-    'addExercise': '新增運動',
-    'editExercise': '編輯運動',
-    'deleteExercise': '刪除運動',
-    'exerciseName': '運動名稱',
-    'exerciseDescription': '說明（選填）',
-    'exerciseNameHint': '例如：二頭彎舉',
-    'exerciseDescHint': '例如：站在彈力帶上，手臂向上彎曲',
-    'save': '儲存',
-    'add': '新增',
-    'delete': '刪除',
-    'edit': '編輯',
+    'manageExercises': '管理動作',
     'customExercise': '自訂',
     'defaultExercise': '預設',
-    'confirmDeleteExercise': '確定刪除這個運動？',
-    'deleteExerciseWarning': '這將從您的清單中移除這個運動。',
-    'exerciseAdded': '運動已新增',
-    'exerciseUpdated': '運動已更新',
-    'exerciseDeleted': '運動已刪除',
-    'enterExerciseName': '請輸入運動名稱',
-    'yourExercises': '您的運動',
-    'tapToSelect': '點擊運動以選擇',
-    'swipeToDelete': '向左滑動以刪除自訂運動',
-    'noExercises': '還沒有運動。新增您的第一個吧！',
-    'chooseIcon': '選擇圖示：',
+    'confirmDeleteExercise': '確定刪除這個動作？',
+    'deleteExerciseWarning': '這將從您的清單中移除這個動作。',
+    'exerciseAdded': '動作已新增',
+    'exerciseUpdated': '動作已更新',
+    'exerciseDeleted': '動作已刪除',
+    'yourExercises': '您的動作',
+    'tapToSelect': '點擊動作以選擇',
+    'swipeToDelete': '向左滑動以刪除自訂動作',
+    'noExercises': '還沒有動作。新增您的第一個吧！',
   };
 
   // Convenience getters for common strings

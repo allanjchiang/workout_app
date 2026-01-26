@@ -1801,80 +1801,110 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                   l10n.get('workoutPlan'),
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
+                const SizedBox(height: 6),
+                Text(
+                  l10n.get('tapToJump'),
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                ),
                 const SizedBox(height: 12),
                 ...widget.template.exercises.map((exercise) {
                   final isCurrent =
                       exercise.exercise.id == current.exercise.id;
                   final isCompleted =
                       completedExerciseIds.contains(exercise.exercise.id);
+                  final isAvailable = !isResting;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isCurrent
-                            ? Colors.amber.shade100
-                            : Colors.grey.shade100,
+                    child: Semantics(
+                      button: true,
+                      label: '${exercise.exercise.name}, ${exercise.sets} ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
+                      child: Material(
+                        color: Colors.transparent,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isCurrent
-                              ? Colors.amber.shade400
-                              : Colors.grey.shade300,
-                          width: isCurrent ? 2 : 1,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            isCompleted
-                                ? Icons.check_circle
-                                : Icons.radio_button_unchecked,
-                            color: isCompleted
-                                ? Colors.green.shade600
-                                : Colors.grey.shade500,
-                            size: 24,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                        child: InkWell(
+                          onTap: isAvailable
+                              ? () {
+                                  final newIndex = widget.template.exercises
+                                      .indexOf(exercise);
+                                  setState(() {
+                                    currentExerciseIndex = newIndex;
+                                    currentSet = 1;
+                                    _initializeCurrentExercise();
+                                  });
+                                }
+                              : null,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isCurrent
+                                  ? Colors.amber.shade100
+                                  : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isCurrent
+                                    ? Colors.amber.shade400
+                                    : Colors.grey.shade300,
+                                width: isCurrent ? 2 : 1,
+                              ),
+                            ),
+                            child: Row(
                               children: [
-                                Text(
-                                  exercise.exercise.name,
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
+                                Icon(
+                                  isCompleted
+                                      ? Icons.check_circle
+                                      : Icons.radio_button_unchecked,
+                                  color: isCompleted
+                                      ? Colors.green.shade600
+                                      : Colors.grey.shade500,
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        exercise.exercise.name,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${exercise.sets} ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                Text(
-                                  '${exercise.sets} ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey.shade600,
+                                if (isCurrent)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber.shade300,
+                                      borderRadius:
+                                          BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      l10n.get('current'),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                                   ),
-                                ),
                               ],
                             ),
                           ),
-                          if (isCurrent)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.amber.shade300,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                l10n.get('current'),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                        ],
+                        ),
                       ),
                     ),
                   );

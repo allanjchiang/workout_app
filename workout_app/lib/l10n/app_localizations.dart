@@ -215,6 +215,7 @@ class AppLocalizations {
     'previousBest': 'Previous best',
     'workoutPlan': 'Workout Plan',
     'current': 'Current',
+    'tapToJump': 'Tap an exercise to jump to it',
   };
 
   // Chinese Traditional strings
@@ -394,6 +395,7 @@ class AppLocalizations {
     'previousBest': '上次最佳',
     'workoutPlan': '運動計畫',
     'current': '目前',
+    'tapToJump': '點擊動作即可跳轉',
   };
 
   // Convenience getters for common strings

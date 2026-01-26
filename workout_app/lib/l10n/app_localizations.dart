@@ -213,6 +213,8 @@ class AppLocalizations {
     'swipeToDelete': 'Swipe left to delete custom exercises',
     'noExercises': 'No exercises yet. Add your first one!',
     'previousBest': 'Previous best',
+    'workoutPlan': 'Workout Plan',
+    'current': 'Current',
   };
 
   // Chinese Traditional strings
@@ -390,6 +392,8 @@ class AppLocalizations {
     'swipeToDelete': '向左滑動以刪除自訂動作',
     'noExercises': '還沒有動作。新增您的第一個吧！',
     'previousBest': '上次最佳',
+    'workoutPlan': '運動計畫',
+    'current': '目前',
   };
 
   // Convenience getters for common strings

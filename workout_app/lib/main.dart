@@ -326,6 +326,127 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
             .toList();
       });
     }
+
+    // MIGRATION: Check for old workout data from previous app version
+    final oldWorkoutsJson = prefs.getString('workouts');
+    Map<String, int> oldWorkouts = {};
+    if (oldWorkoutsJson != null) {
+      oldWorkouts = Map<String, int>.from(jsonDecode(oldWorkoutsJson));
+    }
+
+    // Create default Shoulder Workout template if no templates exist
+    if (templates.isEmpty) {
+      final shoulderTemplate = _createDefaultShoulderTemplate();
+      setState(() {
+        templates.add(shoulderTemplate);
+      });
+      await _saveTemplates();
+
+      // If there's old workout data, create a history entry to preserve the rep counts
+      if (oldWorkouts.isNotEmpty) {
+        final migrationLogs = <ExerciseLog>[];
+        final exerciseNames = {
+          'shoulderPress': 'Shoulder Press',
+          'lateralRaise': 'Lateral Raise',
+          'frontRaise': 'Front Raise',
+          'reverseFly': 'Reverse Fly',
+          'shrugs': 'Shrugs',
+        };
+
+        for (final entry in oldWorkouts.entries) {
+          final exerciseName = exerciseNames[entry.key] ?? entry.key;
+          migrationLogs.add(ExerciseLog(
+            exerciseId: entry.key,
+            exerciseName: exerciseName,
+            setNumber: 1,
+            reps: entry.value,
+            weight: 0,
+            timestamp: DateTime.now(),
+          ));
+        }
+
+        if (migrationLogs.isNotEmpty) {
+          final migrationSession = WorkoutSession(
+            id: 'migrated_${DateTime.now().millisecondsSinceEpoch}',
+            templateId: shoulderTemplate.id,
+            templateName: 'Shoulder Workout (Previous Data)',
+            startTime: DateTime.now().subtract(const Duration(minutes: 30)),
+            endTime: DateTime.now(),
+            durationSeconds: 1800,
+            logs: migrationLogs,
+          );
+          setState(() {
+            history.insert(0, migrationSession);
+          });
+          await _saveHistory();
+        }
+
+        // Clear old data format after migration
+        await prefs.remove('workouts');
+      }
+    }
+  }
+
+  /// Creates the default Shoulder Workout template with the 5 original exercises
+  WorkoutTemplate _createDefaultShoulderTemplate() {
+    return WorkoutTemplate(
+      id: 'default_shoulder_workout',
+      name: 'Shoulder Workout',
+      description: 'Yellow Band (Lightest) - 5 shoulder exercises',
+      exercises: [
+        TemplateExercise(
+          exercise: const Exercise(
+            id: 'shoulderPress',
+            name: 'Shoulder Press',
+            description: 'Stand on band, press handles overhead',
+            iconCodePoint: 0xe5d8, // arrow_upward
+          ),
+          targetReps: 10,
+          sets: 3,
+        ),
+        TemplateExercise(
+          exercise: const Exercise(
+            id: 'lateralRaise',
+            name: 'Lateral Raise',
+            description: 'Stand on band, raise arms to sides',
+            iconCodePoint: 0xe89f, // open_with
+          ),
+          targetReps: 10,
+          sets: 3,
+        ),
+        TemplateExercise(
+          exercise: const Exercise(
+            id: 'frontRaise',
+            name: 'Front Raise',
+            description: 'Stand on band, raise arms forward',
+            iconCodePoint: 0xe5c8, // arrow_forward
+          ),
+          targetReps: 10,
+          sets: 3,
+        ),
+        TemplateExercise(
+          exercise: const Exercise(
+            id: 'reverseFly',
+            name: 'Reverse Fly',
+            description: 'Bend forward, pull band apart',
+            iconCodePoint: 0xe915, // compare_arrows
+          ),
+          targetReps: 10,
+          sets: 3,
+        ),
+        TemplateExercise(
+          exercise: const Exercise(
+            id: 'shrugs',
+            name: 'Shrugs',
+            description: 'Stand on band, lift shoulders up',
+            iconCodePoint: 0xf579, // keyboard_double_arrow_up
+          ),
+          targetReps: 10,
+          sets: 3,
+        ),
+      ],
+      createdAt: DateTime.now(),
+    );
   }
 
   Future<void> _saveTemplates() async {
@@ -392,6 +513,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
               builder: (_) => ActiveWorkoutPage(
                 template: template,
                 onComplete: _addSession,
+                history: history,
               ),
             ),
           );
@@ -1249,11 +1371,13 @@ class _ExerciseListItem extends StatelessWidget {
 class ActiveWorkoutPage extends StatefulWidget {
   final WorkoutTemplate template;
   final Function(WorkoutSession) onComplete;
+  final List<WorkoutSession> history;
 
   const ActiveWorkoutPage({
     super.key,
     required this.template,
     required this.onComplete,
+    required this.history,
   });
 
   @override
@@ -1276,12 +1400,28 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   int restSeconds = 0;
   bool isResting = false;
 
+  // Previous best reps for each exercise
+  Map<String, int> previousBestReps = {};
+
   @override
   void initState() {
     super.initState();
     startTime = DateTime.now();
+    _loadPreviousBestReps();
     _startWorkoutTimer();
     _initializeCurrentExercise();
+  }
+
+  void _loadPreviousBestReps() {
+    // Find the best (highest) reps for each exercise from history
+    for (final session in widget.history) {
+      for (final log in session.logs) {
+        final currentBest = previousBestReps[log.exerciseId] ?? 0;
+        if (log.reps > currentBest) {
+          previousBestReps[log.exerciseId] = log.reps;
+        }
+      }
+    }
   }
 
   @override
@@ -1596,6 +1736,32 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                   style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
+                // Show previous best reps if available
+                if (previousBestReps.containsKey(current.exercise.id)) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade100,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.history, size: 20, color: Colors.green.shade700),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${l10n.get('previousBest')}: ${previousBestReps[current.exercise.id]} ${l10n.reps}',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (current.exercise.description != null) ...[
                   const SizedBox(height: 8),
                   Text(

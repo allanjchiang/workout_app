@@ -53,42 +53,43 @@ class Exercise {
   final String id;
   final String name;
   final String? description;
-  final int iconCodePoint;
+  final String iconKey;
 
   const Exercise({
     required this.id,
     required this.name,
     this.description,
-    this.iconCodePoint = 0xe1a3, // fitness_center
+    this.iconKey = 'fitness_center',
   });
 
-  IconData get icon => IconData(iconCodePoint, fontFamily: 'MaterialIcons');
+  IconData get icon => kExerciseIconMap[iconKey] ?? Icons.fitness_center;
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
         'description': description,
-        'iconCodePoint': iconCodePoint,
+        'iconKey': iconKey,
       };
 
   factory Exercise.fromJson(Map<String, dynamic> json) => Exercise(
         id: json['id'] as String,
         name: json['name'] as String,
         description: json['description'] as String?,
-        iconCodePoint: json['iconCodePoint'] as int? ?? 0xe1a3,
+        iconKey: (json['iconKey'] as String?) ??
+            _iconKeyFromLegacy(json['iconCodePoint'] as int?),
       );
 
   Exercise copyWith({
     String? id,
     String? name,
     String? description,
-    int? iconCodePoint,
+    String? iconKey,
   }) =>
       Exercise(
         id: id ?? this.id,
         name: name ?? this.name,
         description: description ?? this.description,
-        iconCodePoint: iconCodePoint ?? this.iconCodePoint,
+        iconKey: iconKey ?? this.iconKey,
       );
 }
 
@@ -266,21 +267,46 @@ class WorkoutSession {
       );
 }
 
-// Available icons for exercises
-const List<IconData> exerciseIcons = [
-  Icons.fitness_center,
-  Icons.sports_gymnastics,
-  Icons.accessibility_new,
-  Icons.directions_run,
-  Icons.self_improvement,
-  Icons.sports,
-  Icons.arrow_upward,
-  Icons.open_with,
-  Icons.arrow_forward,
-  Icons.compare_arrows,
-  Icons.keyboard_double_arrow_up,
-  Icons.pan_tool,
+// Available icons for exercises (const to allow tree shaking)
+const Map<String, IconData> kExerciseIconMap = {
+  'fitness_center': Icons.fitness_center,
+  'sports_gymnastics': Icons.sports_gymnastics,
+  'accessibility_new': Icons.accessibility_new,
+  'directions_run': Icons.directions_run,
+  'self_improvement': Icons.self_improvement,
+  'sports': Icons.sports,
+  'arrow_upward': Icons.arrow_upward,
+  'open_with': Icons.open_with,
+  'arrow_forward': Icons.arrow_forward,
+  'compare_arrows': Icons.compare_arrows,
+  'keyboard_double_arrow_up': Icons.keyboard_double_arrow_up,
+  'pan_tool': Icons.pan_tool,
+};
+
+const List<String> kExerciseIconKeys = [
+  'fitness_center',
+  'sports_gymnastics',
+  'accessibility_new',
+  'directions_run',
+  'self_improvement',
+  'sports',
+  'arrow_upward',
+  'open_with',
+  'arrow_forward',
+  'compare_arrows',
+  'keyboard_double_arrow_up',
+  'pan_tool',
 ];
+
+String _iconKeyFromLegacy(int? codePoint) {
+  if (codePoint == null) return 'fitness_center';
+  for (final entry in kExerciseIconMap.entries) {
+    if (entry.value.codePoint == codePoint) {
+      return entry.key;
+    }
+  }
+  return 'fitness_center';
+}
 
 // ============== MAIN NAVIGATION ==============
 
@@ -421,7 +447,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
             id: 'shoulderPress',
             name: l10n.get('shoulderPress'),
             description: l10n.get('shoulderPressDesc'),
-            iconCodePoint: 0xe5d8, // arrow_upward
+            iconKey: 'arrow_upward',
           ),
           targetReps: 10,
           sets: 3,
@@ -431,7 +457,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
             id: 'lateralRaise',
             name: l10n.get('lateralRaise'),
             description: l10n.get('lateralRaiseDesc'),
-            iconCodePoint: 0xe89f, // open_with
+            iconKey: 'open_with',
           ),
           targetReps: 10,
           sets: 3,
@@ -441,7 +467,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
             id: 'frontRaise',
             name: l10n.get('frontRaise'),
             description: l10n.get('frontRaiseDesc'),
-            iconCodePoint: 0xe5c8, // arrow_forward
+            iconKey: 'arrow_forward',
           ),
           targetReps: 10,
           sets: 3,
@@ -451,7 +477,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
             id: 'reverseFly',
             name: l10n.get('reverseFly'),
             description: l10n.get('reverseFlyDesc'),
-            iconCodePoint: 0xe915, // compare_arrows
+            iconKey: 'compare_arrows',
           ),
           targetReps: 10,
           sets: 3,
@@ -461,7 +487,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
             id: 'shrugs',
             name: l10n.get('shrugs'),
             description: l10n.get('shrugsDesc'),
-            iconCodePoint: 0xf579, // keyboard_double_arrow_up
+            iconKey: 'keyboard_double_arrow_up',
           ),
           targetReps: 10,
           sets: 3,
@@ -1119,8 +1145,11 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: List.generate(exerciseIcons.length, (index) {
+                  children: List.generate(kExerciseIconKeys.length, (index) {
                     final isSelected = index == selectedIconIndex;
+                    final iconKey = kExerciseIconKeys[index];
+                    final iconData =
+                        kExerciseIconMap[iconKey] ?? Icons.fitness_center;
                     return InkWell(
                       onTap: () => setDialogState(() => selectedIconIndex = index),
                       borderRadius: BorderRadius.circular(12),
@@ -1135,7 +1164,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                             width: isSelected ? 2 : 1,
                           ),
                         ),
-                        child: Icon(exerciseIcons[index], size: 24, color: Colors.amber.shade800),
+                        child: Icon(iconData, size: 24, color: Colors.amber.shade800),
                       ),
                     );
                   }),
@@ -1163,7 +1192,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                   id: 'ex_${DateTime.now().millisecondsSinceEpoch}',
                   name: nameController.text.trim(),
                   description: descController.text.trim().isEmpty ? null : descController.text.trim(),
-                  iconCodePoint: exerciseIcons[selectedIconIndex].codePoint,
+                  iconKey: kExerciseIconKeys[selectedIconIndex],
                 );
                 setState(() {
                   exercises.add(TemplateExercise(

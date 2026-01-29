@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -65,32 +63,32 @@ class Exercise {
   IconData get icon => kExerciseIconMap[iconKey] ?? Icons.fitness_center;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'description': description,
-        'iconKey': iconKey,
-      };
+    'id': id,
+    'name': name,
+    'description': description,
+    'iconKey': iconKey,
+  };
 
   factory Exercise.fromJson(Map<String, dynamic> json) => Exercise(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        description: json['description'] as String?,
-        iconKey: (json['iconKey'] as String?) ??
-            _iconKeyFromLegacy(json['iconCodePoint'] as int?),
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    description: json['description'] as String?,
+    iconKey:
+        (json['iconKey'] as String?) ??
+        _iconKeyFromLegacy(json['iconCodePoint'] as int?),
+  );
 
   Exercise copyWith({
     String? id,
     String? name,
     String? description,
     String? iconKey,
-  }) =>
-      Exercise(
-        id: id ?? this.id,
-        name: name ?? this.name,
-        description: description ?? this.description,
-        iconKey: iconKey ?? this.iconKey,
-      );
+  }) => Exercise(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    description: description ?? this.description,
+    iconKey: iconKey ?? this.iconKey,
+  );
 }
 
 /// Exercise within a template with target reps/weight
@@ -108,11 +106,11 @@ class TemplateExercise {
   });
 
   Map<String, dynamic> toJson() => {
-        'exercise': exercise.toJson(),
-        'targetReps': targetReps,
-        'targetWeight': targetWeight,
-        'sets': sets,
-      };
+    'exercise': exercise.toJson(),
+    'targetReps': targetReps,
+    'targetWeight': targetWeight,
+    'sets': sets,
+  };
 
   factory TemplateExercise.fromJson(Map<String, dynamic> json) =>
       TemplateExercise(
@@ -127,13 +125,12 @@ class TemplateExercise {
     int? targetReps,
     double? targetWeight,
     int? sets,
-  }) =>
-      TemplateExercise(
-        exercise: exercise ?? this.exercise,
-        targetReps: targetReps ?? this.targetReps,
-        targetWeight: targetWeight ?? this.targetWeight,
-        sets: sets ?? this.sets,
-      );
+  }) => TemplateExercise(
+    exercise: exercise ?? this.exercise,
+    targetReps: targetReps ?? this.targetReps,
+    targetWeight: targetWeight ?? this.targetWeight,
+    sets: sets ?? this.sets,
+  );
 }
 
 /// Workout template containing multiple exercises
@@ -153,12 +150,12 @@ class WorkoutTemplate {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'description': description,
-        'exercises': exercises.map((e) => e.toJson()).toList(),
-        'createdAt': createdAt.toIso8601String(),
-      };
+    'id': id,
+    'name': name,
+    'description': description,
+    'exercises': exercises.map((e) => e.toJson()).toList(),
+    'createdAt': createdAt.toIso8601String(),
+  };
 
   factory WorkoutTemplate.fromJson(Map<String, dynamic> json) =>
       WorkoutTemplate(
@@ -177,14 +174,13 @@ class WorkoutTemplate {
     String? description,
     List<TemplateExercise>? exercises,
     DateTime? createdAt,
-  }) =>
-      WorkoutTemplate(
-        id: id ?? this.id,
-        name: name ?? this.name,
-        description: description ?? this.description,
-        exercises: exercises ?? this.exercises,
-        createdAt: createdAt ?? this.createdAt,
-      );
+  }) => WorkoutTemplate(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    description: description ?? this.description,
+    exercises: exercises ?? this.exercises,
+    createdAt: createdAt ?? this.createdAt,
+  );
 }
 
 /// Logged set during a workout
@@ -206,22 +202,22 @@ class ExerciseLog {
   });
 
   Map<String, dynamic> toJson() => {
-        'exerciseId': exerciseId,
-        'exerciseName': exerciseName,
-        'setNumber': setNumber,
-        'reps': reps,
-        'weight': weight,
-        'timestamp': timestamp.toIso8601String(),
-      };
+    'exerciseId': exerciseId,
+    'exerciseName': exerciseName,
+    'setNumber': setNumber,
+    'reps': reps,
+    'weight': weight,
+    'timestamp': timestamp.toIso8601String(),
+  };
 
   factory ExerciseLog.fromJson(Map<String, dynamic> json) => ExerciseLog(
-        exerciseId: json['exerciseId'] as String,
-        exerciseName: json['exerciseName'] as String,
-        setNumber: json['setNumber'] as int,
-        reps: json['reps'] as int,
-        weight: (json['weight'] as num).toDouble(),
-        timestamp: DateTime.parse(json['timestamp'] as String),
-      );
+    exerciseId: json['exerciseId'] as String,
+    exerciseName: json['exerciseName'] as String,
+    setNumber: json['setNumber'] as int,
+    reps: json['reps'] as int,
+    weight: (json['weight'] as num).toDouble(),
+    timestamp: DateTime.parse(json['timestamp'] as String),
+  );
 }
 
 /// Completed workout session
@@ -245,26 +241,26 @@ class WorkoutSession {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'templateId': templateId,
-        'templateName': templateName,
-        'startTime': startTime.toIso8601String(),
-        'endTime': endTime.toIso8601String(),
-        'durationSeconds': durationSeconds,
-        'logs': logs.map((l) => l.toJson()).toList(),
-      };
+    'id': id,
+    'templateId': templateId,
+    'templateName': templateName,
+    'startTime': startTime.toIso8601String(),
+    'endTime': endTime.toIso8601String(),
+    'durationSeconds': durationSeconds,
+    'logs': logs.map((l) => l.toJson()).toList(),
+  };
 
   factory WorkoutSession.fromJson(Map<String, dynamic> json) => WorkoutSession(
-        id: json['id'] as String,
-        templateId: json['templateId'] as String,
-        templateName: json['templateName'] as String,
-        startTime: DateTime.parse(json['startTime'] as String),
-        endTime: DateTime.parse(json['endTime'] as String),
-        durationSeconds: json['durationSeconds'] as int,
-        logs: (json['logs'] as List<dynamic>)
-            .map((l) => ExerciseLog.fromJson(l as Map<String, dynamic>))
-            .toList(),
-      );
+    id: json['id'] as String,
+    templateId: json['templateId'] as String,
+    templateName: json['templateName'] as String,
+    startTime: DateTime.parse(json['startTime'] as String),
+    endTime: DateTime.parse(json['endTime'] as String),
+    durationSeconds: json['durationSeconds'] as int,
+    logs: (json['logs'] as List<dynamic>)
+        .map((l) => ExerciseLog.fromJson(l as Map<String, dynamic>))
+        .toList(),
+  );
 }
 
 // Available icons for exercises (const to allow tree shaking)
@@ -363,8 +359,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     // MIGRATION: Check for old workout data from previous app version
     final oldWorkoutsJson = prefs.getString('workouts');
     if (oldWorkoutsJson != null) {
-      _pendingOldWorkouts =
-          Map<String, int>.from(jsonDecode(oldWorkoutsJson));
+      _pendingOldWorkouts = Map<String, int>.from(jsonDecode(oldWorkoutsJson));
     }
   }
 
@@ -397,14 +392,16 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
 
       for (final entry in _pendingOldWorkouts.entries) {
         final exerciseName = exerciseNames[entry.key] ?? entry.key;
-        migrationLogs.add(ExerciseLog(
-          exerciseId: entry.key,
-          exerciseName: exerciseName,
-          setNumber: 1,
-          reps: entry.value,
-          weight: 0,
-          timestamp: DateTime.now(),
-        ));
+        migrationLogs.add(
+          ExerciseLog(
+            exerciseId: entry.key,
+            exerciseName: exerciseName,
+            setNumber: 1,
+            reps: entry.value,
+            weight: 0,
+            timestamp: DateTime.now(),
+          ),
+        );
       }
 
       if (migrationLogs.isNotEmpty) {
@@ -585,17 +582,29 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         destinations: [
           NavigationDestination(
             icon: const Icon(Icons.fitness_center, size: 28),
-            selectedIcon: Icon(Icons.fitness_center, size: 28, color: Colors.amber.shade700),
+            selectedIcon: Icon(
+              Icons.fitness_center,
+              size: 28,
+              color: Colors.amber.shade700,
+            ),
             label: l10n.get('workouts'),
           ),
           NavigationDestination(
             icon: const Icon(Icons.history, size: 28),
-            selectedIcon: Icon(Icons.history, size: 28, color: Colors.amber.shade700),
+            selectedIcon: Icon(
+              Icons.history,
+              size: 28,
+              color: Colors.amber.shade700,
+            ),
             label: l10n.get('history'),
           ),
           NavigationDestination(
             icon: const Icon(Icons.bar_chart, size: 28),
-            selectedIcon: Icon(Icons.bar_chart, size: 28, color: Colors.amber.shade700),
+            selectedIcon: Icon(
+              Icons.bar_chart,
+              size: 28,
+              color: Colors.amber.shade700,
+            ),
             label: l10n.get('statistics'),
           ),
         ],
@@ -671,27 +680,17 @@ class TemplatesPage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.fitness_center,
-              size: 80,
-              color: Colors.amber.shade300,
-            ),
+            Icon(Icons.fitness_center, size: 80, color: Colors.amber.shade300),
             const SizedBox(height: 24),
             Text(
               l10n.get('noWorkoutsYet'),
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
             Text(
               l10n.get('tapToCreateFirst'),
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
               textAlign: TextAlign.center,
             ),
           ],
@@ -723,28 +722,30 @@ class TemplatesPage extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => TemplateEditorPage(
-          onSave: onAddTemplate,
-        ),
+        builder: (_) => TemplateEditorPage(onSave: onAddTemplate),
       ),
     );
   }
 
   void _showEditTemplateDialog(
-      BuildContext context, AppLocalizations l10n, WorkoutTemplate template) {
+    BuildContext context,
+    AppLocalizations l10n,
+    WorkoutTemplate template,
+  ) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => TemplateEditorPage(
-          template: template,
-          onSave: onUpdateTemplate,
-        ),
+        builder: (_) =>
+            TemplateEditorPage(template: template, onSave: onUpdateTemplate),
       ),
     );
   }
 
   void _confirmDelete(
-      BuildContext context, AppLocalizations l10n, WorkoutTemplate template) {
+    BuildContext context,
+    AppLocalizations l10n,
+    WorkoutTemplate template,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -770,7 +771,10 @@ class TemplatesPage extends StatelessWidget {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: Text(l10n.get('delete'), style: const TextStyle(fontSize: 18)),
+            child: Text(
+              l10n.get('delete'),
+              style: const TextStyle(fontSize: 18),
+            ),
           ),
         ],
       ),
@@ -788,7 +792,10 @@ class TemplatesPage extends StatelessWidget {
             Expanded(
               child: Text(
                 l10n.aboutAndDisclaimer,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -800,7 +807,10 @@ class TemplatesPage extends StatelessWidget {
             children: [
               Text(
                 l10n.appTitle,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -827,13 +837,25 @@ class TemplatesPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text('• ${l10n.get('disclaimer1')}', style: const TextStyle(fontSize: 15)),
+                    Text(
+                      '• ${l10n.get('disclaimer1')}',
+                      style: const TextStyle(fontSize: 15),
+                    ),
                     const SizedBox(height: 8),
-                    Text('• ${l10n.get('disclaimer2')}', style: const TextStyle(fontSize: 15)),
+                    Text(
+                      '• ${l10n.get('disclaimer2')}',
+                      style: const TextStyle(fontSize: 15),
+                    ),
                     const SizedBox(height: 8),
-                    Text('• ${l10n.get('disclaimer3')}', style: const TextStyle(fontSize: 15)),
+                    Text(
+                      '• ${l10n.get('disclaimer3')}',
+                      style: const TextStyle(fontSize: 15),
+                    ),
                     const SizedBox(height: 8),
-                    Text('• ${l10n.get('disclaimer4')}', style: const TextStyle(fontSize: 15)),
+                    Text(
+                      '• ${l10n.get('disclaimer4')}',
+                      style: const TextStyle(fontSize: 15),
+                    ),
                   ],
                 ),
               ),
@@ -857,11 +879,20 @@ class TemplatesPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text('• ${l10n.get('privacy1')}', style: const TextStyle(fontSize: 15)),
+                    Text(
+                      '• ${l10n.get('privacy1')}',
+                      style: const TextStyle(fontSize: 15),
+                    ),
                     const SizedBox(height: 8),
-                    Text('• ${l10n.get('privacy2')}', style: const TextStyle(fontSize: 15)),
+                    Text(
+                      '• ${l10n.get('privacy2')}',
+                      style: const TextStyle(fontSize: 15),
+                    ),
                     const SizedBox(height: 8),
-                    Text('• ${l10n.get('privacy3')}', style: const TextStyle(fontSize: 15)),
+                    Text(
+                      '• ${l10n.get('privacy3')}',
+                      style: const TextStyle(fontSize: 15),
+                    ),
                   ],
                 ),
               ),
@@ -898,7 +929,8 @@ class _TemplateCard extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: '${template.name}, ${template.exercises.length} ${l10n.get('exercises')}',
+      label:
+          '${template.name}, ${template.exercises.length} ${l10n.get('exercises')}',
       child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -950,17 +982,26 @@ class _TemplateCard extends StatelessWidget {
                     ),
                     IconButton(
                       onPressed: onEdit,
-                      icon: Icon(Icons.edit, color: Colors.blue.shade600, size: 28),
+                      icon: Icon(
+                        Icons.edit,
+                        color: Colors.blue.shade600,
+                        size: 28,
+                      ),
                       tooltip: l10n.get('edit'),
                     ),
                     IconButton(
                       onPressed: onDelete,
-                      icon: Icon(Icons.delete, color: Colors.red.shade600, size: 28),
+                      icon: Icon(
+                        Icons.delete,
+                        color: Colors.red.shade600,
+                        size: 28,
+                      ),
                       tooltip: l10n.get('delete'),
                     ),
                   ],
                 ),
-                if (template.description != null && template.description!.isNotEmpty) ...[
+                if (template.description != null &&
+                    template.description!.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Text(
                     template.description!,
@@ -977,7 +1018,10 @@ class _TemplateCard extends StatelessWidget {
                     icon: const Icon(Icons.play_arrow, size: 28),
                     label: Text(
                       l10n.get('startWorkout'),
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
@@ -1003,11 +1047,7 @@ class TemplateEditorPage extends StatefulWidget {
   final WorkoutTemplate? template;
   final Function(WorkoutTemplate) onSave;
 
-  const TemplateEditorPage({
-    super.key,
-    this.template,
-    required this.onSave,
-  });
+  const TemplateEditorPage({super.key, this.template, required this.onSave});
 
   @override
   State<TemplateEditorPage> createState() => _TemplateEditorPageState();
@@ -1022,8 +1062,9 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.template?.name ?? '');
-    _descController =
-        TextEditingController(text: widget.template?.description ?? '');
+    _descController = TextEditingController(
+      text: widget.template?.description ?? '',
+    );
     if (widget.template != null) {
       exercises = List.from(widget.template!.exercises);
     }
@@ -1088,7 +1129,10 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(l10n.get('sets'), style: const TextStyle(fontSize: 16)),
+                          Text(
+                            l10n.get('sets'),
+                            style: const TextStyle(fontSize: 16),
+                          ),
                           const SizedBox(height: 8),
                           Row(
                             children: [
@@ -1100,7 +1144,13 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                                 },
                                 icon: const Icon(Icons.remove_circle_outline),
                               ),
-                              Text('$sets', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                              Text(
+                                '$sets',
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                               IconButton(
                                 onPressed: () => setDialogState(() => sets++),
                                 icon: const Icon(Icons.add_circle_outline),
@@ -1114,7 +1164,10 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(l10n.get('targetReps'), style: const TextStyle(fontSize: 16)),
+                          Text(
+                            l10n.get('targetReps'),
+                            style: const TextStyle(fontSize: 16),
+                          ),
                           const SizedBox(height: 8),
                           Row(
                             children: [
@@ -1126,9 +1179,16 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                                 },
                                 icon: const Icon(Icons.remove_circle_outline),
                               ),
-                              Text('$targetReps', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                              Text(
+                                '$targetReps',
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                               IconButton(
-                                onPressed: () => setDialogState(() => targetReps++),
+                                onPressed: () =>
+                                    setDialogState(() => targetReps++),
                                 icon: const Icon(Icons.add_circle_outline),
                               ),
                             ],
@@ -1140,7 +1200,13 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                 ),
                 const SizedBox(height: 16),
                 // Icon picker
-                Text(l10n.get('chooseIcon'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text(
+                  l10n.get('chooseIcon'),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -1151,20 +1217,29 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                     final iconData =
                         kExerciseIconMap[iconKey] ?? Icons.fitness_center;
                     return InkWell(
-                      onTap: () => setDialogState(() => selectedIconIndex = index),
+                      onTap: () =>
+                          setDialogState(() => selectedIconIndex = index),
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          color: isSelected ? Colors.amber.shade200 : Colors.grey.shade100,
+                          color: isSelected
+                              ? Colors.amber.shade200
+                              : Colors.grey.shade100,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: isSelected ? Colors.amber.shade600 : Colors.grey.shade300,
+                            color: isSelected
+                                ? Colors.amber.shade600
+                                : Colors.grey.shade300,
                             width: isSelected ? 2 : 1,
                           ),
                         ),
-                        child: Icon(iconData, size: 24, color: Colors.amber.shade800),
+                        child: Icon(
+                          iconData,
+                          size: 24,
+                          color: Colors.amber.shade800,
+                        ),
                       ),
                     );
                   }),
@@ -1191,16 +1266,20 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                 final exercise = Exercise(
                   id: 'ex_${DateTime.now().millisecondsSinceEpoch}',
                   name: nameController.text.trim(),
-                  description: descController.text.trim().isEmpty ? null : descController.text.trim(),
+                  description: descController.text.trim().isEmpty
+                      ? null
+                      : descController.text.trim(),
                   iconKey: kExerciseIconKeys[selectedIconIndex],
                 );
                 setState(() {
-                  exercises.add(TemplateExercise(
-                    exercise: exercise,
-                    targetReps: targetReps,
-                    targetWeight: targetWeight,
-                    sets: sets,
-                  ));
+                  exercises.add(
+                    TemplateExercise(
+                      exercise: exercise,
+                      targetReps: targetReps,
+                      targetWeight: targetWeight,
+                      sets: sets,
+                    ),
+                  );
                 });
                 Navigator.pop(context);
               },
@@ -1208,7 +1287,10 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
               ),
-              child: Text(l10n.get('add'), style: const TextStyle(fontSize: 18)),
+              child: Text(
+                l10n.get('add'),
+                style: const TextStyle(fontSize: 18),
+              ),
             ),
           ],
         ),
@@ -1240,9 +1322,13 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
     }
 
     final template = WorkoutTemplate(
-      id: widget.template?.id ?? 'template_${DateTime.now().millisecondsSinceEpoch}',
+      id:
+          widget.template?.id ??
+          'template_${DateTime.now().millisecondsSinceEpoch}',
       name: _nameController.text.trim(),
-      description: _descController.text.trim().isEmpty ? null : _descController.text.trim(),
+      description: _descController.text.trim().isEmpty
+          ? null
+          : _descController.text.trim(),
       exercises: exercises,
       createdAt: widget.template?.createdAt ?? DateTime.now(),
     );
@@ -1314,7 +1400,10 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
               // Exercises header
               Text(
                 l10n.get('exercises'),
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 12),
               // Exercise list
@@ -1398,7 +1487,10 @@ class _ExerciseListItem extends StatelessWidget {
               children: [
                 Text(
                   exercise.name,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 Text(
                   '${templateExercise.sets} ${l10n.get('sets')} × ${templateExercise.targetReps} ${l10n.reps}',
@@ -1594,8 +1686,14 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(l10n.get('endWorkout'), style: const TextStyle(fontSize: 22)),
-        content: Text(l10n.get('endWorkoutConfirm'), style: const TextStyle(fontSize: 18)),
+        title: Text(
+          l10n.get('endWorkout'),
+          style: const TextStyle(fontSize: 22),
+        ),
+        content: Text(
+          l10n.get('endWorkoutConfirm'),
+          style: const TextStyle(fontSize: 18),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1616,7 +1714,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: Text(l10n.get('endNow'), style: const TextStyle(fontSize: 18)),
+            child: Text(
+              l10n.get('endNow'),
+              style: const TextStyle(fontSize: 18),
+            ),
           ),
         ],
       ),
@@ -1628,9 +1729,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     final minutes = (seconds % 3600) ~/ 60;
     final secs = seconds % 60;
     if (hours > 0) {
-      return '${hours}:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+      return '$hours:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
     }
-    return '${minutes}:${secs.toString().padLeft(2, '0')}';
+    return '$minutes:${secs.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -1684,7 +1785,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
           ],
         ),
         body: SafeArea(
-          child: isResting ? _buildRestScreen(l10n) : _buildExerciseScreen(l10n, current),
+          child: isResting
+              ? _buildRestScreen(l10n)
+              : _buildExerciseScreen(l10n, current),
         ),
       ),
     );
@@ -1725,7 +1828,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                 ),
                 child: Text(
                   l10n.get('skipRest'),
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -1765,12 +1871,18 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
               children: [
                 Text(
                   '${l10n.get('exercise')} ${currentExerciseIndex + 1}/${widget.template.exercises.length}',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Text(
                   '${l10n.get('set')} $currentSet/${current.sets}',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
@@ -1792,18 +1904,28 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
             ),
             child: Column(
               children: [
-                Icon(current.exercise.icon, size: 60, color: Colors.amber.shade700),
+                Icon(
+                  current.exercise.icon,
+                  size: 60,
+                  color: Colors.amber.shade700,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   current.exercise.name,
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 // Show previous best reps if available
                 if (previousBestReps.containsKey(current.exercise.id)) ...[
                   const SizedBox(height: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.green.shade100,
                       borderRadius: BorderRadius.circular(20),
@@ -1811,7 +1933,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.history, size: 20, color: Colors.green.shade700),
+                        Icon(
+                          Icons.history,
+                          size: 20,
+                          color: Colors.green.shade700,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           '${l10n.get('previousBest')}: ${previousBestReps[current.exercise.id]} ${l10n.reps}',
@@ -1850,7 +1976,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
               children: [
                 Text(
                   l10n.get('workoutPlan'),
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -1859,16 +1988,17 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                 ),
                 const SizedBox(height: 12),
                 ...widget.template.exercises.map((exercise) {
-                  final isCurrent =
-                      exercise.exercise.id == current.exercise.id;
-                  final isCompleted =
-                      completedExerciseIds.contains(exercise.exercise.id);
+                  final isCurrent = exercise.exercise.id == current.exercise.id;
+                  final isCompleted = completedExerciseIds.contains(
+                    exercise.exercise.id,
+                  );
                   final isAvailable = !isResting;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Semantics(
                       button: true,
-                      label: '${exercise.exercise.name}, ${exercise.sets} ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
+                      label:
+                          '${exercise.exercise.name}, ${exercise.sets} ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
                       child: Material(
                         color: Colors.transparent,
                         borderRadius: BorderRadius.circular(12),
@@ -1941,8 +2071,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                                     ),
                                     decoration: BoxDecoration(
                                       color: Colors.amber.shade300,
-                                      borderRadius:
-                                          BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
                                       l10n.get('current'),
@@ -1975,7 +2104,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
               children: [
                 Text(
                   l10n.reps,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -1993,15 +2125,24 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                     const SizedBox(width: 24),
                     Container(
                       width: 100,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.amber.shade100,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.amber.shade400, width: 2),
+                        border: Border.all(
+                          color: Colors.amber.shade400,
+                          width: 2,
+                        ),
                       ),
                       child: Text(
                         '$currentReps',
-                        style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 40,
+                          fontWeight: FontWeight.bold,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -2028,7 +2169,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                         currentSet == current.sets
                     ? l10n.get('finishWorkout')
                     : l10n.get('logSet'),
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
@@ -2042,7 +2186,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
           ),
           const SizedBox(height: 16),
           // Logged sets for this exercise
-          if (logs.where((l) => l.exerciseId == current.exercise.id).isNotEmpty) ...[
+          if (logs
+              .where((l) => l.exerciseId == current.exercise.id)
+              .isNotEmpty) ...[
             Text(
               l10n.get('completedSets'),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -2050,27 +2196,33 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
             const SizedBox(height: 8),
             ...logs
                 .where((l) => l.exerciseId == current.exercise.id)
-                .map((log) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.green.shade300),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.check_circle, color: Colors.green.shade600, size: 24),
-                            const SizedBox(width: 12),
-                            Text(
-                              '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}',
-                              style: const TextStyle(fontSize: 18),
-                            ),
-                          ],
-                        ),
+                .map(
+                  (log) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green.shade300),
                       ),
-                    )),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            color: Colors.green.shade600,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}',
+                            style: const TextStyle(fontSize: 18),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
           ],
         ],
       ),
@@ -2110,17 +2262,27 @@ class HistoryPage extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.history, size: 80, color: Colors.amber.shade300),
+                      Icon(
+                        Icons.history,
+                        size: 80,
+                        color: Colors.amber.shade300,
+                      ),
                       const SizedBox(height: 24),
                       Text(
                         l10n.get('noHistoryYet'),
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
                       Text(
                         l10n.get('completeWorkoutToSee'),
-                        style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey.shade600,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -2201,7 +2363,11 @@ class _HistoryCard extends StatelessWidget {
                   color: Colors.green.shade100,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.check, size: 28, color: Colors.green.shade700),
+                child: Icon(
+                  Icons.check,
+                  size: 28,
+                  color: Colors.green.shade700,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -2210,11 +2376,17 @@ class _HistoryCard extends StatelessWidget {
                   children: [
                     Text(
                       session.templateName,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     Text(
                       _formatDate(session.startTime),
-                      style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
                   ],
                 ),
@@ -2291,19 +2463,28 @@ class StatisticsPage extends StatelessWidget {
 
     // Calculate statistics
     final totalWorkouts = history.length;
-    final totalDuration = history.fold<int>(0, (sum, s) => sum + s.durationSeconds);
-    final totalReps = history.fold<int>(0, (sum, s) => sum + s.logs.fold<int>(0, (s2, l) => s2 + l.reps));
+    final totalDuration = history.fold<int>(
+      0,
+      (sum, s) => sum + s.durationSeconds,
+    );
+    final totalReps = history.fold<int>(
+      0,
+      (sum, s) => sum + s.logs.fold<int>(0, (s2, l) => s2 + l.reps),
+    );
 
     // Workouts this week
     final now = DateTime.now();
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
-    final workoutsThisWeek = history.where((s) => s.startTime.isAfter(weekStart)).length;
+    final workoutsThisWeek = history
+        .where((s) => s.startTime.isAfter(weekStart))
+        .length;
 
     // Most common exercises
     final exerciseCounts = <String, int>{};
     for (final session in history) {
       for (final log in session.logs) {
-        exerciseCounts[log.exerciseName] = (exerciseCounts[log.exerciseName] ?? 0) + log.reps;
+        exerciseCounts[log.exerciseName] =
+            (exerciseCounts[log.exerciseName] ?? 0) + log.reps;
       }
     }
     final topExercises = exerciseCounts.entries.toList()
@@ -2330,17 +2511,27 @@ class StatisticsPage extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.bar_chart, size: 80, color: Colors.amber.shade300),
+                      Icon(
+                        Icons.bar_chart,
+                        size: 80,
+                        color: Colors.amber.shade300,
+                      ),
                       const SizedBox(height: 24),
                       Text(
                         l10n.get('noStatsYet'),
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
                       Text(
                         l10n.get('completeWorkoutToSee'),
-                        style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey.shade600,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -2355,7 +2546,10 @@ class StatisticsPage extends StatelessWidget {
                     // Overview stats
                     Text(
                       l10n.get('overview'),
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -2406,35 +2600,52 @@ class StatisticsPage extends StatelessWidget {
                     if (topExercises.isNotEmpty) ...[
                       Text(
                         l10n.get('topExercises'),
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 16),
-                      ...topExercises.take(5).map((entry) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.fitness_center, color: Colors.amber.shade700, size: 28),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Text(
-                                      entry.key,
-                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ...topExercises
+                          .take(5)
+                          .map(
+                            (entry) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.fitness_center,
+                                      color: Colors.amber.shade700,
+                                      size: 28,
                                     ),
-                                  ),
-                                  Text(
-                                    '${entry.value} ${l10n.reps}',
-                                    style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-                                  ),
-                                ],
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Text(
+                                        entry.key,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      '${entry.value} ${l10n.reps}',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                          )),
+                          ),
                     ],
                   ],
                 ),

@@ -47,7 +47,8 @@ class AppLocalizations {
     // Templates page
     'myWorkouts': 'My Workouts',
     'noWorkoutsYet': 'No workouts yet',
-    'tapToCreateFirst': 'Tap the button below to create your first workout template',
+    'tapToCreateFirst':
+        'Tap the button below to create your first workout template',
     'newWorkout': 'New Workout',
     'startWorkout': 'Start Workout',
     'deleteWorkout': 'Delete Workout',
@@ -91,7 +92,8 @@ class AppLocalizations {
     // History
     'workoutHistory': 'Workout History',
     'noHistoryYet': 'No workout history yet',
-    'completeWorkoutToSee': 'Complete a workout to see your history and statistics',
+    'completeWorkoutToSee':
+        'Complete a workout to see your history and statistics',
     'duration': 'Duration',
 
     // Statistics
@@ -217,9 +219,19 @@ class AppLocalizations {
     'current': 'Current',
     'tapToJump': 'Tap an exercise to jump to it',
     'shoulderWorkoutTemplate': 'Shoulder Workout',
-    'shoulderWorkoutTemplateDesc': 'Yellow Band (Lightest) - 5 shoulder exercises',
+    'shoulderWorkoutTemplateDesc': 'Resistance Band - 5 shoulder exercises',
     'fiveShoulderExercises': '5 shoulder exercises',
     'previousData': 'Previous data',
+
+    // Settings
+    'settings': 'Settings',
+    'appearance': 'Appearance',
+    'theme': 'Theme',
+    'systemDefault': 'System default',
+    'lightMode': 'Light',
+    'darkMode': 'Dark',
+    'themeDescription': 'Choose how the app looks',
+    'about': 'About',
   };
 
   // Chinese Traditional strings
@@ -401,9 +413,19 @@ class AppLocalizations {
     'current': '目前',
     'tapToJump': '點擊動作即可跳轉',
     'shoulderWorkoutTemplate': '肩部運動',
-    'shoulderWorkoutTemplateDesc': '黃色彈力帶（最輕）- 5 個肩部動作',
+    'shoulderWorkoutTemplateDesc': '彈力帶 - 5 個肩部動作',
     'fiveShoulderExercises': '5 個肩部動作',
     'previousData': '舊資料',
+
+    // Settings
+    'settings': '設定',
+    'appearance': '外觀',
+    'theme': '主題',
+    'systemDefault': '跟隨系統',
+    'lightMode': '淺色',
+    'darkMode': '深色',
+    'themeDescription': '選擇應用程式外觀',
+    'about': '關於',
   };
 
   // Convenience getters for common strings

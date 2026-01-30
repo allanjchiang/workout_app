@@ -10,8 +10,162 @@ void main() {
   runApp(const WorkoutTrackerApp());
 }
 
-class WorkoutTrackerApp extends StatelessWidget {
+// Theme notifier for app-wide theme management
+class ThemeNotifier extends ChangeNotifier {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  ThemeMode get themeMode => _themeMode;
+
+  ThemeNotifier() {
+    _loadTheme();
+  }
+
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final themeString = prefs.getString('theme_mode') ?? 'system';
+    _themeMode = _themeModeFromString(themeString);
+    notifyListeners();
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    _themeMode = mode;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('theme_mode', _themeStringFromMode(mode));
+  }
+
+  ThemeMode _themeModeFromString(String value) {
+    switch (value) {
+      case 'light':
+        return ThemeMode.light;
+      case 'dark':
+        return ThemeMode.dark;
+      default:
+        return ThemeMode.system;
+    }
+  }
+
+  String _themeStringFromMode(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.light:
+        return 'light';
+      case ThemeMode.dark:
+        return 'dark';
+      default:
+        return 'system';
+    }
+  }
+}
+
+// Global theme notifier instance
+final themeNotifier = ThemeNotifier();
+
+// Navy blue color scheme - easy to read for elderly
+const Color kPrimaryBlue = Color(0xFF1E3A5F); // Navy blue
+const Color kPrimaryBlueLight = Color(0xFF3D5A80); // Lighter navy
+const Color kAccentBlue = Color(0xFF5C93C4); // Accent blue
+
+class WorkoutTrackerApp extends StatefulWidget {
   const WorkoutTrackerApp({super.key});
+
+  @override
+  State<WorkoutTrackerApp> createState() => _WorkoutTrackerAppState();
+}
+
+class _WorkoutTrackerAppState extends State<WorkoutTrackerApp> {
+  @override
+  void initState() {
+    super.initState();
+    themeNotifier.addListener(_onThemeChanged);
+  }
+
+  @override
+  void dispose() {
+    themeNotifier.removeListener(_onThemeChanged);
+    super.dispose();
+  }
+
+  void _onThemeChanged() {
+    setState(() {});
+  }
+
+  // Large text theme for elderly users
+  TextTheme get _largeTextTheme => const TextTheme(
+    headlineLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+    headlineMedium: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+    bodyLarge: TextStyle(fontSize: 22),
+    bodyMedium: TextStyle(fontSize: 20),
+    labelLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+  );
+
+  // Light theme - Navy blue with white background
+  ThemeData get _lightTheme => ThemeData(
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: kPrimaryBlue,
+      brightness: Brightness.light,
+      primary: kPrimaryBlue,
+      secondary: kAccentBlue,
+    ),
+    useMaterial3: true,
+    textTheme: _largeTextTheme,
+    appBarTheme: const AppBarTheme(
+      backgroundColor: kPrimaryBlue,
+      foregroundColor: Colors.white,
+      elevation: 0,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: kPrimaryBlue,
+        foregroundColor: Colors.white,
+      ),
+    ),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: kPrimaryBlue,
+      foregroundColor: Colors.white,
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      indicatorColor: kAccentBlue.withValues(alpha: 0.3),
+      labelTextStyle: WidgetStateProperty.all(
+        const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+      ),
+    ),
+  );
+
+  // Dark theme - Navy blue with dark background
+  ThemeData get _darkTheme => ThemeData(
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: kPrimaryBlue,
+      brightness: Brightness.dark,
+      primary: kAccentBlue,
+      secondary: kPrimaryBlueLight,
+    ),
+    useMaterial3: true,
+    textTheme: _largeTextTheme,
+    scaffoldBackgroundColor: const Color(0xFF121820),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Color(0xFF1A2634),
+      foregroundColor: Colors.white,
+      elevation: 0,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: kAccentBlue,
+        foregroundColor: Colors.white,
+      ),
+    ),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: kAccentBlue,
+      foregroundColor: Colors.white,
+    ),
+    cardTheme: const CardThemeData(color: Color(0xFF1A2634)),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: const Color(0xFF1A2634),
+      indicatorColor: kAccentBlue.withValues(alpha: 0.3),
+      labelTextStyle: WidgetStateProperty.all(
+        const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -25,20 +179,9 @@ class WorkoutTrackerApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.amber,
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        textTheme: const TextTheme(
-          headlineLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-          headlineMedium: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-          bodyLarge: TextStyle(fontSize: 22),
-          bodyMedium: TextStyle(fontSize: 20),
-          labelLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-      ),
+      theme: _lightTheme,
+      darkTheme: _darkTheme,
+      themeMode: themeNotifier.themeMode,
       home: const MainNavigationPage(),
     );
   }
@@ -566,7 +709,10 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       ),
       HistoryPage(history: history),
       StatisticsPage(history: history),
+      const SettingsPage(),
     ];
+
+    final primaryColor = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
       body: pages[_currentIndex],
@@ -585,27 +731,24 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
             selectedIcon: Icon(
               Icons.fitness_center,
               size: 28,
-              color: Colors.amber.shade700,
+              color: primaryColor,
             ),
             label: l10n.get('workouts'),
           ),
           NavigationDestination(
             icon: const Icon(Icons.history, size: 28),
-            selectedIcon: Icon(
-              Icons.history,
-              size: 28,
-              color: Colors.amber.shade700,
-            ),
+            selectedIcon: Icon(Icons.history, size: 28, color: primaryColor),
             label: l10n.get('history'),
           ),
           NavigationDestination(
             icon: const Icon(Icons.bar_chart, size: 28),
-            selectedIcon: Icon(
-              Icons.bar_chart,
-              size: 28,
-              color: Colors.amber.shade700,
-            ),
+            selectedIcon: Icon(Icons.bar_chart, size: 28, color: primaryColor),
             label: l10n.get('statistics'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.settings, size: 28),
+            selectedIcon: Icon(Icons.settings, size: 28, color: primaryColor),
+            label: l10n.get('settings'),
           ),
         ],
       ),
@@ -634,11 +777,12 @@ class TemplatesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.amber.shade50,
+      backgroundColor: isDark ? null : colorScheme.surface,
       appBar: AppBar(
-        backgroundColor: Colors.amber.shade300,
         title: Semantics(
           header: true,
           child: Text(
@@ -662,8 +806,6 @@ class TemplatesPage extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateTemplateDialog(context, l10n),
-        backgroundColor: Colors.amber.shade600,
-        foregroundColor: Colors.white,
         icon: const Icon(Icons.add, size: 28),
         label: Text(
           l10n.get('newWorkout'),
@@ -680,7 +822,13 @@ class TemplatesPage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.fitness_center, size: 80, color: Colors.amber.shade300),
+            Icon(
+              Icons.fitness_center,
+              size: 80,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.5),
+            ),
             const SizedBox(height: 24),
             Text(
               l10n.get('noWorkoutsYet'),
@@ -948,13 +1096,15 @@ class _TemplateCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.amber.shade100,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         Icons.fitness_center,
                         size: 32,
-                        color: Colors.amber.shade800,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -2240,11 +2390,10 @@ class HistoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: Colors.amber.shade50,
       appBar: AppBar(
-        backgroundColor: Colors.amber.shade300,
         title: Semantics(
           header: true,
           child: Text(
@@ -2265,7 +2414,7 @@ class HistoryPage extends StatelessWidget {
                       Icon(
                         Icons.history,
                         size: 80,
-                        color: Colors.amber.shade300,
+                        color: colorScheme.primary.withValues(alpha: 0.5),
                       ),
                       const SizedBox(height: 24),
                       Text(
@@ -2490,10 +2639,10 @@ class StatisticsPage extends StatelessWidget {
     final topExercises = exerciseCounts.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.amber.shade50,
       appBar: AppBar(
-        backgroundColor: Colors.amber.shade300,
         title: Semantics(
           header: true,
           child: Text(
@@ -2514,7 +2663,7 @@ class StatisticsPage extends StatelessWidget {
                       Icon(
                         Icons.bar_chart,
                         size: 80,
-                        color: Colors.amber.shade300,
+                        color: colorScheme.primary.withValues(alpha: 0.5),
                       ),
                       const SizedBox(height: 24),
                       Text(
@@ -2736,6 +2885,318 @@ class _RoundButton extends StatelessWidget {
           child: Icon(icon, size: 32, color: Colors.white),
         ),
       ),
+    );
+  }
+}
+
+// ============== SETTINGS PAGE ==============
+
+class SettingsPage extends StatelessWidget {
+  const SettingsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          l10n.get('settings'),
+          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            // Appearance section
+            Text(
+              l10n.get('appearance'),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A2634) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: isDark
+                    ? null
+                    : [
+                        BoxShadow(
+                          color: Colors.grey.shade200,
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+              ),
+              child: Column(
+                children: [
+                  _ThemeOptionTile(
+                    title: l10n.get('systemDefault'),
+                    subtitle: l10n.get('themeDescription'),
+                    icon: Icons.brightness_auto,
+                    isSelected: themeNotifier.themeMode == ThemeMode.system,
+                    onTap: () => themeNotifier.setThemeMode(ThemeMode.system),
+                  ),
+                  Divider(height: 1, color: Colors.grey.shade300),
+                  _ThemeOptionTile(
+                    title: l10n.get('lightMode'),
+                    icon: Icons.light_mode,
+                    isSelected: themeNotifier.themeMode == ThemeMode.light,
+                    onTap: () => themeNotifier.setThemeMode(ThemeMode.light),
+                  ),
+                  Divider(height: 1, color: Colors.grey.shade300),
+                  _ThemeOptionTile(
+                    title: l10n.get('darkMode'),
+                    icon: Icons.dark_mode,
+                    isSelected: themeNotifier.themeMode == ThemeMode.dark,
+                    onTap: () => themeNotifier.setThemeMode(ThemeMode.dark),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            // About section
+            Text(
+              l10n.get('about'),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A2634) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: isDark
+                    ? null
+                    : [
+                        BoxShadow(
+                          color: Colors.grey.shade200,
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
+                leading: Icon(
+                  Icons.info_outline,
+                  size: 28,
+                  color: colorScheme.primary,
+                ),
+                title: Text(
+                  l10n.aboutAndDisclaimer,
+                  style: const TextStyle(fontSize: 18),
+                ),
+                trailing: const Icon(Icons.chevron_right, size: 28),
+                onTap: () => _showAboutDialog(context, l10n),
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Version info
+            Center(
+              child: Text(
+                '${l10n.get('version')} 1.0.0',
+                style: TextStyle(fontSize: 16, color: Colors.grey.shade500),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                '© 2026 Logicphile Limited',
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAboutDialog(BuildContext context, AppLocalizations l10n) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              Icons.info_outline,
+              size: 32,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                l10n.aboutAndDisclaimer,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                l10n.appTitle,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.get('workoutTrackerDesc'),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.get('importantDisclaimers'),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.deepOrange,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '• ${l10n.get('disclaimer1')}',
+                      style: const TextStyle(fontSize: 15),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '• ${l10n.get('disclaimer2')}',
+                      style: const TextStyle(fontSize: 15),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '• ${l10n.get('disclaimer3')}',
+                      style: const TextStyle(fontSize: 15),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '• ${l10n.get('disclaimer4')}',
+                      style: const TextStyle(fontSize: 15),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.get('yourPrivacy'),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '• ${l10n.get('privacy1')}',
+                      style: const TextStyle(fontSize: 15),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '• ${l10n.get('privacy2')}',
+                      style: const TextStyle(fontSize: 15),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '• ${l10n.get('privacy3')}',
+                      style: const TextStyle(fontSize: 15),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.close, style: const TextStyle(fontSize: 18)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ThemeOptionTile extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ThemeOptionTile({
+    required this.title,
+    this.subtitle,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      leading: Icon(icon, size: 28, color: colorScheme.primary),
+      title: Text(title, style: const TextStyle(fontSize: 18)),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle!,
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            )
+          : null,
+      trailing: isSelected
+          ? Icon(Icons.check_circle, size: 28, color: colorScheme.primary)
+          : null,
+      onTap: onTap,
     );
   }
 }

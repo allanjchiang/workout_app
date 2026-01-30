@@ -930,19 +930,24 @@ class TemplatesPage extends StatelessWidget {
   }
 
   void _showAboutDialog(BuildContext context, AppLocalizations l10n) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1A2634) : null,
         title: Row(
           children: [
-            const Icon(Icons.info_outline, size: 32, color: Colors.amber),
+            Icon(Icons.info_outline, size: 32, color: colorScheme.primary),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 l10n.aboutAndDisclaimer,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : null,
                 ),
               ),
             ),
@@ -955,54 +960,78 @@ class TemplatesPage extends StatelessWidget {
             children: [
               Text(
                 l10n.appTitle,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : null,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 l10n.get('workoutTrackerDesc'),
-                style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                ),
               ),
               const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
+                  color: isDark
+                      ? Colors.orange.shade900.withValues(alpha: 0.3)
+                      : Colors.orange.shade50,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange.shade300),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.orange.shade700
+                        : Colors.orange.shade300,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       l10n.get('importantDisclaimers'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.deepOrange,
+                        color: isDark
+                            ? Colors.orange.shade300
+                            : Colors.deepOrange,
                       ),
                     ),
                     const SizedBox(height: 12),
                     Text(
                       '• ${l10n.get('disclaimer1')}',
-                      style: const TextStyle(fontSize: 15),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? Colors.white : null,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '• ${l10n.get('disclaimer2')}',
-                      style: const TextStyle(fontSize: 15),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? Colors.white : null,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '• ${l10n.get('disclaimer3')}',
-                      style: const TextStyle(fontSize: 15),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? Colors.white : null,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '• ${l10n.get('disclaimer4')}',
-                      style: const TextStyle(fontSize: 15),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? Colors.white : null,
+                      ),
                     ),
                   ],
                 ),
@@ -1011,35 +1040,50 @@ class TemplatesPage extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
+                  color: isDark
+                      ? Colors.green.shade900.withValues(alpha: 0.3)
+                      : Colors.green.shade50,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.green.shade300),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.green.shade700
+                        : Colors.green.shade300,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       l10n.get('yourPrivacy'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.green,
+                        color: isDark ? Colors.green.shade300 : Colors.green,
                       ),
                     ),
                     const SizedBox(height: 12),
                     Text(
                       '• ${l10n.get('privacy1')}',
-                      style: const TextStyle(fontSize: 15),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? Colors.white : null,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '• ${l10n.get('privacy2')}',
-                      style: const TextStyle(fontSize: 15),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? Colors.white : null,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '• ${l10n.get('privacy3')}',
-                      style: const TextStyle(fontSize: 15),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? Colors.white : null,
+                      ),
                     ),
                   ],
                 ),
@@ -1074,15 +1118,17 @@ class _TemplateCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Semantics(
       button: true,
       label:
           '${template.name}, ${template.exercises.length} ${l10n.get('exercises')}',
       child: Material(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1A2634) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        elevation: 3,
+        elevation: isDark ? 0 : 3,
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(20),
@@ -1096,15 +1142,15 @@ class _TemplateCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.primary.withValues(alpha: 0.15),
+                        color: colorScheme.primary.withValues(
+                          alpha: isDark ? 0.3 : 0.15,
+                        ),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         Icons.fitness_center,
                         size: 32,
-                        color: Theme.of(context).colorScheme.primary,
+                        color: colorScheme.primary,
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -1114,9 +1160,10 @@ class _TemplateCard extends StatelessWidget {
                         children: [
                           Text(
                             template.name,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -1124,7 +1171,9 @@ class _TemplateCard extends StatelessWidget {
                             '${template.exercises.length} ${l10n.get('exercises')}',
                             style: TextStyle(
                               fontSize: 16,
-                              color: Colors.grey.shade600,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade600,
                             ),
                           ),
                         ],
@@ -1134,7 +1183,7 @@ class _TemplateCard extends StatelessWidget {
                       onPressed: onEdit,
                       icon: Icon(
                         Icons.edit,
-                        color: Colors.blue.shade600,
+                        color: colorScheme.primary,
                         size: 28,
                       ),
                       tooltip: l10n.get('edit'),
@@ -1155,7 +1204,12 @@ class _TemplateCard extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text(
                     template.description!,
-                    style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade700,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -1366,6 +1420,9 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                     final iconKey = kExerciseIconKeys[index];
                     final iconData =
                         kExerciseIconMap[iconKey] ?? Icons.fitness_center;
+                    final dialogColorScheme = Theme.of(context).colorScheme;
+                    final dialogIsDark =
+                        Theme.of(context).brightness == Brightness.dark;
                     return InkWell(
                       onTap: () =>
                           setDialogState(() => selectedIconIndex = index),
@@ -1375,20 +1432,26 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                         height: 48,
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? Colors.amber.shade200
-                              : Colors.grey.shade100,
+                              ? dialogColorScheme.primary.withValues(
+                                  alpha: dialogIsDark ? 0.3 : 0.2,
+                                )
+                              : (dialogIsDark
+                                    ? const Color(0xFF232F3E)
+                                    : Colors.grey.shade100),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isSelected
-                                ? Colors.amber.shade600
-                                : Colors.grey.shade300,
+                                ? dialogColorScheme.primary
+                                : (dialogIsDark
+                                      ? Colors.grey.shade600
+                                      : Colors.grey.shade300),
                             width: isSelected ? 2 : 1,
                           ),
                         ),
                         child: Icon(
                           iconData,
                           size: 24,
-                          color: Colors.amber.shade800,
+                          color: dialogColorScheme.primary,
                         ),
                       ),
                     );
@@ -1491,11 +1554,10 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final isEditing = widget.template != null;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.amber.shade50,
       appBar: AppBar(
-        backgroundColor: Colors.amber.shade300,
         title: Text(
           isEditing ? l10n.get('editWorkout') : l10n.get('newWorkout'),
           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
@@ -1505,7 +1567,11 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
             onPressed: _saveTemplate,
             child: Text(
               l10n.get('save'),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : null,
+              ),
             ),
           ),
         ],
@@ -1527,7 +1593,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                   border: const OutlineInputBorder(),
                   contentPadding: const EdgeInsets.all(20),
                   filled: true,
-                  fillColor: Colors.white,
+                  fillColor: isDark ? const Color(0xFF1A2634) : Colors.white,
                 ),
                 textCapitalization: TextCapitalization.words,
               ),
@@ -1612,23 +1678,27 @@ class _ExerciseListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final exercise = templateExercise.exercise;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1A2634) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(
+          color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+        ),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.amber.shade100,
+              color: colorScheme.primary.withValues(alpha: isDark ? 0.3 : 0.15),
               shape: BoxShape.circle,
             ),
-            child: Icon(exercise.icon, size: 28, color: Colors.amber.shade800),
+            child: Icon(exercise.icon, size: 28, color: colorScheme.primary),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -1637,14 +1707,18 @@ class _ExerciseListItem extends StatelessWidget {
               children: [
                 Text(
                   exercise.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
                   ),
                 ),
                 Text(
                   '${templateExercise.sets} ${l10n.get('sets')} × ${templateExercise.targetReps} ${l10n.reps}',
-                  style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  ),
                 ),
               ],
             ),
@@ -1888,6 +1962,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final current = widget.template.exercises[currentExerciseIndex];
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return PopScope(
       canPop: false,
@@ -1897,9 +1973,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.amber.shade50,
         appBar: AppBar(
-          backgroundColor: Colors.amber.shade300,
           title: Text(
             widget.template.name,
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
@@ -1914,19 +1988,25 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               margin: const EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: isDark
+                    ? colorScheme.primary.withValues(alpha: 0.3)
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.timer, size: 24, color: Colors.deepOrange),
+                  Icon(
+                    Icons.timer,
+                    size: 24,
+                    color: isDark ? Colors.white : colorScheme.primary,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     _formatDuration(elapsedSeconds),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.deepOrange,
+                      color: isDark ? Colors.white : colorScheme.primary,
                     ),
                   ),
                 ],
@@ -2004,6 +2084,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
       }
     }
 
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -2013,7 +2096,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.blue.shade100,
+              color: isDark
+                  ? colorScheme.primary.withValues(alpha: 0.3)
+                  : colorScheme.primary.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -2021,17 +2106,19 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
               children: [
                 Text(
                   '${l10n.get('exercise')} ${currentExerciseIndex + 1}/${widget.template.exercises.length}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : colorScheme.primary,
                   ),
                 ),
                 const SizedBox(width: 16),
                 Text(
                   '${l10n.get('set')} $currentSet/${current.sets}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : colorScheme.primary,
                   ),
                 ),
               ],
@@ -2042,29 +2129,32 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? const Color(0xFF1A2634) : Colors.white,
               borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.shade300,
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              boxShadow: isDark
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: Colors.grey.shade300,
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
             ),
             child: Column(
               children: [
                 Icon(
                   current.exercise.icon,
                   size: 60,
-                  color: Colors.amber.shade700,
+                  color: colorScheme.primary,
                 ),
                 const SizedBox(height: 16),
                 Text(
                   current.exercise.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -2077,7 +2167,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.green.shade100,
+                      color: isDark
+                          ? Colors.green.shade900
+                          : Colors.green.shade100,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -2086,7 +2178,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                         Icon(
                           Icons.history,
                           size: 20,
-                          color: Colors.green.shade700,
+                          color: isDark
+                              ? Colors.green.shade300
+                              : Colors.green.shade700,
                         ),
                         const SizedBox(width: 8),
                         Text(
@@ -2094,7 +2188,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: Colors.green.shade700,
+                            color: isDark
+                                ? Colors.green.shade300
+                                : Colors.green.shade700,
                           ),
                         ),
                       ],
@@ -2105,7 +2201,12 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                   const SizedBox(height: 8),
                   Text(
                     current.exercise.description!,
-                    style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -2117,24 +2218,30 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? const Color(0xFF1A2634) : Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade300),
+              border: Border.all(
+                color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   l10n.get('workoutPlan'),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   l10n.get('tapToJump'),
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 ...widget.template.exercises.map((exercise) {
@@ -2169,13 +2276,23 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: isCurrent
-                                  ? Colors.amber.shade100
-                                  : Colors.grey.shade100,
+                                  ? (isDark
+                                        ? colorScheme.primary.withValues(
+                                            alpha: 0.3,
+                                          )
+                                        : colorScheme.primary.withValues(
+                                            alpha: 0.15,
+                                          ))
+                                  : (isDark
+                                        ? const Color(0xFF232F3E)
+                                        : Colors.grey.shade100),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: isCurrent
-                                    ? Colors.amber.shade400
-                                    : Colors.grey.shade300,
+                                    ? colorScheme.primary
+                                    : (isDark
+                                          ? Colors.grey.shade700
+                                          : Colors.grey.shade300),
                                 width: isCurrent ? 2 : 1,
                               ),
                             ),
@@ -2187,7 +2304,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                                       : Icons.radio_button_unchecked,
                                   color: isCompleted
                                       ? Colors.green.shade600
-                                      : Colors.grey.shade500,
+                                      : (isDark
+                                            ? Colors.grey.shade400
+                                            : Colors.grey.shade500),
                                   size: 24,
                                 ),
                                 const SizedBox(width: 12),
@@ -2198,16 +2317,21 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                                     children: [
                                       Text(
                                         exercise.exercise.name,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
+                                          color: isDark
+                                              ? Colors.white
+                                              : Colors.black87,
                                         ),
                                       ),
                                       Text(
                                         '${exercise.sets} ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
                                         style: TextStyle(
                                           fontSize: 14,
-                                          color: Colors.grey.shade600,
+                                          color: isDark
+                                              ? Colors.grey.shade400
+                                              : Colors.grey.shade600,
                                         ),
                                       ),
                                     ],
@@ -2220,7 +2344,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.amber.shade300,
+                                      color: colorScheme.primary,
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
@@ -2228,6 +2352,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                                       style: const TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
+                                        color: Colors.white,
                                       ),
                                     ),
                                   ),
@@ -2247,16 +2372,17 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? const Color(0xFF1A2634) : Colors.white,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Column(
               children: [
                 Text(
                   l10n.reps,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -2280,18 +2406,21 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                         vertical: 16,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.amber.shade100,
+                        color: isDark
+                            ? colorScheme.primary.withValues(alpha: 0.3)
+                            : colorScheme.primary.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: Colors.amber.shade400,
+                          color: colorScheme.primary,
                           width: 2,
                         ),
                       ),
                       child: Text(
                         '$currentReps',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 40,
                           fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : colorScheme.primary,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -2487,19 +2616,22 @@ class _HistoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final totalReps = session.logs.fold<int>(0, (sum, log) => sum + log.reps);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1A2634) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade200,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.grey.shade200,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2509,13 +2641,13 @@ class _HistoryCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade100,
+                  color: isDark ? Colors.green.shade900 : Colors.green.shade100,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.check,
                   size: 28,
-                  color: Colors.green.shade700,
+                  color: isDark ? Colors.green.shade300 : Colors.green.shade700,
                 ),
               ),
               const SizedBox(width: 16),
@@ -2525,16 +2657,19 @@ class _HistoryCard extends StatelessWidget {
                   children: [
                     Text(
                       session.templateName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
                       ),
                     ),
                     Text(
                       _formatDate(session.startTime),
                       style: TextStyle(
                         fontSize: 16,
-                        color: Colors.grey.shade600,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
                       ),
                     ),
                   ],
@@ -2582,17 +2717,27 @@ class _StatItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       children: [
-        Icon(icon, size: 24, color: Colors.amber.shade700),
+        Icon(icon, size: 24, color: colorScheme.primary),
         const SizedBox(height: 4),
         Text(
           value,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
         ),
         Text(
           label,
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+          ),
         ),
       ],
     );
@@ -2640,6 +2785,7 @@ class StatisticsPage extends StatelessWidget {
       ..sort((a, b) => b.value.compareTo(a.value));
 
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
@@ -2749,9 +2895,10 @@ class StatisticsPage extends StatelessWidget {
                     if (topExercises.isNotEmpty) ...[
                       Text(
                         l10n.get('topExercises'),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -2763,23 +2910,28 @@ class StatisticsPage extends StatelessWidget {
                               child: Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: isDark
+                                      ? const Color(0xFF1A2634)
+                                      : Colors.white,
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: Row(
                                   children: [
                                     Icon(
                                       Icons.fitness_center,
-                                      color: Colors.amber.shade700,
+                                      color: colorScheme.primary,
                                       size: 28,
                                     ),
                                     const SizedBox(width: 16),
                                     Expanded(
                                       child: Text(
                                         entry.key,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
+                                          color: isDark
+                                              ? Colors.white
+                                              : Colors.black87,
                                         ),
                                       ),
                                     ),
@@ -2787,7 +2939,9 @@ class StatisticsPage extends StatelessWidget {
                                       '${entry.value} ${l10n.reps}',
                                       style: TextStyle(
                                         fontSize: 16,
-                                        color: Colors.grey.shade600,
+                                        color: isDark
+                                            ? Colors.grey.shade400
+                                            : Colors.grey.shade600,
                                       ),
                                     ),
                                   ],
@@ -2819,35 +2973,42 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1A2634) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade200,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.grey.shade200,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Column(
         children: [
-          Icon(icon, size: 36, color: color.shade600),
+          Icon(icon, size: 36, color: isDark ? color.shade300 : color.shade600),
           const SizedBox(height: 12),
           Text(
             value,
             style: TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.bold,
-              color: color.shade700,
+              color: isDark ? color.shade300 : color.shade700,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+            ),
             textAlign: TextAlign.center,
           ),
         ],

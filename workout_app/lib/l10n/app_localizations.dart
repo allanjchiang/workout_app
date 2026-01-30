@@ -232,6 +232,15 @@ class AppLocalizations {
     'darkMode': 'Dark',
     'themeDescription': 'Choose how the app looks',
     'about': 'About',
+
+    // Progress Chart
+    'progressChart': 'Progress Chart',
+    'repsOverTime': 'Reps',
+    'weightOverTime': 'Weight',
+    'bothOverTime': 'Both',
+    'noDataForExercise': 'No data yet for this exercise',
+    'date': 'Date',
+    'allExercises': 'All Exercises',
   };
 
   // Chinese Traditional strings
@@ -426,6 +435,15 @@ class AppLocalizations {
     'darkMode': '深色',
     'themeDescription': '選擇應用程式外觀',
     'about': '關於',
+
+    // Progress Chart
+    'progressChart': '進度圖表',
+    'repsOverTime': '次數',
+    'weightOverTime': '重量',
+    'bothOverTime': '兩者',
+    'noDataForExercise': '此動作暫無資料',
+    'date': '日期',
+    'allExercises': '所有動作',
   };
 
   // Convenience getters for common strings

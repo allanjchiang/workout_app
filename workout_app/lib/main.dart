@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'l10n/app_localizations.dart';
 
 void main() {
@@ -2950,10 +2952,544 @@ class StatisticsPage extends StatelessWidget {
                             ),
                           ),
                     ],
+                    const SizedBox(height: 32),
+                    // Progress Chart Section
+                    _ProgressChartSection(history: history),
                   ],
                 ),
               ),
       ),
+    );
+  }
+}
+
+// ============== PROGRESS CHART SECTION ==============
+
+enum ChartViewMode { reps, weight, both }
+
+class _ProgressChartSection extends StatefulWidget {
+  final List<WorkoutSession> history;
+
+  const _ProgressChartSection({required this.history});
+
+  @override
+  State<_ProgressChartSection> createState() => _ProgressChartSectionState();
+}
+
+class _ProgressChartSectionState extends State<_ProgressChartSection> {
+  String? selectedExerciseId;
+  ChartViewMode viewMode = ChartViewMode.reps;
+
+  // Get all unique exercises from history
+  List<MapEntry<String, String>> get uniqueExercises {
+    final exercises = <String, String>{};
+    for (final session in widget.history) {
+      for (final log in session.logs) {
+        exercises[log.exerciseId] = log.exerciseName;
+      }
+    }
+    return exercises.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+  }
+
+  // Get chart data points for selected exercise
+  List<_ChartDataPoint> get chartData {
+    if (selectedExerciseId == null) return [];
+
+    final dataPoints = <_ChartDataPoint>[];
+
+    for (final session in widget.history) {
+      final logsForExercise = session.logs
+          .where((log) => log.exerciseId == selectedExerciseId)
+          .toList();
+
+      if (logsForExercise.isNotEmpty) {
+        // Get the best (max) reps and weight for this session
+        final maxReps = logsForExercise.map((l) => l.reps).reduce(math.max);
+        final maxWeight = logsForExercise.map((l) => l.weight).reduce(math.max);
+
+        dataPoints.add(
+          _ChartDataPoint(
+            date: session.startTime,
+            reps: maxReps,
+            weight: maxWeight,
+          ),
+        );
+      }
+    }
+
+    // Sort by date (oldest first)
+    dataPoints.sort((a, b) => a.date.compareTo(b.date));
+    return dataPoints;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-select first exercise if available
+    if (uniqueExercises.isNotEmpty) {
+      selectedExerciseId = uniqueExercises.first.key;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final exercises = uniqueExercises;
+
+    if (exercises.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          l10n.get('progressChart'),
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Exercise Dropdown
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1A2634) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+            ),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: selectedExerciseId,
+              isExpanded: true,
+              icon: Icon(
+                Icons.arrow_drop_down,
+                color: colorScheme.primary,
+                size: 32,
+              ),
+              style: TextStyle(
+                fontSize: 18,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+              dropdownColor: isDark ? const Color(0xFF1A2634) : Colors.white,
+              items: exercises.map((entry) {
+                return DropdownMenuItem<String>(
+                  value: entry.key,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      entry.value,
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  selectedExerciseId = value;
+                });
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // View Mode Toggle (Reps / Weight / Both)
+        Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1A2634) : Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.all(4),
+          child: Row(
+            children: [
+              Expanded(
+                child: _ToggleButton(
+                  label: l10n.get('repsOverTime'),
+                  isSelected: viewMode == ChartViewMode.reps,
+                  onTap: () => setState(() => viewMode = ChartViewMode.reps),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: _ToggleButton(
+                  label: l10n.get('weightOverTime'),
+                  isSelected: viewMode == ChartViewMode.weight,
+                  onTap: () => setState(() => viewMode = ChartViewMode.weight),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: _ToggleButton(
+                  label: l10n.get('bothOverTime'),
+                  isSelected: viewMode == ChartViewMode.both,
+                  onTap: () => setState(() => viewMode = ChartViewMode.both),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Chart
+        _buildChart(l10n, colorScheme, isDark),
+      ],
+    );
+  }
+
+  Widget _buildChart(
+    AppLocalizations l10n,
+    ColorScheme colorScheme,
+    bool isDark,
+  ) {
+    final data = chartData;
+
+    if (data.isEmpty) {
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A2634) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Center(
+          child: Text(
+            l10n.get('noDataForExercise'),
+            style: TextStyle(
+              fontSize: 16,
+              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Calculate min/max values for axes
+    final repsValues = data.map((d) => d.reps.toDouble()).toList();
+    final weightValues = data.map((d) => d.weight).toList();
+
+    final maxReps = repsValues.reduce(math.max);
+    final maxWeight = weightValues.reduce(math.max);
+
+    // Create line chart data
+    final repsSpots = <FlSpot>[];
+    final weightSpots = <FlSpot>[];
+
+    for (int i = 0; i < data.length; i++) {
+      repsSpots.add(FlSpot(i.toDouble(), data[i].reps.toDouble()));
+      weightSpots.add(FlSpot(i.toDouble(), data[i].weight));
+    }
+
+    final lineBarsData = <LineChartBarData>[];
+
+    // Reps line (blue)
+    if (viewMode == ChartViewMode.reps || viewMode == ChartViewMode.both) {
+      lineBarsData.add(
+        LineChartBarData(
+          spots: repsSpots,
+          isCurved: true,
+          color: Colors.blue,
+          barWidth: 3,
+          isStrokeCapRound: true,
+          dotData: FlDotData(
+            show: true,
+            getDotPainter: (spot, percent, barData, index) {
+              return FlDotCirclePainter(
+                radius: 5,
+                color: Colors.blue,
+                strokeWidth: 2,
+                strokeColor: Colors.white,
+              );
+            },
+          ),
+          belowBarData: BarAreaData(
+            show: true,
+            color: Colors.blue.withValues(alpha: 0.1),
+          ),
+        ),
+      );
+    }
+
+    // Weight line (green)
+    if (viewMode == ChartViewMode.weight || viewMode == ChartViewMode.both) {
+      // Normalize weight to reps scale if showing both
+      final normalizedWeightSpots =
+          viewMode == ChartViewMode.both && maxWeight > 0 && maxReps > 0
+          ? weightSpots
+                .map((spot) => FlSpot(spot.x, spot.y * (maxReps / maxWeight)))
+                .toList()
+          : weightSpots;
+
+      lineBarsData.add(
+        LineChartBarData(
+          spots: normalizedWeightSpots,
+          isCurved: true,
+          color: Colors.green,
+          barWidth: 3,
+          isStrokeCapRound: true,
+          dotData: FlDotData(
+            show: true,
+            getDotPainter: (spot, percent, barData, index) {
+              return FlDotCirclePainter(
+                radius: 5,
+                color: Colors.green,
+                strokeWidth: 2,
+                strokeColor: Colors.white,
+              );
+            },
+          ),
+          belowBarData: BarAreaData(
+            show: true,
+            color: Colors.green.withValues(alpha: 0.1),
+          ),
+        ),
+      );
+    }
+
+    // Determine Y-axis max
+    double yMax;
+    if (viewMode == ChartViewMode.reps) {
+      yMax = maxReps + 2;
+    } else if (viewMode == ChartViewMode.weight) {
+      yMax = maxWeight + 5;
+    } else {
+      yMax = maxReps + 2; // Use reps scale for "both" mode
+    }
+
+    return Container(
+      height: 280,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1A2634) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          // Legend
+          if (viewMode == ChartViewMode.both)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _LegendItem(
+                    color: Colors.blue,
+                    label: l10n.get('repsOverTime'),
+                  ),
+                  const SizedBox(width: 24),
+                  _LegendItem(
+                    color: Colors.green,
+                    label: l10n.get('weightOverTime'),
+                  ),
+                ],
+              ),
+            ),
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                lineBarsData: lineBarsData,
+                minY: 0,
+                maxY: yMax,
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 40,
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          value.toInt().toString(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 30,
+                      interval: data.length > 7
+                          ? (data.length / 5).ceil().toDouble()
+                          : 1,
+                      getTitlesWidget: (value, meta) {
+                        final index = value.toInt();
+                        if (index < 0 || index >= data.length) {
+                          return const SizedBox.shrink();
+                        }
+                        final date = data[index].date;
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            '${date.day}/${date.month}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade600,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                ),
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: yMax / 5,
+                  getDrawingHorizontalLine: (value) {
+                    return FlLine(
+                      color: isDark
+                          ? Colors.grey.shade800
+                          : Colors.grey.shade200,
+                      strokeWidth: 1,
+                    );
+                  },
+                ),
+                borderData: FlBorderData(show: false),
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipColor: (touchedSpot) =>
+                        isDark ? const Color(0xFF2A3A4A) : Colors.grey.shade800,
+                    tooltipRoundedRadius: 8,
+                    getTooltipItems: (touchedSpots) {
+                      return touchedSpots.map((spot) {
+                        final index = spot.x.toInt();
+                        final dataPoint = data[index];
+
+                        String label;
+                        if (viewMode == ChartViewMode.both) {
+                          label = spot.barIndex == 0
+                              ? '${l10n.get('repsOverTime')}: ${dataPoint.reps}'
+                              : '${l10n.get('weightOverTime')}: ${dataPoint.weight.toStringAsFixed(1)} kg';
+                        } else if (viewMode == ChartViewMode.reps) {
+                          label = '${dataPoint.reps} ${l10n.reps}';
+                        } else {
+                          label = '${dataPoint.weight.toStringAsFixed(1)} kg';
+                        }
+
+                        return LineTooltipItem(
+                          label,
+                          const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        );
+                      }).toList();
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChartDataPoint {
+  final DateTime date;
+  final int reps;
+  final double weight;
+
+  _ChartDataPoint({
+    required this.date,
+    required this.reps,
+    required this.weight,
+  });
+}
+
+class _ToggleButton extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ToggleButton({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: isSelected ? colorScheme.primary : Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: isSelected
+                  ? Colors.white
+                  : (isDark ? Colors.grey.shade300 : Colors.grey.shade700),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _LegendItem({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+          ),
+        ),
+      ],
     );
   }
 }

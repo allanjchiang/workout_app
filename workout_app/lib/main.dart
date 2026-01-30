@@ -3189,24 +3189,23 @@ class SettingsPage extends StatelessWidget {
 
   void _showAboutDialog(BuildContext context, AppLocalizations l10n) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1A2634) : null,
         title: Row(
           children: [
-            Icon(
-              Icons.info_outline,
-              size: 32,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+            Icon(Icons.info_outline, size: 32, color: colorScheme.primary),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 l10n.aboutAndDisclaimer,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : null,
                 ),
               ),
             ),
@@ -3219,9 +3218,10 @@ class SettingsPage extends StatelessWidget {
             children: [
               Text(
                 l10n.appTitle,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : null,
                 ),
               ),
               const SizedBox(height: 8),
@@ -3229,47 +3229,67 @@ class SettingsPage extends StatelessWidget {
                 l10n.get('workoutTrackerDesc'),
                 style: TextStyle(
                   fontSize: 16,
-                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                  color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
                 ),
               ),
               const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
+                  color: isDark
+                      ? Colors.orange.shade900.withValues(alpha: 0.4)
+                      : Colors.orange.shade50,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange.shade300),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.orange.shade700
+                        : Colors.orange.shade300,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       l10n.get('importantDisclaimers'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.deepOrange,
+                        color: isDark
+                            ? Colors.orange.shade300
+                            : Colors.deepOrange,
                       ),
                     ),
                     const SizedBox(height: 12),
                     Text(
                       '• ${l10n.get('disclaimer1')}',
-                      style: const TextStyle(fontSize: 15),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? Colors.white : null,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '• ${l10n.get('disclaimer2')}',
-                      style: const TextStyle(fontSize: 15),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? Colors.white : null,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '• ${l10n.get('disclaimer3')}',
-                      style: const TextStyle(fontSize: 15),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? Colors.white : null,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '• ${l10n.get('disclaimer4')}',
-                      style: const TextStyle(fontSize: 15),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? Colors.white : null,
+                      ),
                     ),
                   ],
                 ),
@@ -3278,35 +3298,50 @@ class SettingsPage extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
+                  color: isDark
+                      ? Colors.green.shade900.withValues(alpha: 0.4)
+                      : Colors.green.shade50,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.green.shade300),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.green.shade700
+                        : Colors.green.shade300,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       l10n.get('yourPrivacy'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.green,
+                        color: isDark ? Colors.green.shade300 : Colors.green,
                       ),
                     ),
                     const SizedBox(height: 12),
                     Text(
                       '• ${l10n.get('privacy1')}',
-                      style: const TextStyle(fontSize: 15),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? Colors.white : null,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '• ${l10n.get('privacy2')}',
-                      style: const TextStyle(fontSize: 15),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? Colors.white : null,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '• ${l10n.get('privacy3')}',
-                      style: const TextStyle(fontSize: 15),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? Colors.white : null,
+                      ),
                     ),
                   ],
                 ),

@@ -241,6 +241,21 @@ class AppLocalizations {
     'noDataForExercise': 'No data yet for this exercise',
     'date': 'Date',
     'allExercises': 'All Exercises',
+
+    // Data Backup
+    'dataBackup': 'Data Backup',
+    'exportData': 'Export Data',
+    'exportDataDesc': 'Save your workout data to a file',
+    'importData': 'Import Data',
+    'importDataDesc': 'Restore data from a backup file',
+    'exportSuccess': 'Data exported successfully!',
+    'exportFailed': 'Failed to export data',
+    'importSuccess': 'Data imported successfully!',
+    'importFailed': 'Failed to import data',
+    'importWarning': 'Warning: This will replace your current data',
+    'confirmImport': 'Import and Replace',
+    'invalidBackupFile': 'Invalid backup file',
+    'backupFileShared': 'Backup file ready to share',
   };
 
   // Chinese Traditional strings
@@ -444,6 +459,21 @@ class AppLocalizations {
     'noDataForExercise': '此動作暫無資料',
     'date': '日期',
     'allExercises': '所有動作',
+
+    // Data Backup
+    'dataBackup': '資料備份',
+    'exportData': '匯出資料',
+    'exportDataDesc': '將運動資料儲存到檔案',
+    'importData': '匯入資料',
+    'importDataDesc': '從備份檔案還原資料',
+    'exportSuccess': '資料匯出成功！',
+    'exportFailed': '資料匯出失敗',
+    'importSuccess': '資料匯入成功！',
+    'importFailed': '資料匯入失敗',
+    'importWarning': '警告：這將會取代您目前的資料',
+    'confirmImport': '匯入並取代',
+    'invalidBackupFile': '無效的備份檔案',
+    'backupFileShared': '備份檔案已準備好分享',
   };
 
   // Convenience getters for common strings

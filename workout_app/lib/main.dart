@@ -1,11 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'l10n/app_localizations.dart';
 
 void main() {
@@ -1587,11 +1591,20 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
               // Template name
               TextField(
                 controller: _nameController,
-                style: const TextStyle(fontSize: 22),
+                style: TextStyle(
+                  fontSize: 22,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
                 decoration: InputDecoration(
                   labelText: l10n.get('workoutName'),
                   hintText: l10n.get('workoutNameHint'),
-                  labelStyle: const TextStyle(fontSize: 18),
+                  labelStyle: TextStyle(
+                    fontSize: 18,
+                    color: isDark ? Colors.grey.shade400 : null,
+                  ),
+                  hintStyle: TextStyle(
+                    color: isDark ? Colors.grey.shade500 : null,
+                  ),
                   border: const OutlineInputBorder(),
                   contentPadding: const EdgeInsets.all(20),
                   filled: true,
@@ -1603,14 +1616,23 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
               // Description
               TextField(
                 controller: _descController,
-                style: const TextStyle(fontSize: 18),
+                style: TextStyle(
+                  fontSize: 18,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
                 decoration: InputDecoration(
                   labelText: l10n.get('descriptionOptional'),
-                  labelStyle: const TextStyle(fontSize: 18),
+                  labelStyle: TextStyle(
+                    fontSize: 18,
+                    color: isDark ? Colors.grey.shade400 : null,
+                  ),
+                  hintStyle: TextStyle(
+                    color: isDark ? Colors.grey.shade500 : null,
+                  ),
                   border: const OutlineInputBorder(),
                   contentPadding: const EdgeInsets.all(20),
                   filled: true,
-                  fillColor: Colors.white,
+                  fillColor: isDark ? const Color(0xFF1A2634) : Colors.white,
                 ),
                 maxLines: 2,
               ),
@@ -2472,7 +2494,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
               .isNotEmpty) ...[
             Text(
               l10n.get('completedSets'),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
             ),
             const SizedBox(height: 8),
             ...logs
@@ -2483,21 +2509,32 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.green.shade50,
+                        color: isDark
+                            ? Colors.green.shade900.withValues(alpha: 0.4)
+                            : Colors.green.shade50,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.green.shade300),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.green.shade700
+                              : Colors.green.shade300,
+                        ),
                       ),
                       child: Row(
                         children: [
                           Icon(
                             Icons.check_circle,
-                            color: Colors.green.shade600,
+                            color: isDark
+                                ? Colors.green.shade400
+                                : Colors.green.shade600,
                             size: 24,
                           ),
                           const SizedBox(width: 12),
                           Text(
                             '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}',
-                            style: const TextStyle(fontSize: 18),
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
                           ),
                         ],
                       ),
@@ -3660,6 +3697,34 @@ class SettingsPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 32),
+            // Data Backup section
+            Text(
+              l10n.get('dataBackup'),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Export Button
+            _BackupButton(
+              icon: Icons.upload_file,
+              title: l10n.get('exportData'),
+              subtitle: l10n.get('exportDataDesc'),
+              color: Colors.blue,
+              onTap: () => _exportData(context, l10n),
+            ),
+            const SizedBox(height: 12),
+            // Import Button
+            _BackupButton(
+              icon: Icons.download,
+              title: l10n.get('importData'),
+              subtitle: l10n.get('importDataDesc'),
+              color: Colors.orange,
+              onTap: () => _importData(context, l10n),
+            ),
+            const SizedBox(height: 32),
             // About section
             Text(
               l10n.get('about'),
@@ -3891,6 +3956,309 @@ class SettingsPage extends StatelessWidget {
             child: Text(l10n.close, style: const TextStyle(fontSize: 18)),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _exportData(BuildContext context, AppLocalizations l10n) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Gather all data
+      final templatesJson = prefs.getString('workout_templates');
+      final historyJson = prefs.getString('workout_history');
+
+      if ((templatesJson == null || templatesJson.isEmpty) &&
+          (historyJson == null || historyJson.isEmpty)) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                l10n.get('noDataToExport'),
+                style: const TextStyle(fontSize: 16),
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Create backup data
+      final backupData = {
+        'version': 1,
+        'exportDate': DateTime.now().toIso8601String(),
+        'templates': templatesJson != null ? jsonDecode(templatesJson) : [],
+        'history': historyJson != null ? jsonDecode(historyJson) : [],
+      };
+
+      // Create temporary file
+      final directory = await getTemporaryDirectory();
+      final fileName =
+          'workout_backup_${DateTime.now().millisecondsSinceEpoch}.json';
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsString(jsonEncode(backupData));
+
+      // Share the file
+      if (context.mounted) {
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(file.path)],
+            text: l10n.get('backupFileShared'),
+          ),
+        );
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                l10n.get('exportSuccess'),
+                style: const TextStyle(fontSize: 16),
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.get('exportFailed'),
+              style: const TextStyle(fontSize: 16),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _importData(BuildContext context, AppLocalizations l10n) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1A2634) : null,
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber, size: 32, color: Colors.orange),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                l10n.get('importData'),
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : null,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          l10n.get('importWarning'),
+          style: TextStyle(
+            fontSize: 18,
+            color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.cancel, style: const TextStyle(fontSize: 18)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              l10n.get('confirmImport'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      // Pick file
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = File(result.files.single.path!);
+      final content = await file.readAsString();
+      final backupData = jsonDecode(content) as Map<String, dynamic>;
+
+      // Validate backup file
+      if (!backupData.containsKey('templates') ||
+          !backupData.containsKey('history')) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                l10n.get('invalidBackupFile'),
+                style: const TextStyle(fontSize: 16),
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Import data
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'workout_templates',
+        jsonEncode(backupData['templates']),
+      );
+      await prefs.setString(
+        'workout_history',
+        jsonEncode(backupData['history']),
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.get('importSuccess'),
+              style: const TextStyle(fontSize: 16),
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+
+        // Show restart message
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            backgroundColor: isDark ? const Color(0xFF1A2634) : null,
+            title: Text(
+              l10n.get('importSuccess'),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : null,
+              ),
+            ),
+            content: Text(
+              'Please restart the app to see your imported data.',
+              style: TextStyle(
+                fontSize: 18,
+                color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+              ),
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK', style: TextStyle(fontSize: 18)),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.get('importFailed'),
+              style: const TextStyle(fontSize: 16),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+}
+
+class _BackupButton extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _BackupButton({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: isDark ? const Color(0xFF1A2634) : Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      elevation: isDark ? 0 : 2,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: isDark ? 0.3 : 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 32, color: color),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                size: 28,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -233,6 +233,11 @@ class AppLocalizations {
     'themeDescription': 'Choose how the app looks',
     'about': 'About',
 
+    // Weight tracking
+    'weight': 'Weight (kg)',
+    'weightShort': 'kg',
+    'noWeight': 'No weight',
+
     // Progress Chart
     'progressChart': 'Progress Chart',
     'repsOverTime': 'Reps',
@@ -452,6 +457,11 @@ class AppLocalizations {
     'about': '關於',
 
     // Progress Chart
+    // Weight tracking
+    'weight': '重量 (公斤)',
+    'weightShort': '公斤',
+    'noWeight': '無重量',
+
     'progressChart': '進度圖表',
     'repsOverTime': '次數',
     'weightOverTime': '重量',

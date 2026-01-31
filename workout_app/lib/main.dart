@@ -2392,75 +2392,159 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
             ),
           ),
           const SizedBox(height: 24),
-          // Reps counter
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1A2634) : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  l10n.reps,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black87,
+          // Reps and Weight counters side by side
+          Row(
+            children: [
+              // Reps counter
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1A2634) : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        l10n.reps,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _CompactRoundButton(
+                            icon: Icons.remove,
+                            color: Colors.red.shade400,
+                            onPressed: () {
+                              if (currentReps > 0) {
+                                setState(() => currentReps--);
+                              }
+                            },
+                          ),
+                          Container(
+                            constraints: const BoxConstraints(minWidth: 50),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? colorScheme.primary.withValues(alpha: 0.3)
+                                  : colorScheme.primary.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: colorScheme.primary,
+                                width: 2,
+                              ),
+                            ),
+                            child: Text(
+                              '$currentReps',
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: isDark
+                                    ? Colors.white
+                                    : colorScheme.primary,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          _CompactRoundButton(
+                            icon: Icons.add,
+                            color: Colors.green.shade400,
+                            onPressed: () => setState(() => currentReps++),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _RoundButton(
-                      icon: Icons.remove,
-                      color: Colors.red.shade400,
-                      onPressed: () {
-                        if (currentReps > 0) {
-                          setState(() => currentReps--);
-                        }
-                      },
-                    ),
-                    const SizedBox(width: 24),
-                    Container(
-                      width: 100,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? colorScheme.primary.withValues(alpha: 0.3)
-                            : colorScheme.primary.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: colorScheme.primary,
-                          width: 2,
-                        ),
-                      ),
-                      child: Text(
-                        '$currentReps',
+              ),
+              const SizedBox(width: 8),
+              // Weight counter
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1A2634) : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        l10n.get('weight'),
                         style: TextStyle(
-                          fontSize: 40,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : colorScheme.primary,
+                          color: isDark ? Colors.white : Colors.black87,
                         ),
-                        textAlign: TextAlign.center,
                       ),
-                    ),
-                    const SizedBox(width: 24),
-                    _RoundButton(
-                      icon: Icons.add,
-                      color: Colors.green.shade400,
-                      onPressed: () => setState(() => currentReps++),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _CompactRoundButton(
+                            icon: Icons.remove,
+                            color: Colors.orange.shade400,
+                            onPressed: () {
+                              if (currentWeight > 0) {
+                                setState(
+                                  () => currentWeight = (currentWeight - 0.5)
+                                      .clamp(0, 999),
+                                );
+                              }
+                            },
+                          ),
+                          Container(
+                            constraints: const BoxConstraints(minWidth: 50),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.orange.withValues(alpha: 0.3)
+                                  : Colors.orange.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: Colors.orange,
+                                width: 2,
+                              ),
+                            ),
+                            child: Text(
+                              currentWeight == currentWeight.toInt()
+                                  ? '${currentWeight.toInt()}'
+                                  : currentWeight.toStringAsFixed(1),
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: isDark
+                                    ? Colors.white
+                                    : Colors.orange.shade700,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          _CompactRoundButton(
+                            icon: Icons.add,
+                            color: Colors.green.shade400,
+                            onPressed: () =>
+                                setState(() => currentWeight += 0.5),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           // Log set button
           SizedBox(
             height: 70,
@@ -2529,13 +2613,40 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                             size: 24,
                           ),
                           const SizedBox(width: 12),
-                          Text(
-                            '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: isDark ? Colors.white : Colors.black87,
+                          Expanded(
+                            child: Text(
+                              '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
                             ),
                           ),
+                          if (log.weight > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.orange.shade900.withValues(
+                                        alpha: 0.5,
+                                      )
+                                    : Colors.orange.shade100,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '${log.weight.toStringAsFixed(log.weight == log.weight.toInt() ? 0 : 1)} ${l10n.get('weightShort')}',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark
+                                      ? Colors.orange.shade300
+                                      : Colors.orange.shade700,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -2735,11 +2846,23 @@ class _HistoryCard extends StatelessWidget {
                 value: '$totalReps',
                 label: l10n.reps,
               ),
+              if (_getMaxWeight() > 0)
+                _StatItem(
+                  icon: Icons.fitness_center,
+                  value:
+                      '${_getMaxWeight().toStringAsFixed(_getMaxWeight() == _getMaxWeight().toInt() ? 0 : 1)}',
+                  label: l10n.get('weightShort'),
+                ),
             ],
           ),
         ],
       ),
     );
+  }
+
+  double _getMaxWeight() {
+    if (session.logs.isEmpty) return 0;
+    return session.logs.map((l) => l.weight).reduce((a, b) => a > b ? a : b);
   }
 }
 
@@ -3592,12 +3715,12 @@ class _StatCard extends StatelessWidget {
 
 // ============== REUSABLE WIDGETS ==============
 
-class _RoundButton extends StatelessWidget {
+class _CompactRoundButton extends StatelessWidget {
   final IconData icon;
   final Color color;
   final VoidCallback onPressed;
 
-  const _RoundButton({
+  const _CompactRoundButton({
     required this.icon,
     required this.color,
     required this.onPressed,
@@ -3608,15 +3731,15 @@ class _RoundButton extends StatelessWidget {
     return Material(
       color: color,
       shape: const CircleBorder(),
-      elevation: 4,
+      elevation: 2,
       child: InkWell(
         onTap: onPressed,
         customBorder: const CircleBorder(),
         child: Container(
-          width: 60,
-          height: 60,
+          width: 40,
+          height: 40,
           alignment: Alignment.center,
-          child: Icon(icon, size: 32, color: Colors.white),
+          child: Icon(icon, size: 22, color: Colors.white),
         ),
       ),
     );

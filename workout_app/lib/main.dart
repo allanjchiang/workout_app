@@ -1573,10 +1573,10 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
             onPressed: _saveTemplate,
             child: Text(
               l10n.get('save'),
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : null,
+                color: Colors.white,
               ),
             ),
           ),
@@ -4089,16 +4089,29 @@ class SettingsPage extends StatelessWidget {
     if (confirmed != true) return;
 
     try {
-      // Pick file
+      // Pick file - use FileType.any for better compatibility across platforms
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
+        type: FileType.any,
+        withData: true, // Load file data directly for better iOS compatibility
       );
 
-      if (result == null || result.files.isEmpty) return;
+      if (result == null || result.files.isEmpty) {
+        return;
+      }
 
-      final file = File(result.files.single.path!);
-      final content = await file.readAsString();
+      final pickedFile = result.files.single;
+
+      // Try to read content - prefer bytes (works on all platforms) over path
+      String content;
+      if (pickedFile.bytes != null) {
+        content = String.fromCharCodes(pickedFile.bytes!);
+      } else if (pickedFile.path != null) {
+        final file = File(pickedFile.path!);
+        content = await file.readAsString();
+      } else {
+        throw Exception('Could not read file');
+      }
+
       final backupData = jsonDecode(content) as Map<String, dynamic>;
 
       // Validate backup file

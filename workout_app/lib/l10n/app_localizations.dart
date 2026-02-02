@@ -237,6 +237,8 @@ class AppLocalizations {
     'weight': 'Weight (kg)',
     'weightShort': 'kg',
     'noWeight': 'No weight',
+    'tapToEdit': 'Tap to type',
+    'enterValue': 'Enter Value',
 
     // Progress Chart
     'progressChart': 'Progress Chart',
@@ -461,6 +463,8 @@ class AppLocalizations {
     'weight': '重量 (公斤)',
     'weightShort': '公斤',
     'noWeight': '無重量',
+    'tapToEdit': '點擊輸入',
+    'enterValue': '輸入數值',
 
     'progressChart': '進度圖表',
     'repsOverTime': '次數',

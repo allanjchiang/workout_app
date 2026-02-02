@@ -1839,6 +1839,137 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     });
   }
 
+  void _showNumberInputDialog({
+    required BuildContext context,
+    required String title,
+    required double currentValue,
+    required bool isInteger,
+    required Color accentColor,
+    required Function(double) onSave,
+  }) {
+    final controller = TextEditingController(
+      text: isInteger
+          ? currentValue.toInt().toString()
+          : (currentValue == currentValue.toInt()
+                ? currentValue.toInt().toString()
+                : currentValue.toStringAsFixed(1)),
+    );
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.numberWithOptions(
+                decimal: !isInteger,
+                signed: false,
+              ),
+              textAlign: TextAlign.center,
+              autofocus: true,
+              style: TextStyle(
+                fontSize: 48,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : accentColor,
+              ),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: isDark
+                    ? accentColor.withValues(alpha: 0.2)
+                    : accentColor.withValues(alpha: 0.1),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: accentColor, width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: accentColor.withValues(alpha: 0.5),
+                    width: 2,
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: accentColor, width: 3),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: Text(
+                    l10n!.cancel,
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    final text = controller.text.trim();
+                    final value = double.tryParse(text);
+                    if (value != null && value >= 0) {
+                      onSave(value);
+                      Navigator.pop(context);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accentColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    l10n.get('save'),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   void _logSet() {
     final current = widget.template.exercises[currentExerciseIndex];
     final log = ExerciseLog(
@@ -2391,158 +2522,211 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          // Reps and Weight counters side by side
-          Row(
-            children: [
-              // Reps counter
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1A2634) : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        l10n.reps,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87,
+          const SizedBox(height: 20),
+          // Reps counter (vertical layout)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1A2634) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                // Minus button
+                _LargeRoundButton(
+                  icon: Icons.remove,
+                  color: Colors.red.shade400,
+                  onPressed: () {
+                    if (currentReps > 0) {
+                      setState(() => currentReps--);
+                    }
+                  },
+                ),
+                // Reps display (tappable)
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _showNumberInputDialog(
+                      context: context,
+                      title: l10n.reps,
+                      currentValue: currentReps.toDouble(),
+                      isInteger: true,
+                      accentColor: colorScheme.primary,
+                      onSave: (value) =>
+                          setState(() => currentReps = value.toInt()),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          l10n.reps,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _CompactRoundButton(
-                            icon: Icons.remove,
-                            color: Colors.red.shade400,
-                            onPressed: () {
-                              if (currentReps > 0) {
-                                setState(() => currentReps--);
-                              }
-                            },
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
                           ),
-                          Container(
-                            constraints: const BoxConstraints(minWidth: 50),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 8,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? colorScheme.primary.withValues(alpha: 0.2)
+                                : colorScheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: colorScheme.primary.withValues(alpha: 0.5),
+                              width: 2,
                             ),
-                            decoration: BoxDecoration(
+                          ),
+                          child: Text(
+                            '$currentReps',
+                            style: TextStyle(
+                              fontSize: 42,
+                              fontWeight: FontWeight.bold,
                               color: isDark
-                                  ? colorScheme.primary.withValues(alpha: 0.3)
-                                  : colorScheme.primary.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: colorScheme.primary,
-                                width: 2,
-                              ),
-                            ),
-                            child: Text(
-                              '$currentReps',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: isDark
-                                    ? Colors.white
-                                    : colorScheme.primary,
-                              ),
-                              textAlign: TextAlign.center,
+                                  ? Colors.white
+                                  : colorScheme.primary,
                             ),
                           ),
-                          _CompactRoundButton(
-                            icon: Icons.add,
-                            color: Colors.green.shade400,
-                            onPressed: () => setState(() => currentReps++),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.get('tapToEdit'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark
+                                ? Colors.grey.shade500
+                                : Colors.grey.shade500,
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              // Weight counter
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1A2634) : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        l10n.get('weight'),
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87,
+                // Plus button
+                _LargeRoundButton(
+                  icon: Icons.add,
+                  color: Colors.green.shade400,
+                  onPressed: () => setState(() => currentReps++),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Weight counter (vertical layout)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1A2634) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                // Minus button
+                _LargeRoundButton(
+                  icon: Icons.remove,
+                  color: Colors.orange.shade400,
+                  onPressed: () {
+                    if (currentWeight > 0) {
+                      setState(
+                        () =>
+                            currentWeight = (currentWeight - 0.5).clamp(0, 999),
+                      );
+                    }
+                  },
+                ),
+                // Weight display (tappable)
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _showNumberInputDialog(
+                      context: context,
+                      title: l10n.get('weight'),
+                      currentValue: currentWeight,
+                      isInteger: false,
+                      accentColor: Colors.orange,
+                      onSave: (value) => setState(() => currentWeight = value),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          l10n.get('weight'),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _CompactRoundButton(
-                            icon: Icons.remove,
-                            color: Colors.orange.shade400,
-                            onPressed: () {
-                              if (currentWeight > 0) {
-                                setState(
-                                  () => currentWeight = (currentWeight - 0.5)
-                                      .clamp(0, 999),
-                                );
-                              }
-                            },
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
                           ),
-                          Container(
-                            constraints: const BoxConstraints(minWidth: 50),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 8,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.orange.withValues(alpha: 0.2)
+                                : Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.orange.withValues(alpha: 0.5),
+                              width: 2,
                             ),
-                            decoration: BoxDecoration(
+                          ),
+                          child: Text(
+                            currentWeight == currentWeight.toInt()
+                                ? '${currentWeight.toInt()}'
+                                : currentWeight.toStringAsFixed(1),
+                            style: TextStyle(
+                              fontSize: 42,
+                              fontWeight: FontWeight.bold,
                               color: isDark
-                                  ? Colors.orange.withValues(alpha: 0.3)
-                                  : Colors.orange.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: Colors.orange,
-                                width: 2,
-                              ),
-                            ),
-                            child: Text(
-                              currentWeight == currentWeight.toInt()
-                                  ? '${currentWeight.toInt()}'
-                                  : currentWeight.toStringAsFixed(1),
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: isDark
-                                    ? Colors.white
-                                    : Colors.orange.shade700,
-                              ),
-                              textAlign: TextAlign.center,
+                                  ? Colors.white
+                                  : Colors.orange.shade700,
                             ),
                           ),
-                          _CompactRoundButton(
-                            icon: Icons.add,
-                            color: Colors.green.shade400,
-                            onPressed: () =>
-                                setState(() => currentWeight += 0.5),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.get('tapToEdit'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark
+                                ? Colors.grey.shade500
+                                : Colors.grey.shade500,
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+                // Plus button
+                _LargeRoundButton(
+                  icon: Icons.add,
+                  color: Colors.green.shade400,
+                  onPressed: () => setState(() => currentWeight += 0.5),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           // Log set button
@@ -3715,12 +3899,12 @@ class _StatCard extends StatelessWidget {
 
 // ============== REUSABLE WIDGETS ==============
 
-class _CompactRoundButton extends StatelessWidget {
+class _LargeRoundButton extends StatelessWidget {
   final IconData icon;
   final Color color;
   final VoidCallback onPressed;
 
-  const _CompactRoundButton({
+  const _LargeRoundButton({
     required this.icon,
     required this.color,
     required this.onPressed,
@@ -3731,15 +3915,15 @@ class _CompactRoundButton extends StatelessWidget {
     return Material(
       color: color,
       shape: const CircleBorder(),
-      elevation: 2,
+      elevation: 4,
       child: InkWell(
         onTap: onPressed,
         customBorder: const CircleBorder(),
         child: Container(
-          width: 40,
-          height: 40,
+          width: 64,
+          height: 64,
           alignment: Alignment.center,
-          child: Icon(icon, size: 22, color: Colors.white),
+          child: Icon(icon, size: 36, color: Colors.white),
         ),
       ),
     );

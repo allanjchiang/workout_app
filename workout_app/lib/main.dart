@@ -468,6 +468,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
   List<WorkoutSession> history = [];
   Map<String, int> _pendingOldWorkouts = {};
   bool _postFrameInitialized = false;
+  String _weightUnit = 'kg';
 
   @override
   void initState() {
@@ -509,6 +510,12 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     final oldWorkoutsJson = prefs.getString('workouts');
     if (oldWorkoutsJson != null) {
       _pendingOldWorkouts = Map<String, int>.from(jsonDecode(oldWorkoutsJson));
+    }
+
+    // Weight unit (kg or lbs), default kg
+    final unit = prefs.getString('weight_unit');
+    if (unit != null && (unit == 'kg' || unit == 'lbs')) {
+      setState(() => _weightUnit = unit);
     }
   }
 
@@ -708,14 +715,22 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
                 template: template,
                 onComplete: _addSession,
                 history: history,
+                weightUnit: _weightUnit,
               ),
             ),
           );
         },
       ),
-      HistoryPage(history: history),
-      StatisticsPage(history: history),
-      const SettingsPage(),
+      HistoryPage(history: history, weightUnit: _weightUnit),
+      StatisticsPage(history: history, weightUnit: _weightUnit),
+      SettingsPage(
+        weightUnit: _weightUnit,
+        onWeightUnitChanged: () async {
+          final prefs = await SharedPreferences.getInstance();
+          final unit = prefs.getString('weight_unit') ?? 'kg';
+          if (mounted) setState(() => _weightUnit = unit);
+        },
+      ),
     ];
 
     final primaryColor = Theme.of(context).colorScheme.primary;
@@ -1763,12 +1778,14 @@ class ActiveWorkoutPage extends StatefulWidget {
   final WorkoutTemplate template;
   final Function(WorkoutSession) onComplete;
   final List<WorkoutSession> history;
+  final String weightUnit;
 
   const ActiveWorkoutPage({
     super.key,
     required this.template,
     required this.onComplete,
     required this.history,
+    this.weightUnit = 'kg',
   });
 
   @override
@@ -1790,17 +1807,52 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   Timer? restTimer;
   int restSeconds = 0;
   bool isResting = false;
+  int _defaultRestSeconds = 60;
 
   // Previous best reps for each exercise
   Map<String, int> previousBestReps = {};
+
+  String get _weightUnit => widget.weightUnit;
+
+  static const double _kgToLbs = 2.2046226218;
+
+  double _kgToDisplay(double kg) => _weightUnit == 'lbs' ? kg * _kgToLbs : kg;
+
+  double _displayToKg(double display) =>
+      _weightUnit == 'lbs' ? display / _kgToLbs : display;
+
+  String _formatWeightDisplay(double kg) {
+    final v = _kgToDisplay(kg);
+    return v == v.toInt() ? '${v.toInt()}' : v.toStringAsFixed(1);
+  }
+
+  double? _getLastWeightForExercise(String exerciseId) {
+    for (final session in widget.history) {
+      for (final log in session.logs.reversed) {
+        if (log.exerciseId == exerciseId && log.weight > 0) {
+          return log.weight;
+        }
+      }
+    }
+    return null;
+  }
 
   @override
   void initState() {
     super.initState();
     startTime = DateTime.now();
     _loadPreviousBestReps();
+    _loadDefaultRestSeconds();
     _startWorkoutTimer();
     _initializeCurrentExercise();
+  }
+
+  Future<void> _loadDefaultRestSeconds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getInt('default_rest_seconds');
+    if (saved != null && mounted) {
+      setState(() => _defaultRestSeconds = saved.clamp(30, 600));
+    }
   }
 
   void _loadPreviousBestReps() {
@@ -1827,7 +1879,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     if (widget.template.exercises.isNotEmpty) {
       final current = widget.template.exercises[currentExerciseIndex];
       currentReps = current.targetReps;
-      currentWeight = current.targetWeight;
+      // Use last logged weight for this exercise, else template target
+      final lastWeight = _getLastWeightForExercise(current.exercise.id);
+      currentWeight = lastWeight ?? current.targetWeight;
     }
   }
 
@@ -2003,7 +2057,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   void _startRestTimer() {
     setState(() {
       isResting = true;
-      restSeconds = 60;
+      restSeconds = _defaultRestSeconds;
     });
 
     restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -2017,6 +2071,14 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
         }
       });
     });
+  }
+
+  void _addRestSeconds(int delta) {
+    setState(() => restSeconds = (restSeconds + delta).clamp(0, 600));
+  }
+
+  void _subtractRestSeconds(int delta) {
+    setState(() => restSeconds = (restSeconds - delta).clamp(0, 600));
   }
 
   void _skipRest() {
@@ -2179,29 +2241,88 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   }
 
   Widget _buildRestScreen(AppLocalizations l10n) {
+    // Elderly-friendly: large text, large touch targets (min 56–64dp)
+    const double largeFontSize = 28;
+    const double timerFontSize = 96;
+    const double buttonFontSize = 22;
+    const double minTapHeight = 64;
+
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               l10n.get('rest'),
-              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: largeFontSize,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             Text(
               _formatDuration(restSeconds),
               style: TextStyle(
-                fontSize: 80,
+                fontSize: timerFontSize,
                 fontWeight: FontWeight.bold,
                 color: restSeconds <= 10 ? Colors.red : Colors.blue,
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 40),
+            // +30 / −30 sec row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 140,
+                  height: minTapHeight,
+                  child: ElevatedButton(
+                    onPressed: () => _subtractRestSeconds(30),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange.shade700,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Text(
+                      l10n.get('subtract30Seconds'),
+                      style: const TextStyle(
+                        fontSize: buttonFontSize,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                SizedBox(
+                  width: 140,
+                  height: minTapHeight,
+                  child: ElevatedButton(
+                    onPressed: () => _addRestSeconds(30),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Text(
+                      l10n.get('add30Seconds'),
+                      style: const TextStyle(
+                        fontSize: buttonFontSize,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 28),
             SizedBox(
-              width: 200,
-              height: 60,
+              width: 260,
+              height: minTapHeight,
               child: ElevatedButton(
                 onPressed: _skipRest,
                 style: ElevatedButton.styleFrom(
@@ -2214,7 +2335,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                 child: Text(
                   l10n.get('skipRest'),
                   style: const TextStyle(
-                    fontSize: 20,
+                    fontSize: buttonFontSize,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -2523,6 +2644,114 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
             ),
           ),
           const SizedBox(height: 20),
+          // Weight counter (above reps) – vertical layout
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1A2634) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                // Minus button
+                _LargeRoundButton(
+                  icon: Icons.remove,
+                  color: Colors.orange.shade400,
+                  onPressed: () {
+                    if (currentWeight > 0) {
+                      setState(
+                        () =>
+                            currentWeight = (currentWeight - 0.5).clamp(0, 999),
+                      );
+                    }
+                  },
+                ),
+                // Weight display (tappable)
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _showNumberInputDialog(
+                      context: context,
+                      title: _weightUnit == 'lbs'
+                          ? l10n.get('weightLbs')
+                          : l10n.get('weight'),
+                      currentValue: _kgToDisplay(currentWeight),
+                      isInteger: false,
+                      accentColor: Colors.orange,
+                      onSave: (value) =>
+                          setState(() => currentWeight = _displayToKg(value)),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          _weightUnit == 'lbs'
+                              ? l10n.get('weightLbs')
+                              : l10n.get('weight'),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.orange.withValues(alpha: 0.2)
+                                : Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.orange.withValues(alpha: 0.5),
+                              width: 2,
+                            ),
+                          ),
+                          child: Text(
+                            _formatWeightDisplay(currentWeight),
+                            style: TextStyle(
+                              fontSize: 42,
+                              fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? Colors.white
+                                  : Colors.orange.shade700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.get('tapToEdit'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark
+                                ? Colors.grey.shade500
+                                : Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Plus button
+                _LargeRoundButton(
+                  icon: Icons.add,
+                  color: Colors.green.shade400,
+                  onPressed: () => setState(() => currentWeight += 0.5),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
           // Reps counter (vertical layout)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -2623,111 +2852,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          // Weight counter (vertical layout)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1A2634) : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                // Minus button
-                _LargeRoundButton(
-                  icon: Icons.remove,
-                  color: Colors.orange.shade400,
-                  onPressed: () {
-                    if (currentWeight > 0) {
-                      setState(
-                        () =>
-                            currentWeight = (currentWeight - 0.5).clamp(0, 999),
-                      );
-                    }
-                  },
-                ),
-                // Weight display (tappable)
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _showNumberInputDialog(
-                      context: context,
-                      title: l10n.get('weight'),
-                      currentValue: currentWeight,
-                      isInteger: false,
-                      accentColor: Colors.orange,
-                      onSave: (value) => setState(() => currentWeight = value),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          l10n.get('weight'),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: isDark
-                                ? Colors.grey.shade400
-                                : Colors.grey.shade600,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? Colors.orange.withValues(alpha: 0.2)
-                                : Colors.orange.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Colors.orange.withValues(alpha: 0.5),
-                              width: 2,
-                            ),
-                          ),
-                          child: Text(
-                            currentWeight == currentWeight.toInt()
-                                ? '${currentWeight.toInt()}'
-                                : currentWeight.toStringAsFixed(1),
-                            style: TextStyle(
-                              fontSize: 42,
-                              fontWeight: FontWeight.bold,
-                              color: isDark
-                                  ? Colors.white
-                                  : Colors.orange.shade700,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          l10n.get('tapToEdit'),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark
-                                ? Colors.grey.shade500
-                                : Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Plus button
-                _LargeRoundButton(
-                  icon: Icons.add,
-                  color: Colors.green.shade400,
-                  onPressed: () => setState(() => currentWeight += 0.5),
-                ),
-              ],
-            ),
-          ),
           const SizedBox(height: 16),
           // Log set button
           SizedBox(
@@ -2821,7 +2945,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                '${log.weight.toStringAsFixed(log.weight == log.weight.toInt() ? 0 : 1)} ${l10n.get('weightShort')}',
+                                '${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -2847,8 +2971,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
 
 class HistoryPage extends StatelessWidget {
   final List<WorkoutSession> history;
+  final String weightUnit;
 
-  const HistoryPage({super.key, required this.history});
+  const HistoryPage({super.key, required this.history, this.weightUnit = 'kg'});
 
   @override
   Widget build(BuildContext context) {
@@ -2908,7 +3033,11 @@ class HistoryPage extends StatelessWidget {
                   final session = history[index];
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16),
-                    child: _HistoryCard(session: session),
+                    child: _HistoryCard(
+                      session: session,
+                      weightUnit: weightUnit,
+                      l10n: l10n,
+                    ),
                   );
                 },
               ),
@@ -2919,8 +3048,21 @@ class HistoryPage extends StatelessWidget {
 
 class _HistoryCard extends StatelessWidget {
   final WorkoutSession session;
+  final String weightUnit;
+  final AppLocalizations l10n;
 
-  const _HistoryCard({required this.session});
+  const _HistoryCard({
+    required this.session,
+    required this.weightUnit,
+    required this.l10n,
+  });
+
+  static const double _kgToLbs = 2.2046226218;
+
+  String _formatWeightDisplay(double kg) {
+    final v = weightUnit == 'lbs' ? kg * _kgToLbs : kg;
+    return v == v.toInt() ? '${v.toInt()}' : v.toStringAsFixed(1);
+  }
 
   String _formatDuration(int seconds) {
     final hours = seconds ~/ 3600;
@@ -2948,7 +3090,6 @@ class _HistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     final totalReps = session.logs.fold<int>(0, (sum, log) => sum + log.reps);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -3033,9 +3174,10 @@ class _HistoryCard extends StatelessWidget {
               if (_getMaxWeight() > 0)
                 _StatItem(
                   icon: Icons.fitness_center,
-                  value:
-                      '${_getMaxWeight().toStringAsFixed(_getMaxWeight() == _getMaxWeight().toInt() ? 0 : 1)}',
-                  label: l10n.get('weightShort'),
+                  value: _formatWeightDisplay(_getMaxWeight()),
+                  label: weightUnit == 'lbs'
+                      ? l10n.get('weightShortLbs')
+                      : l10n.get('weightShort'),
                 ),
             ],
           ),
@@ -3094,8 +3236,13 @@ class _StatItem extends StatelessWidget {
 
 class StatisticsPage extends StatelessWidget {
   final List<WorkoutSession> history;
+  final String weightUnit;
 
-  const StatisticsPage({super.key, required this.history});
+  const StatisticsPage({
+    super.key,
+    required this.history,
+    this.weightUnit = 'kg',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3298,7 +3445,10 @@ class StatisticsPage extends StatelessWidget {
                     ],
                     const SizedBox(height: 32),
                     // Progress Chart Section
-                    _ProgressChartSection(history: history),
+                    _ProgressChartSection(
+                      history: history,
+                      weightUnit: weightUnit,
+                    ),
                   ],
                 ),
               ),
@@ -3313,8 +3463,9 @@ enum ChartViewMode { reps, weight, both }
 
 class _ProgressChartSection extends StatefulWidget {
   final List<WorkoutSession> history;
+  final String weightUnit;
 
-  const _ProgressChartSection({required this.history});
+  const _ProgressChartSection({required this.history, this.weightUnit = 'kg'});
 
   @override
   State<_ProgressChartSection> createState() => _ProgressChartSectionState();
@@ -3721,15 +3872,24 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                         final index = spot.x.toInt();
                         final dataPoint = data[index];
 
+                        final weightDisplay = widget.weightUnit == 'lbs'
+                            ? (dataPoint.weight * 2.2046226218)
+                            : dataPoint.weight;
+                        final weightStr = weightDisplay == weightDisplay.toInt()
+                            ? '${weightDisplay.toInt()}'
+                            : weightDisplay.toStringAsFixed(1);
+                        final unitLabel = widget.weightUnit == 'lbs'
+                            ? l10n.get('weightShortLbs')
+                            : l10n.get('weightShort');
                         String label;
                         if (viewMode == ChartViewMode.both) {
                           label = spot.barIndex == 0
                               ? '${l10n.get('repsOverTime')}: ${dataPoint.reps}'
-                              : '${l10n.get('weightOverTime')}: ${dataPoint.weight.toStringAsFixed(1)} kg';
+                              : '${l10n.get('weightOverTime')}: $weightStr $unitLabel';
                         } else if (viewMode == ChartViewMode.reps) {
                           label = '${dataPoint.reps} ${l10n.reps}';
                         } else {
-                          label = '${dataPoint.weight.toStringAsFixed(1)} kg';
+                          label = '$weightStr $unitLabel';
                         }
 
                         return LineTooltipItem(
@@ -3932,37 +4092,89 @@ class _LargeRoundButton extends StatelessWidget {
 
 // ============== SETTINGS PAGE ==============
 
-class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
+class SettingsPage extends StatefulWidget {
+  final String weightUnit;
+  final VoidCallback? onWeightUnitChanged;
+
+  const SettingsPage({
+    super.key,
+    this.weightUnit = 'kg',
+    this.onWeightUnitChanged,
+  });
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  int _defaultRestSeconds = 60;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDefaultRestSeconds();
+  }
+
+  Future<void> _loadDefaultRestSeconds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getInt('default_rest_seconds');
+    if (saved != null && mounted) {
+      setState(() => _defaultRestSeconds = saved.clamp(30, 600));
+    }
+  }
+
+  Future<void> _setDefaultRestSeconds(int seconds) async {
+    final clamped = seconds.clamp(30, 600);
+    setState(() => _defaultRestSeconds = clamped);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('default_rest_seconds', clamped);
+  }
+
+  String _formatRestDuration(int seconds) {
+    if (seconds >= 60) {
+      final min = seconds ~/ 60;
+      return min == 1 ? '1 min' : '$min min';
+    }
+    return '$seconds sec';
+  }
+
+  Future<void> _setWeightUnit(String unit) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('weight_unit', unit);
+    widget.onWeightUnitChanged?.call();
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Elderly-friendly: larger section titles and tap targets
+    const double sectionTitleFontSize = 22;
+    const double settingMinHeight = 64;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
           l10n.get('settings'),
-          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(24),
           children: [
             // Appearance section
             Text(
               l10n.get('appearance'),
               style: TextStyle(
-                fontSize: 18,
+                fontSize: sectionTitleFontSize,
                 fontWeight: FontWeight.bold,
                 color: colorScheme.primary,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Container(
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1A2634) : Colors.white,
@@ -4003,17 +4215,186 @@ class SettingsPage extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 32),
-            // Data Backup section
+            const SizedBox(height: 36),
+            // Workout / Default rest timer section
             Text(
-              l10n.get('dataBackup'),
+              l10n.get('restTimerWorkout'),
               style: TextStyle(
-                fontSize: 18,
+                fontSize: sectionTitleFontSize,
                 fontWeight: FontWeight.bold,
                 color: colorScheme.primary,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A2634) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: isDark
+                    ? null
+                    : [
+                        BoxShadow(
+                          color: Colors.grey.shade200,
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.get('defaultRestTimer'),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.get('defaultRestTimerDesc'),
+                    style: TextStyle(
+                      fontSize: 17,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        _formatRestDuration(_defaultRestSeconds),
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                      SizedBox(
+                        height: settingMinHeight,
+                        child: ElevatedButton.icon(
+                          onPressed: _defaultRestSeconds <= 30
+                              ? null
+                              : () => _setDefaultRestSeconds(
+                                  _defaultRestSeconds - 30,
+                                ),
+                          icon: const Icon(Icons.remove, size: 28),
+                          label: Text(
+                            l10n.get('subtract30Seconds'),
+                            style: const TextStyle(fontSize: 18),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange.shade700,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        height: settingMinHeight,
+                        child: ElevatedButton.icon(
+                          onPressed: _defaultRestSeconds >= 600
+                              ? null
+                              : () => _setDefaultRestSeconds(
+                                  _defaultRestSeconds + 30,
+                                ),
+                          icon: const Icon(Icons.add, size: 28),
+                          label: Text(
+                            l10n.get('add30Seconds'),
+                            style: const TextStyle(fontSize: 18),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade700,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Weight unit (kg / lbs)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A2634) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: isDark
+                    ? null
+                    : [
+                        BoxShadow(
+                          color: Colors.grey.shade200,
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.get('weightUnit'),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.get('weightUnitDesc'),
+                    style: TextStyle(
+                      fontSize: 17,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ThemeOptionTile(
+                          title: 'kg',
+                          subtitle: l10n.get('weightShort'),
+                          icon: Icons.straighten,
+                          isSelected: widget.weightUnit == 'kg',
+                          onTap: () => _setWeightUnit('kg'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _ThemeOptionTile(
+                          title: 'lbs',
+                          subtitle: l10n.get('weightShortLbs'),
+                          icon: Icons.straighten,
+                          isSelected: widget.weightUnit == 'lbs',
+                          onTap: () => _setWeightUnit('lbs'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 36),
+            // Data Backup section
+            Text(
+              l10n.get('dataBackup'),
+              style: TextStyle(
+                fontSize: sectionTitleFontSize,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 14),
             // Export Button
             _BackupButton(
               icon: Icons.upload_file,
@@ -4022,7 +4403,7 @@ class SettingsPage extends StatelessWidget {
               color: Colors.blue,
               onTap: () => _exportData(context, l10n),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             // Import Button
             _BackupButton(
               icon: Icons.download,
@@ -4031,17 +4412,17 @@ class SettingsPage extends StatelessWidget {
               color: Colors.orange,
               onTap: () => _importData(context, l10n),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 36),
             // About section
             Text(
               l10n.get('about'),
               style: TextStyle(
-                fontSize: 18,
+                fontSize: sectionTitleFontSize,
                 fontWeight: FontWeight.bold,
                 color: colorScheme.primary,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Container(
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1A2634) : Colors.white,
@@ -4059,18 +4440,19 @@ class SettingsPage extends StatelessWidget {
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 20,
-                  vertical: 8,
+                  vertical: 16,
                 ),
+                minVerticalPadding: 20,
                 leading: Icon(
                   Icons.info_outline,
-                  size: 28,
+                  size: 32,
                   color: colorScheme.primary,
                 ),
                 title: Text(
                   l10n.aboutAndDisclaimer,
-                  style: const TextStyle(fontSize: 18),
+                  style: const TextStyle(fontSize: 20),
                 ),
-                trailing: const Icon(Icons.chevron_right, size: 28),
+                trailing: const Icon(Icons.chevron_right, size: 32),
                 onTap: () => _showAboutDialog(context, l10n),
               ),
             ),
@@ -4525,6 +4907,8 @@ class _BackupButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Elderly-friendly: larger padding, fonts, and tap target (min 64dp)
+    const double minHeight = 64;
 
     return Material(
       color: isDark ? const Color(0xFF1A2634) : Colors.white,
@@ -4533,50 +4917,54 @@ class _BackupButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: isDark ? 0.3 : 0.15),
-                  shape: BoxShape.circle,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: minHeight),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: isDark ? 0.3 : 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 36, color: color),
                 ),
-                child: Icon(icon, size: 32, color: color),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black87,
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: isDark
-                            ? Colors.grey.shade400
-                            : Colors.grey.shade600,
+                      const SizedBox(height: 6),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade600,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              Icon(
-                Icons.chevron_right,
-                size: 28,
-                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-              ),
-            ],
+                Icon(
+                  Icons.chevron_right,
+                  size: 32,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -4602,19 +4990,23 @@ class _ThemeOptionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-
+    // Elderly-friendly: larger tap target and fonts
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      leading: Icon(icon, size: 28, color: colorScheme.primary),
-      title: Text(title, style: const TextStyle(fontSize: 18)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      minVerticalPadding: 20,
+      leading: Icon(icon, size: 32, color: colorScheme.primary),
+      title: Text(title, style: const TextStyle(fontSize: 20)),
       subtitle: subtitle != null
-          ? Text(
-              subtitle!,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+          ? Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                subtitle!,
+                style: TextStyle(fontSize: 17, color: Colors.grey.shade600),
+              ),
             )
           : null,
       trailing: isSelected
-          ? Icon(Icons.check_circle, size: 28, color: colorScheme.primary)
+          ? Icon(Icons.check_circle, size: 32, color: colorScheme.primary)
           : null,
       onTap: onTap,
     );

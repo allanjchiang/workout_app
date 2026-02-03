@@ -233,9 +233,20 @@ class AppLocalizations {
     'themeDescription': 'Choose how the app looks',
     'about': 'About',
 
+    // Rest timer
+    'defaultRestTimer': 'Default rest time',
+    'defaultRestTimerDesc': 'Rest time after each set. Tap ±30 to change.',
+    'add30Seconds': '+ 30 sec',
+    'subtract30Seconds': '− 30 sec',
+    'restTimerWorkout': 'Workout',
+
     // Weight tracking
     'weight': 'Weight (kg)',
+    'weightLbs': 'Weight (lbs)',
     'weightShort': 'kg',
+    'weightShortLbs': 'lbs',
+    'weightUnit': 'Weight unit',
+    'weightUnitDesc': 'Default unit for weight',
     'noWeight': 'No weight',
     'tapToEdit': 'Tap to type',
     'enterValue': 'Enter Value',
@@ -458,10 +469,21 @@ class AppLocalizations {
     'themeDescription': '選擇應用程式外觀',
     'about': '關於',
 
+    // Rest timer
+    'defaultRestTimer': '預設休息時間',
+    'defaultRestTimerDesc': '每組後的休息時間。點擊 ±30 可調整。',
+    'add30Seconds': '+ 30 秒',
+    'subtract30Seconds': '− 30 秒',
+    'restTimerWorkout': '運動',
+
     // Progress Chart
     // Weight tracking
     'weight': '重量 (公斤)',
+    'weightLbs': '重量 (磅)',
     'weightShort': '公斤',
+    'weightShortLbs': '磅',
+    'weightUnit': '重量單位',
+    'weightUnitDesc': '重量的預設單位',
     'noWeight': '無重量',
     'tapToEdit': '點擊輸入',
     'enterValue': '輸入數值',

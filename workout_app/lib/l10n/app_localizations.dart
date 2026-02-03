@@ -92,6 +92,10 @@ class AppLocalizations {
     // History
     'workoutHistory': 'Workout History',
     'noHistoryYet': 'No workout history yet',
+    'deleteFromHistory': 'Delete from history',
+    'deleteWorkoutFromHistoryConfirm':
+        'Remove this workout from history? Statistics will update. This cannot be undone.',
+    'remove': 'Remove',
     'completeWorkoutToSee':
         'Complete a workout to see your history and statistics',
     'duration': 'Duration',
@@ -334,6 +338,9 @@ class AppLocalizations {
     // History
     'workoutHistory': '運動歷史',
     'noHistoryYet': '還沒有運動歷史',
+    'deleteFromHistory': '從歷史刪除',
+    'deleteWorkoutFromHistoryConfirm': '確定要從歷史中移除此筆運動？統計將會更新，且無法復原。',
+    'remove': '移除',
     'completeWorkoutToSee': '完成運動後即可查看歷史和統計',
     'duration': '時長',
 

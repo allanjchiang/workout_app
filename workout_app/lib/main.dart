@@ -697,6 +697,13 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     _saveHistory();
   }
 
+  void _deleteSession(WorkoutSession session) {
+    setState(() {
+      history.removeWhere((h) => h.id == session.id);
+    });
+    _saveHistory();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -721,7 +728,11 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
           );
         },
       ),
-      HistoryPage(history: history, weightUnit: _weightUnit),
+      HistoryPage(
+        history: history,
+        weightUnit: _weightUnit,
+        onDeleteSession: _deleteSession,
+      ),
       StatisticsPage(history: history, weightUnit: _weightUnit),
       SettingsPage(
         weightUnit: _weightUnit,
@@ -2972,8 +2983,14 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
 class HistoryPage extends StatelessWidget {
   final List<WorkoutSession> history;
   final String weightUnit;
+  final void Function(WorkoutSession session) onDeleteSession;
 
-  const HistoryPage({super.key, required this.history, this.weightUnit = 'kg'});
+  const HistoryPage({
+    super.key,
+    required this.history,
+    required this.onDeleteSession,
+    this.weightUnit = 'kg',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2986,7 +3003,7 @@ class HistoryPage extends StatelessWidget {
           header: true,
           child: Text(
             l10n.get('workoutHistory'),
-            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
           ),
         ),
         centerTitle: true,
@@ -3001,23 +3018,23 @@ class HistoryPage extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.history,
-                        size: 80,
+                        size: 88,
                         color: colorScheme.primary.withValues(alpha: 0.5),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 28),
                       Text(
                         l10n.get('noHistoryYet'),
                         style: const TextStyle(
-                          fontSize: 24,
+                          fontSize: 26,
                           fontWeight: FontWeight.bold,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       Text(
                         l10n.get('completeWorkoutToSee'),
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 20,
                           color: Colors.grey.shade600,
                         ),
                         textAlign: TextAlign.center,
@@ -3027,7 +3044,7 @@ class HistoryPage extends StatelessWidget {
                 ),
               )
             : ListView.builder(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 itemCount: history.length,
                 itemBuilder: (context, index) {
                   final session = history[index];
@@ -3037,6 +3054,7 @@ class HistoryPage extends StatelessWidget {
                       session: session,
                       weightUnit: weightUnit,
                       l10n: l10n,
+                      onDelete: () => onDeleteSession(session),
                     ),
                   );
                 },
@@ -3050,11 +3068,13 @@ class _HistoryCard extends StatelessWidget {
   final WorkoutSession session;
   final String weightUnit;
   final AppLocalizations l10n;
+  final VoidCallback onDelete;
 
   const _HistoryCard({
     required this.session,
     required this.weightUnit,
     required this.l10n,
+    required this.onDelete,
   });
 
   static const double _kgToLbs = 2.2046226218;
@@ -3094,7 +3114,7 @@ class _HistoryCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1A2634) : Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -3114,18 +3134,18 @@ class _HistoryCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: isDark ? Colors.green.shade900 : Colors.green.shade100,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.check,
-                  size: 28,
+                  size: 32,
                   color: isDark ? Colors.green.shade300 : Colors.green.shade700,
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 18),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3133,7 +3153,7 @@ class _HistoryCard extends StatelessWidget {
                     Text(
                       session.templateName,
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: isDark ? Colors.white : Colors.black87,
                       ),
@@ -3141,7 +3161,7 @@ class _HistoryCard extends StatelessWidget {
                     Text(
                       _formatDate(session.startTime),
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 18,
                         color: isDark
                             ? Colors.grey.shade400
                             : Colors.grey.shade600,
@@ -3152,7 +3172,7 @@ class _HistoryCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
@@ -3180,6 +3200,90 @@ class _HistoryCard extends StatelessWidget {
                       : l10n.get('weightShort'),
                 ),
             ],
+          ),
+          const SizedBox(height: 16),
+          // Elderly-friendly: large delete button, min height 56
+          SizedBox(
+            height: 56,
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _confirmDelete(context),
+              icon: Icon(
+                Icons.delete_outline,
+                size: 24,
+                color: Colors.red.shade700,
+              ),
+              label: Text(
+                l10n.get('deleteFromHistory'),
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.red.shade700,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: Colors.red.shade400, width: 2),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1A2634) : null,
+        title: Text(
+          l10n.get('deleteFromHistory'),
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : null,
+          ),
+        ),
+        content: Text(
+          l10n.get('deleteWorkoutFromHistoryConfirm'),
+          style: TextStyle(
+            fontSize: 20,
+            height: 1.4,
+            color: isDark ? Colors.grey.shade300 : Colors.black87,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Text(
+                l10n.get('cancel'),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              onDelete();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            ),
+            child: Text(
+              l10n.get('remove'),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -3210,12 +3314,12 @@ class _StatItem extends StatelessWidget {
 
     return Column(
       children: [
-        Icon(icon, size: 24, color: colorScheme.primary),
-        const SizedBox(height: 4),
+        Icon(icon, size: 28, color: colorScheme.primary),
+        const SizedBox(height: 6),
         Text(
           value,
           style: TextStyle(
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: FontWeight.bold,
             color: isDark ? Colors.white : Colors.black87,
           ),
@@ -3223,7 +3327,7 @@ class _StatItem extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 14,
+            fontSize: 16,
             color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
           ),
         ),

@@ -4358,28 +4358,21 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ThemeOptionTile(
-                          title: 'kg',
-                          subtitle: l10n.get('weightShort'),
-                          icon: Icons.straighten,
-                          isSelected: widget.weightUnit == 'kg',
-                          onTap: () => _setWeightUnit('kg'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _ThemeOptionTile(
-                          title: 'lbs',
-                          subtitle: l10n.get('weightShortLbs'),
-                          icon: Icons.straighten,
-                          isSelected: widget.weightUnit == 'lbs',
-                          onTap: () => _setWeightUnit('lbs'),
-                        ),
-                      ),
-                    ],
+                  // Full-width options so "kg" / "lbs" stay horizontal; elderly-friendly min height
+                  _WeightUnitOption(
+                    unit: 'kg',
+                    label: l10n.get('weightShort'),
+                    isSelected: widget.weightUnit == 'kg',
+                    onTap: () => _setWeightUnit('kg'),
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 12),
+                  _WeightUnitOption(
+                    unit: 'lbs',
+                    label: l10n.get('weightShortLbs'),
+                    isSelected: widget.weightUnit == 'lbs',
+                    onTap: () => _setWeightUnit('lbs'),
+                    isDark: isDark,
                   ),
                 ],
               ),
@@ -4965,6 +4958,80 @@ class _BackupButton extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-width weight unit option so "kg" / "lbs" always display horizontally.
+class _WeightUnitOption extends StatelessWidget {
+  final String unit;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final bool isDark;
+
+  const _WeightUnitOption({
+    required this.unit,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const double minHeight = 72;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: double.infinity,
+          constraints: const BoxConstraints(minHeight: minHeight),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            children: [
+              Icon(Icons.straighten, size: 32, color: colorScheme.primary),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      unit,
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                        letterSpacing: 0.5,
+                      ),
+                      softWrap: false,
+                      overflow: TextOverflow.visible,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isSelected)
+                Icon(Icons.check_circle, size: 32, color: colorScheme.primary),
+            ],
           ),
         ),
       ),

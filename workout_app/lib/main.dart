@@ -3674,15 +3674,24 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
     final weightValues = data.map((d) => d.weight).toList();
 
     final maxReps = repsValues.reduce(math.max);
-    final maxWeight = weightValues.reduce(math.max);
+    final maxWeightKg = weightValues.reduce(math.max);
+    final isLbs = widget.weightUnit == 'lbs';
+    const double kgToLbs = 2.2046226218;
+    final maxWeightDisplay = isLbs ? maxWeightKg * kgToLbs : maxWeightKg;
 
-    // Create line chart data
+    // Create line chart data (weight in display unit when weight-only view so Y-axis matches)
     final repsSpots = <FlSpot>[];
     final weightSpots = <FlSpot>[];
 
     for (int i = 0; i < data.length; i++) {
       repsSpots.add(FlSpot(i.toDouble(), data[i].reps.toDouble()));
-      weightSpots.add(FlSpot(i.toDouble(), data[i].weight));
+      final w = data[i].weight;
+      weightSpots.add(
+        FlSpot(
+          i.toDouble(),
+          viewMode == ChartViewMode.weight && isLbs ? w * kgToLbs : w,
+        ),
+      );
     }
 
     final lineBarsData = <LineChartBarData>[];
@@ -3719,9 +3728,9 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
     if (viewMode == ChartViewMode.weight || viewMode == ChartViewMode.both) {
       // Normalize weight to reps scale if showing both
       final normalizedWeightSpots =
-          viewMode == ChartViewMode.both && maxWeight > 0 && maxReps > 0
+          viewMode == ChartViewMode.both && maxWeightKg > 0 && maxReps > 0
           ? weightSpots
-                .map((spot) => FlSpot(spot.x, spot.y * (maxReps / maxWeight)))
+                .map((spot) => FlSpot(spot.x, spot.y * (maxReps / maxWeightKg)))
                 .toList()
           : weightSpots;
 
@@ -3751,12 +3760,12 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
       );
     }
 
-    // Determine Y-axis max
+    // Determine Y-axis max (weight axis in display unit when lbs)
     double yMax;
     if (viewMode == ChartViewMode.reps) {
       yMax = maxReps + 2;
     } else if (viewMode == ChartViewMode.weight) {
-      yMax = maxWeight + 5;
+      yMax = maxWeightDisplay + (isLbs ? 10 : 5);
     } else {
       yMax = maxReps + 2; // Use reps scale for "both" mode
     }
@@ -3801,8 +3810,16 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                       showTitles: true,
                       reservedSize: 40,
                       getTitlesWidget: (value, meta) {
+                        final String label;
+                        if (viewMode == ChartViewMode.weight) {
+                          label = value == value.toInt()
+                              ? value.toInt().toString()
+                              : value.toStringAsFixed(1);
+                        } else {
+                          label = value.toInt().toString();
+                        }
                         return Text(
-                          value.toInt().toString(),
+                          label,
                           style: TextStyle(
                             fontSize: 12,
                             color: isDark

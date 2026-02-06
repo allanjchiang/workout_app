@@ -1823,6 +1823,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   // Previous best reps for each exercise
   Map<String, int> previousBestReps = {};
 
+  /// Mutable copy of template exercises so user can reorder during workout.
+  late List<TemplateExercise> _orderedExercises;
+
   String get _weightUnit => widget.weightUnit;
 
   static const double _kgToLbs = 2.2046226218;
@@ -1851,11 +1854,32 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   @override
   void initState() {
     super.initState();
+    _orderedExercises = List.from(widget.template.exercises);
     startTime = DateTime.now();
     _loadPreviousBestReps();
     _loadDefaultRestSeconds();
     _startWorkoutTimer();
     _initializeCurrentExercise();
+    _setBeepAudioContext();
+  }
+
+  /// Configure beep to duck background music (lower it during beep, then restore).
+  Future<void> _setBeepAudioContext() async {
+    try {
+      await audioPlayer.setAudioContext(
+        AudioContext(
+          android: AudioContextAndroid(
+            audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+          ),
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playback,
+            options: const {AVAudioSessionOptions.duckOthers},
+          ),
+        ),
+      );
+    } catch (e) {
+      // Ignore; beep will still play, may interrupt music on some devices
+    }
   }
 
   Future<void> _loadDefaultRestSeconds() async {
@@ -1887,8 +1911,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   }
 
   void _initializeCurrentExercise() {
-    if (widget.template.exercises.isNotEmpty) {
-      final current = widget.template.exercises[currentExerciseIndex];
+    if (_orderedExercises.isNotEmpty) {
+      final current = _orderedExercises[currentExerciseIndex];
       currentReps = current.targetReps;
       // Use last logged weight for this exercise, else template target
       final lastWeight = _getLastWeightForExercise(current.exercise.id);
@@ -2036,7 +2060,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   }
 
   void _logSet() {
-    final current = widget.template.exercises[currentExerciseIndex];
+    final current = _orderedExercises[currentExerciseIndex];
     final log = ExerciseLog(
       exerciseId: current.exercise.id,
       exerciseName: current.exercise.name,
@@ -2053,7 +2077,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
         currentSet++;
       });
       _startRestTimer();
-    } else if (currentExerciseIndex < widget.template.exercises.length - 1) {
+    } else if (currentExerciseIndex < _orderedExercises.length - 1) {
       setState(() {
         currentExerciseIndex++;
         currentSet = 1;
@@ -2189,7 +2213,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final current = widget.template.exercises[currentExerciseIndex];
+    final current = _orderedExercises[currentExerciseIndex];
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -2360,7 +2384,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
 
   Widget _buildExerciseScreen(AppLocalizations l10n, TemplateExercise current) {
     final completedExerciseIds = <String>{};
-    for (final exercise in widget.template.exercises) {
+    for (final exercise in _orderedExercises) {
       final completedSets = logs
           .where((log) => log.exerciseId == exercise.exercise.id)
           .map((log) => log.setNumber)
@@ -2392,7 +2416,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  '${l10n.get('exercise')} ${currentExerciseIndex + 1}/${widget.template.exercises.length}',
+                  '${l10n.get('exercise')} ${currentExerciseIndex + 1}/${_orderedExercises.length}',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -2530,127 +2554,165 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                     color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                   ),
                 ),
+                Text(
+                  l10n.get('longPressToReorder'),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  ),
+                ),
                 const SizedBox(height: 12),
-                ...widget.template.exercises.map((exercise) {
-                  final isCurrent = exercise.exercise.id == current.exercise.id;
-                  final isCompleted = completedExerciseIds.contains(
-                    exercise.exercise.id,
-                  );
-                  final isAvailable = !isResting;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Semantics(
-                      button: true,
-                      label:
-                          '${exercise.exercise.name}, ${exercise.sets} ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
-                      child: Material(
-                        color: Colors.transparent,
-                        borderRadius: BorderRadius.circular(12),
-                        child: InkWell(
-                          onTap: isAvailable
-                              ? () {
-                                  final newIndex = widget.template.exercises
-                                      .indexOf(exercise);
-                                  setState(() {
-                                    currentExerciseIndex = newIndex;
-                                    currentSet = 1;
-                                    _initializeCurrentExercise();
-                                  });
-                                }
-                              : null,
+                ReorderableListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _orderedExercises.length,
+                  onReorder: (oldIndex, newIndex) {
+                    setState(() {
+                      if (newIndex > oldIndex) newIndex--;
+                      final item = _orderedExercises.removeAt(oldIndex);
+                      _orderedExercises.insert(newIndex, item);
+                      if (currentExerciseIndex == oldIndex) {
+                        currentExerciseIndex = newIndex;
+                      } else if (oldIndex < currentExerciseIndex) {
+                        if (newIndex > currentExerciseIndex - 1) {
+                          currentExerciseIndex--;
+                        }
+                      } else if (newIndex <= currentExerciseIndex) {
+                        currentExerciseIndex++;
+                      }
+                    });
+                  },
+                  itemBuilder: (context, index) {
+                    final exercise = _orderedExercises[index];
+                    final isCurrent =
+                        exercise.exercise.id == current.exercise.id;
+                    final isCompleted = completedExerciseIds.contains(
+                      exercise.exercise.id,
+                    );
+                    final isAvailable = !isResting;
+                    return Padding(
+                      key: ValueKey(exercise.exercise.id),
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Semantics(
+                        button: true,
+                        label:
+                            '${exercise.exercise.name}, ${exercise.sets} ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
+                        child: Material(
+                          color: Colors.transparent,
                           borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: isCurrent
-                                  ? (isDark
-                                        ? colorScheme.primary.withValues(
-                                            alpha: 0.3,
-                                          )
-                                        : colorScheme.primary.withValues(
-                                            alpha: 0.15,
-                                          ))
-                                  : (isDark
+                          child: InkWell(
+                            onTap: isAvailable
+                                ? () {
+                                    setState(() {
+                                      currentExerciseIndex = index;
+                                      currentSet = 1;
+                                      _initializeCurrentExercise();
+                                    });
+                                  }
+                                : null,
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isCurrent
+                                    ? (isDark
+                                          ? colorScheme.primary.withValues(
+                                              alpha: 0.3,
+                                            )
+                                          : colorScheme.primary.withValues(
+                                              alpha: 0.15,
+                                            ))
+                                    : (isDark
                                         ? const Color(0xFF232F3E)
                                         : Colors.grey.shade100),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isCurrent
-                                    ? colorScheme.primary
-                                    : (isDark
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isCurrent
+                                      ? colorScheme.primary
+                                      : (isDark
                                           ? Colors.grey.shade700
                                           : Colors.grey.shade300),
-                                width: isCurrent ? 2 : 1,
+                                  width: isCurrent ? 2 : 1,
+                                ),
                               ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  isCompleted
-                                      ? Icons.check_circle
-                                      : Icons.radio_button_unchecked,
-                                  color: isCompleted
-                                      ? Colors.green.shade600
-                                      : (isDark
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.drag_handle,
+                                    color: isDark
+                                        ? Colors.grey.shade500
+                                        : Colors.grey.shade600,
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Icon(
+                                    isCompleted
+                                        ? Icons.check_circle
+                                        : Icons.radio_button_unchecked,
+                                    color: isCompleted
+                                        ? Colors.green.shade600
+                                        : (isDark
                                             ? Colors.grey.shade400
                                             : Colors.grey.shade500),
-                                  size: 24,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        exercise.exercise.name,
-                                        style: TextStyle(
-                                          fontSize: 18,
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          exercise.exercise.name,
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: isDark
+                                                ? Colors.white
+                                                : Colors.black87,
+                                          ),
+                                        ),
+                                        Text(
+                                          '${exercise.sets} ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: isDark
+                                                ? Colors.grey.shade400
+                                                : Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isCurrent)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: colorScheme.primary,
+                                        borderRadius:
+                                            BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        l10n.get('current'),
+                                        style: const TextStyle(
+                                          fontSize: 12,
                                           fontWeight: FontWeight.bold,
-                                          color: isDark
-                                              ? Colors.white
-                                              : Colors.black87,
+                                          color: Colors.white,
                                         ),
                                       ),
-                                      Text(
-                                        '${exercise.sets} ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: isDark
-                                              ? Colors.grey.shade400
-                                              : Colors.grey.shade600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                if (isCurrent)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: colorScheme.primary,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      l10n.get('current'),
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -2871,7 +2933,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
               onPressed: currentReps > 0 ? _logSet : null,
               icon: const Icon(Icons.check, size: 30),
               label: Text(
-                currentExerciseIndex == widget.template.exercises.length - 1 &&
+                currentExerciseIndex == _orderedExercises.length - 1 &&
                         currentSet == current.sets
                     ? l10n.get('finishWorkout')
                     : l10n.get('logSet'),

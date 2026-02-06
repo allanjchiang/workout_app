@@ -2996,38 +2996,13 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}',
+                              '${current.exercise.name} ${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}${log.weight > 0 ? ' ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}' : ''}',
                               style: TextStyle(
                                 fontSize: 18,
                                 color: isDark ? Colors.white : Colors.black87,
                               ),
                             ),
                           ),
-                          if (log.weight > 0)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? Colors.orange.shade900.withValues(
-                                        alpha: 0.5,
-                                      )
-                                    : Colors.orange.shade100,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark
-                                      ? Colors.orange.shade300
-                                      : Colors.orange.shade700,
-                                ),
-                              ),
-                            ),
                         ],
                       ),
                     ),

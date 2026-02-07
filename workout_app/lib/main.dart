@@ -2446,20 +2446,23 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                 ),
-                child: Text(
-                  l10n.get('addToThisWorkoutOnly'),
-                  style: const TextStyle(
-                    fontSize: largeFont,
-                    fontWeight: FontWeight.bold,
+                child: Center(
+                  child: Text(
+                    l10n.get('addToThisWorkoutOnly'),
+                    style: const TextStyle(
+                      fontSize: largeFont,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ),
             ),
             const SizedBox(height: 16),
             SizedBox(
-              height: minTap + 8,
+              height: minTap + 16,
               child: OutlinedButton(
                 onPressed: () {
                   Navigator.pop(ctx);
@@ -2478,13 +2481,17 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                     color: Colors.orange.shade600,
                     width: 2,
                   ),
-                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                 ),
-                child: Text(
-                  l10n.get('addToWorkoutTemplate'),
-                  style: const TextStyle(
-                    fontSize: largeFont,
-                    fontWeight: FontWeight.bold,
+                child: Center(
+                  child: Text(
+                    l10n.get('addToWorkoutTemplate'),
+                    style: const TextStyle(
+                      fontSize: largeFont,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                    softWrap: true,
                   ),
                 ),
               ),

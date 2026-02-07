@@ -88,6 +88,10 @@ class AppLocalizations {
     'finishWorkout': 'Finish Workout',
     'completedSets': 'Completed Sets',
     'workoutComplete': 'Workout Complete!',
+    'addExerciseToWorkout': 'Add Exercise',
+    'whereToAddExercise': 'Add this exercise to:',
+    'addToThisWorkoutOnly': 'This workout only',
+    'addToWorkoutTemplate': 'Workout template (save for future)',
 
     // History
     'workoutHistory': 'Workout History',
@@ -335,6 +339,10 @@ class AppLocalizations {
     'finishWorkout': '完成運動',
     'completedSets': '已完成的組數',
     'workoutComplete': '運動完成！',
+    'addExerciseToWorkout': '新增動作',
+    'whereToAddExercise': '要加入哪裡？',
+    'addToThisWorkoutOnly': '僅這次運動',
+    'addToWorkoutTemplate': '加入運動範本（之後也可用）',
 
     // History
     'workoutHistory': '運動歷史',

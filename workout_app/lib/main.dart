@@ -723,6 +723,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
                 onComplete: _addSession,
                 history: history,
                 weightUnit: _weightUnit,
+                onUpdateTemplate: _updateTemplate,
               ),
             ),
           );
@@ -1790,6 +1791,8 @@ class ActiveWorkoutPage extends StatefulWidget {
   final Function(WorkoutSession) onComplete;
   final List<WorkoutSession> history;
   final String weightUnit;
+  /// Called when user adds an exercise and chooses "Add to workout template".
+  final void Function(WorkoutTemplate updatedTemplate)? onUpdateTemplate;
 
   const ActiveWorkoutPage({
     super.key,
@@ -1797,6 +1800,7 @@ class ActiveWorkoutPage extends StatefulWidget {
     required this.onComplete,
     required this.history,
     this.weightUnit = 'kg',
+    this.onUpdateTemplate,
   });
 
   @override
@@ -2212,6 +2216,292 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     );
   }
 
+  /// Elderly-friendly: large text and tap targets (min 56dp).
+  void _showAddExerciseDuringWorkout() {
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const double largeFont = 22;
+    const double titleFont = 26;
+    const double minTap = 56;
+
+    final nameController = TextEditingController();
+    int sets = 3;
+    int targetReps = 10;
+    double targetWeight = 0;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text(
+            l10n.get('addExerciseToWorkout'),
+            style: TextStyle(
+              fontSize: titleFont,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: nameController,
+                  style: TextStyle(fontSize: largeFont),
+                  decoration: InputDecoration(
+                    labelText: l10n.get('exerciseName'),
+                    hintText: l10n.get('exerciseNameHint'),
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 20,
+                    ),
+                  ),
+                  textCapitalization: TextCapitalization.words,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.get('sets'),
+                            style: TextStyle(
+                              fontSize: largeFont,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              IconButton(
+                                onPressed: () {
+                                  if (sets > 1) {
+                                    setDialogState(() => sets--);
+                                  }
+                                },
+                                icon: const Icon(Icons.remove_circle_outline),
+                                iconSize: 36,
+                                style: IconButton.styleFrom(
+                                  minimumSize: const Size(minTap, minTap),
+                                ),
+                              ),
+                              Text(
+                                '$sets',
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () =>
+                                    setDialogState(() => sets++),
+                                icon: const Icon(Icons.add_circle_outline),
+                                iconSize: 36,
+                                style: IconButton.styleFrom(
+                                  minimumSize: const Size(minTap, minTap),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.get('targetReps'),
+                            style: TextStyle(
+                              fontSize: largeFont,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              IconButton(
+                                onPressed: () {
+                                  if (targetReps > 1) {
+                                    setDialogState(() => targetReps--);
+                                  }
+                                },
+                                icon: const Icon(Icons.remove_circle_outline),
+                                iconSize: 36,
+                                style: IconButton.styleFrom(
+                                  minimumSize: const Size(minTap, minTap),
+                                ),
+                              ),
+                              Text(
+                                '$targetReps',
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () =>
+                                    setDialogState(() => targetReps++),
+                                icon: const Icon(Icons.add_circle_outline),
+                                iconSize: 36,
+                                style: IconButton.styleFrom(
+                                  minimumSize: const Size(minTap, minTap),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                l10n.cancel,
+                style: const TextStyle(fontSize: largeFont),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (nameController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.get('enterExerciseName')),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  return;
+                }
+                final exercise = Exercise(
+                  id: 'ex_${DateTime.now().millisecondsSinceEpoch}',
+                  name: nameController.text.trim(),
+                  description: null,
+                  iconKey: kExerciseIconKeys.first,
+                );
+                final newTe = TemplateExercise(
+                  exercise: exercise,
+                  targetReps: targetReps,
+                  targetWeight: targetWeight,
+                  sets: sets,
+                );
+                Navigator.pop(ctx);
+
+                _showWhereToAddExercise(newTe, l10n, isDark);
+              },
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
+              ),
+              child: Text(
+                l10n.get('save'),
+                style: const TextStyle(fontSize: largeFont),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showWhereToAddExercise(
+    TemplateExercise newTe,
+    AppLocalizations l10n,
+    bool isDark,
+  ) {
+    const double largeFont = 22;
+    const double minTap = 56;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          l10n.get('whereToAddExercise'),
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              height: minTap,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  setState(() {
+                    _orderedExercises.add(newTe);
+                  });
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(
+                  l10n.get('addToThisWorkoutOnly'),
+                  style: const TextStyle(
+                    fontSize: largeFont,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: minTap,
+              child: OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  setState(() {
+                    _orderedExercises.add(newTe);
+                  });
+                  widget.onUpdateTemplate?.call(
+                    widget.template.copyWith(
+                      exercises: [...widget.template.exercises, newTe],
+                    ),
+                  );
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.orange.shade700,
+                  side: BorderSide(
+                    color: Colors.orange.shade600,
+                    width: 2,
+                  ),
+                ),
+                child: Text(
+                  l10n.get('addToWorkoutTemplate'),
+                  style: const TextStyle(
+                    fontSize: largeFont,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   String _formatDuration(int seconds) {
     final hours = seconds ~/ 3600;
     final minutes = (seconds % 3600) ~/ 60;
@@ -2597,7 +2887,34 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                     color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+                // Add exercise during workout – elderly-friendly (large tap target)
+                if (!isResting)
+                  SizedBox(
+                    height: 64,
+                    child: OutlinedButton.icon(
+                      onPressed: _showAddExerciseDuringWorkout,
+                      icon: const Icon(Icons.add_circle_outline, size: 28),
+                      label: Text(
+                        l10n.get('addExerciseToWorkout'),
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: colorScheme.primary,
+                        side: BorderSide(
+                          color: colorScheme.primary,
+                          width: 2,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (!isResting) const SizedBox(height: 12),
                 ReorderableListView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),

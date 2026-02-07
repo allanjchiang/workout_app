@@ -2246,6 +2246,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Top padding so floating "Exercise Name" label is not clipped when focused
+                const SizedBox(height: 20),
                 TextField(
                   controller: nameController,
                   style: TextStyle(fontSize: largeFont),

@@ -2462,7 +2462,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
             ),
             const SizedBox(height: 16),
             SizedBox(
-              height: minTap + 16,
+              height: 96,
               child: OutlinedButton(
                 onPressed: () {
                   Navigator.pop(ctx);

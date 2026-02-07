@@ -2435,7 +2435,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
-              height: minTap,
+              height: minTap + 8,
               child: ElevatedButton(
                 onPressed: () {
                   Navigator.pop(ctx);
@@ -2446,6 +2446,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
                 ),
                 child: Text(
                   l10n.get('addToThisWorkoutOnly'),
@@ -2458,7 +2459,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
             ),
             const SizedBox(height: 16),
             SizedBox(
-              height: minTap,
+              height: minTap + 8,
               child: OutlinedButton(
                 onPressed: () {
                   Navigator.pop(ctx);
@@ -2477,6 +2478,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                     color: Colors.orange.shade600,
                     width: 2,
                   ),
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
                 ),
                 child: Text(
                   l10n.get('addToWorkoutTemplate'),

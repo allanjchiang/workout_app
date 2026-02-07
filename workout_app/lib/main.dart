@@ -1960,7 +1960,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
         });
         return AlertDialog(
           backgroundColor: isDark ? const Color(0xFF1E2A3A) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: Text(
             title,
             style: TextStyle(
@@ -1981,93 +1983,93 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                 ),
                 textAlign: TextAlign.center,
                 autofocus: true,
-              style: TextStyle(
-                fontSize: 48,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : accentColor,
-              ),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: isDark
-                    ? accentColor.withValues(alpha: 0.2)
-                    : accentColor.withValues(alpha: 0.1),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: accentColor, width: 2),
+                style: TextStyle(
+                  fontSize: 48,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : accentColor,
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                    color: accentColor.withValues(alpha: 0.5),
-                    width: 2,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: isDark
+                      ? accentColor.withValues(alpha: 0.2)
+                      : accentColor.withValues(alpha: 0.1),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: accentColor, width: 2),
                   ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: accentColor, width: 3),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: Text(
-                    l10n!.cancel,
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: isDark
-                          ? Colors.grey.shade400
-                          : Colors.grey.shade600,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(
+                      color: accentColor.withValues(alpha: 0.5),
+                      width: 2,
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    final text = controller.text.trim();
-                    final value = double.tryParse(text);
-                    if (value != null && value >= 0) {
-                      onSave(value);
-                      Navigator.pop(context);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: accentColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: accentColor, width: 3),
                   ),
-                  child: Text(
-                    l10n.get('save'),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
                   ),
                 ),
               ),
             ],
           ),
-        ],
-  );
-  },
-  );
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: Text(
+                      l10n!.cancel,
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      final text = controller.text.trim();
+                      final value = double.tryParse(text);
+                      if (value != null && value >= 0) {
+                        onSave(value);
+                        Navigator.pop(context);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accentColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      l10n.get('save'),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _logSet() {
@@ -2634,15 +2636,15 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                                               alpha: 0.15,
                                             ))
                                     : (isDark
-                                        ? const Color(0xFF232F3E)
-                                        : Colors.grey.shade100),
+                                          ? const Color(0xFF232F3E)
+                                          : Colors.grey.shade100),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
                                   color: isCurrent
                                       ? colorScheme.primary
                                       : (isDark
-                                          ? Colors.grey.shade700
-                                          : Colors.grey.shade300),
+                                            ? Colors.grey.shade700
+                                            : Colors.grey.shade300),
                                   width: isCurrent ? 2 : 1,
                                 ),
                               ),
@@ -2663,8 +2665,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                                     color: isCompleted
                                         ? Colors.green.shade600
                                         : (isDark
-                                            ? Colors.grey.shade400
-                                            : Colors.grey.shade500),
+                                              ? Colors.grey.shade400
+                                              : Colors.grey.shade500),
                                     size: 24,
                                   ),
                                   const SizedBox(width: 12),
@@ -2703,8 +2705,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                                       ),
                                       decoration: BoxDecoration(
                                         color: colorScheme.primary,
-                                        borderRadius:
-                                            BorderRadius.circular(12),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Text(
                                         l10n.get('current'),

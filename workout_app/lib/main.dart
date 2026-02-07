@@ -2261,106 +2261,95 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                   textCapitalization: TextCapitalization.words,
                 ),
                 const SizedBox(height: 24),
+                // Sets – full-width row to avoid overflow and keep large tap targets
+                Text(
+                  l10n.get('sets'),
+                  style: TextStyle(
+                    fontSize: largeFont,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white70 : Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            l10n.get('sets'),
-                            style: TextStyle(
-                              fontSize: largeFont,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white70 : Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              IconButton(
-                                onPressed: () {
-                                  if (sets > 1) {
-                                    setDialogState(() => sets--);
-                                  }
-                                },
-                                icon: const Icon(Icons.remove_circle_outline),
-                                iconSize: 36,
-                                style: IconButton.styleFrom(
-                                  minimumSize: const Size(minTap, minTap),
-                                ),
-                              ),
-                              Text(
-                                '$sets',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark ? Colors.white : Colors.black87,
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () =>
-                                    setDialogState(() => sets++),
-                                icon: const Icon(Icons.add_circle_outline),
-                                iconSize: 36,
-                                style: IconButton.styleFrom(
-                                  minimumSize: const Size(minTap, minTap),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                    IconButton(
+                      onPressed: () {
+                        if (sets > 1) {
+                          setDialogState(() => sets--);
+                        }
+                      },
+                      icon: const Icon(Icons.remove_circle_outline),
+                      iconSize: 36,
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size(minTap, minTap),
                       ),
                     ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            l10n.get('targetReps'),
-                            style: TextStyle(
-                              fontSize: largeFont,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white70 : Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              IconButton(
-                                onPressed: () {
-                                  if (targetReps > 1) {
-                                    setDialogState(() => targetReps--);
-                                  }
-                                },
-                                icon: const Icon(Icons.remove_circle_outline),
-                                iconSize: 36,
-                                style: IconButton.styleFrom(
-                                  minimumSize: const Size(minTap, minTap),
-                                ),
-                              ),
-                              Text(
-                                '$targetReps',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark ? Colors.white : Colors.black87,
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () =>
-                                    setDialogState(() => targetReps++),
-                                icon: const Icon(Icons.add_circle_outline),
-                                iconSize: 36,
-                                style: IconButton.styleFrom(
-                                  minimumSize: const Size(minTap, minTap),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        '$sets',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => setDialogState(() => sets++),
+                      icon: const Icon(Icons.add_circle_outline),
+                      iconSize: 36,
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size(minTap, minTap),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                // Target reps – full-width row
+                Text(
+                  l10n.get('targetReps'),
+                  style: TextStyle(
+                    fontSize: largeFont,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white70 : Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        if (targetReps > 1) {
+                          setDialogState(() => targetReps--);
+                        }
+                      },
+                      icon: const Icon(Icons.remove_circle_outline),
+                      iconSize: 36,
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size(minTap, minTap),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        '$targetReps',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => setDialogState(() => targetReps++),
+                      icon: const Icon(Icons.add_circle_outline),
+                      iconSize: 36,
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size(minTap, minTap),
                       ),
                     ),
                   ],

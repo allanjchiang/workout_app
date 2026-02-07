@@ -1948,29 +1948,39 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E2A3A) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white : Colors.black87,
+      builder: (context) {
+        // Select all text when dialog opens so user can type immediately
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (controller.text.isNotEmpty) {
+            controller.selection = TextSelection(
+              baseOffset: 0,
+              extentOffset: controller.text.length,
+            );
+          }
+        });
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.numberWithOptions(
-                decimal: !isInteger,
-                signed: false,
-              ),
-              textAlign: TextAlign.center,
-              autofocus: true,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.numberWithOptions(
+                  decimal: !isInteger,
+                  signed: false,
+                ),
+                textAlign: TextAlign.center,
+                autofocus: true,
               style: TextStyle(
                 fontSize: 48,
                 fontWeight: FontWeight.bold,
@@ -2055,8 +2065,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
             ],
           ),
         ],
-      ),
-    );
+  );
+  },
+  );
   }
 
   void _logSet() {

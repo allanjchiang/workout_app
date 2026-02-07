@@ -2933,13 +2933,19 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                       exercise.exercise.id,
                     );
                     final isAvailable = !isResting;
+                    final loggedSetsCount = logs
+                        .where((l) => l.exerciseId == exercise.exercise.id)
+                        .length;
+                    final displayedSets = loggedSetsCount > exercise.sets
+                        ? loggedSetsCount
+                        : exercise.sets;
                     return Padding(
                       key: ValueKey(exercise.exercise.id),
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Semantics(
                         button: true,
                         label:
-                            '${exercise.exercise.name}, ${exercise.sets} ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
+                            '${exercise.exercise.name}, $displayedSets ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
                         child: Material(
                           color: Colors.transparent,
                           borderRadius: BorderRadius.circular(12),
@@ -3016,7 +3022,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                                           ),
                                         ),
                                         Text(
-                                          '${exercise.sets} ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
+                                          '$displayedSets ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
                                           style: TextStyle(
                                             fontSize: 14,
                                             color: isDark

@@ -1960,9 +1960,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
         });
         return AlertDialog(
           backgroundColor: isDark ? const Color(0xFF1E2A3A) : Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
             title,
             style: TextStyle(
@@ -1983,93 +1981,93 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                 ),
                 textAlign: TextAlign.center,
                 autofocus: true,
-                style: TextStyle(
-                  fontSize: 48,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : accentColor,
+              style: TextStyle(
+                fontSize: 48,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : accentColor,
+              ),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: isDark
+                    ? accentColor.withValues(alpha: 0.2)
+                    : accentColor.withValues(alpha: 0.1),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: accentColor, width: 2),
                 ),
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: isDark
-                      ? accentColor.withValues(alpha: 0.2)
-                      : accentColor.withValues(alpha: 0.1),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: accentColor, width: 2),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: accentColor.withValues(alpha: 0.5),
+                    width: 2,
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(
-                      color: accentColor.withValues(alpha: 0.5),
-                      width: 2,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: accentColor, width: 3),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: Text(
+                    l10n!.cancel,
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
                     ),
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: accentColor, width: 3),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    final text = controller.text.trim();
+                    final value = double.tryParse(text);
+                    if (value != null && value >= 0) {
+                      onSave(value);
+                      Navigator.pop(context);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accentColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
+                  child: Text(
+                    l10n.get('save'),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
-          actions: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: Text(
-                      l10n!.cancel,
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: isDark
-                            ? Colors.grey.shade400
-                            : Colors.grey.shade600,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      final text = controller.text.trim();
-                      final value = double.tryParse(text);
-                      if (value != null && value >= 0) {
-                        onSave(value);
-                        Navigator.pop(context);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accentColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      l10n.get('save'),
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
+        ],
+  );
+  },
+  );
   }
 
   void _logSet() {
@@ -2084,7 +2082,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     );
     logs.add(log);
 
-    // Move to next set or exercise
+    // Move to next set or exercise (never auto-finish; user taps Finish Workout)
     if (currentSet < current.sets) {
       setState(() {
         currentSet++;
@@ -2098,7 +2096,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
       });
       _startRestTimer();
     } else {
-      _finishWorkout();
+      // Last set of last exercise: still start rest; user finishes when ready
+      _startRestTimer();
     }
   }
 
@@ -2389,6 +2388,30 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                 ),
               ),
             ),
+            const SizedBox(height: 20),
+            // Finish workout – always available during rest, elderly-friendly
+            SizedBox(
+              width: 260,
+              height: minTapHeight,
+              child: OutlinedButton.icon(
+                onPressed: _finishWorkout,
+                icon: const Icon(Icons.flag, size: 26),
+                label: Text(
+                  l10n.get('finishWorkout'),
+                  style: const TextStyle(
+                    fontSize: buttonFontSize,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.orange.shade700,
+                  side: BorderSide(color: Colors.orange.shade600, width: 2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -2636,15 +2659,15 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                                               alpha: 0.15,
                                             ))
                                     : (isDark
-                                          ? const Color(0xFF232F3E)
-                                          : Colors.grey.shade100),
+                                        ? const Color(0xFF232F3E)
+                                        : Colors.grey.shade100),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
                                   color: isCurrent
                                       ? colorScheme.primary
                                       : (isDark
-                                            ? Colors.grey.shade700
-                                            : Colors.grey.shade300),
+                                          ? Colors.grey.shade700
+                                          : Colors.grey.shade300),
                                   width: isCurrent ? 2 : 1,
                                 ),
                               ),
@@ -2665,8 +2688,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                                     color: isCompleted
                                         ? Colors.green.shade600
                                         : (isDark
-                                              ? Colors.grey.shade400
-                                              : Colors.grey.shade500),
+                                            ? Colors.grey.shade400
+                                            : Colors.grey.shade500),
                                     size: 24,
                                   ),
                                   const SizedBox(width: 12),
@@ -2705,7 +2728,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                                       ),
                                       decoration: BoxDecoration(
                                         color: colorScheme.primary,
-                                        borderRadius: BorderRadius.circular(12),
+                                        borderRadius:
+                                            BorderRadius.circular(12),
                                       ),
                                       child: Text(
                                         l10n.get('current'),
@@ -2938,17 +2962,14 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
             ),
           ),
           const SizedBox(height: 16),
-          // Log set button
+          // Log set button (always "Log Set"; finish is separate below)
           SizedBox(
             height: 70,
             child: ElevatedButton.icon(
               onPressed: currentReps > 0 ? _logSet : null,
               icon: const Icon(Icons.check, size: 30),
               label: Text(
-                currentExerciseIndex == _orderedExercises.length - 1 &&
-                        currentSet == current.sets
-                    ? l10n.get('finishWorkout')
-                    : l10n.get('logSet'),
+                l10n.get('logSet'),
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -2958,6 +2979,32 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
                 disabledBackgroundColor: Colors.grey.shade300,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Finish workout – always visible, elderly-friendly (large tap target)
+          SizedBox(
+            height: 64,
+            child: OutlinedButton.icon(
+              onPressed: _finishWorkout,
+              icon: const Icon(Icons.flag, size: 28),
+              label: Text(
+                l10n.get('finishWorkout'),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: isDark ? Colors.orange.shade300 : Colors.orange.shade700,
+                side: BorderSide(
+                  color: isDark ? Colors.orange.shade400 : Colors.orange.shade600,
+                  width: 2,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),

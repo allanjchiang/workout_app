@@ -2086,23 +2086,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     );
     logs.add(log);
 
-    // Move to next set or exercise (never auto-finish; user taps Finish Workout)
-    if (currentSet < current.sets) {
-      setState(() {
-        currentSet++;
-      });
-      _startRestTimer();
-    } else if (currentExerciseIndex < _orderedExercises.length - 1) {
-      setState(() {
-        currentExerciseIndex++;
-        currentSet = 1;
-        _initializeCurrentExercise();
-      });
-      _startRestTimer();
-    } else {
-      // Last set of last exercise: still start rest; user finishes when ready
-      _startRestTimer();
-    }
+    // Always move to next set and start rest (user can add extra sets beyond template target)
+    setState(() {
+      currentSet++;
+    });
+    _startRestTimer();
   }
 
   void _startRestTimer() {
@@ -2751,7 +2739,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                 ),
                 const SizedBox(width: 16),
                 Text(
-                  '${l10n.get('set')} $currentSet/${current.sets}',
+                  currentSet <= current.sets
+                      ? '${l10n.get('set')} $currentSet/${current.sets}'
+                      : '${l10n.get('set')} $currentSet',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -3279,7 +3269,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
             ),
           ),
           const SizedBox(height: 16),
-          // Log set button (always "Log Set"; finish is separate below)
+          // Log set button (always "Log Set"; can add extra sets beyond template target)
           SizedBox(
             height: 70,
             child: ElevatedButton.icon(
@@ -3303,6 +3293,41 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
             ),
           ),
           const SizedBox(height: 12),
+          // Next exercise – move on when done (or after extra sets); elderly-friendly
+          if (currentExerciseIndex < _orderedExercises.length - 1)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: SizedBox(
+                height: 64,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      currentExerciseIndex++;
+                      currentSet = 1;
+                      _initializeCurrentExercise();
+                    });
+                  },
+                  icon: const Icon(Icons.skip_next, size: 28),
+                  label: Text(
+                    l10n.get('nextExercise'),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: colorScheme.primary,
+                    side: BorderSide(
+                      color: colorScheme.primary,
+                      width: 2,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           // Finish workout – always visible, elderly-friendly (large tap target)
           SizedBox(
             height: 64,

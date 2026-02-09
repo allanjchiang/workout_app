@@ -51,5 +51,7 @@
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Workout Tracker does not access your photo library. This message is required because a bundled library references photo APIs.</string>
 </dict>
 </plist>

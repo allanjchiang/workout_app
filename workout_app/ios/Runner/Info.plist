@@ -16,12 +16,13 @@
 	<string>Workout Tracker</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<!-- Keep in sync with pubspec.yaml version (e.g. 1.6.2+10 → 1.6.2 and 10) -->
 	<key>CFBundleShortVersionString</key>
-	<string>$(FLUTTER_BUILD_NAME)</string>
+	<string>1.6.2</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleVersion</key>
-	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<string>10</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

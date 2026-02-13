@@ -1672,23 +1672,55 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              const SizedBox(height: 6),
+              Text(
+                l10n.get('longPressToReorder'),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
+              ),
               const SizedBox(height: 12),
-              // Exercise list
-              ...exercises.asMap().entries.map((entry) {
-                final index = entry.key;
-                final templateExercise = entry.value;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _ExerciseListItem(
-                    templateExercise: templateExercise,
-                    onDelete: () {
-                      setState(() {
-                        exercises.removeAt(index);
-                      });
-                    },
-                  ),
-                );
-              }),
+              // Exercise list – reorderable, elderly-friendly (large drag handle)
+              ReorderableListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: exercises.length,
+                onReorder: (oldIndex, newIndex) {
+                  setState(() {
+                    if (newIndex > oldIndex) newIndex--;
+                    final item = exercises.removeAt(oldIndex);
+                    exercises.insert(newIndex, item);
+                  });
+                },
+                itemBuilder: (context, index) {
+                  final templateExercise = exercises[index];
+                  return Padding(
+                    key: ValueKey(templateExercise.exercise.id),
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _ExerciseListItem(
+                      templateExercise: templateExercise,
+                      onDelete: () {
+                        setState(() => exercises.removeAt(index));
+                      },
+                      leading: ReorderableDragStartListener(
+                        index: index,
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          alignment: Alignment.center,
+                          child: Icon(
+                            Icons.drag_handle,
+                            size: 28,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
               // Add exercise button
               SizedBox(
                 height: 60,
@@ -1719,10 +1751,12 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
 class _ExerciseListItem extends StatelessWidget {
   final TemplateExercise templateExercise;
   final VoidCallback onDelete;
+  final Widget? leading;
 
   const _ExerciseListItem({
     required this.templateExercise,
     required this.onDelete,
+    this.leading,
   });
 
   @override
@@ -1743,6 +1777,8 @@ class _ExerciseListItem extends StatelessWidget {
       ),
       child: Row(
         children: [
+          if (leading != null) leading!,
+          if (leading != null) const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(

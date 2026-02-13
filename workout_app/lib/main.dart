@@ -3681,6 +3681,67 @@ class _HistoryCard extends StatelessWidget {
                 ),
             ],
           ),
+          if (session.logs.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Text(
+              l10n.get('exercises'),
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ..._groupLogsByExercise(session.logs).map((entry) {
+              final exerciseName = entry.key;
+              final logs = entry.value;
+              logs.sort((a, b) => a.setNumber.compareTo(b.setNumber));
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        exerciseName,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      ...logs.map((log) {
+                        final weightStr = log.weight > 0
+                            ? ' ${_formatWeightDisplay(log.weight)} ${weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}'
+                            : '';
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Text(
+                            '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}$weightStr',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: isDark
+                                  ? Colors.grey.shade300
+                                  : Colors.black87,
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
           const SizedBox(height: 16),
           // Elderly-friendly: large delete button, min height 56
           SizedBox(
@@ -3773,6 +3834,23 @@ class _HistoryCard extends StatelessWidget {
   double _getMaxWeight() {
     if (session.logs.isEmpty) return 0;
     return session.logs.map((l) => l.weight).reduce((a, b) => a > b ? a : b);
+  }
+
+  /// Group logs by exercise (preserve order of first occurrence); each value is list of sets for that exercise.
+  List<MapEntry<String, List<ExerciseLog>>> _groupLogsByExercise(
+      List<ExerciseLog> logs) {
+    if (logs.isEmpty) return [];
+    final byId = <String, List<ExerciseLog>>{};
+    for (final log in logs) {
+      byId.putIfAbsent(log.exerciseId, () => []).add(log);
+    }
+    final order = <String>[];
+    for (final log in logs) {
+      if (!order.contains(log.exerciseId)) order.add(log.exerciseId);
+    }
+    return order
+        .map((id) => MapEntry(byId[id]!.first.exerciseName, byId[id]!))
+        .toList();
   }
 }
 

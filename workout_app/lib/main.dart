@@ -1891,6 +1891,18 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     return null;
   }
 
+  /// Last reps logged for this exercise (most recent session); null if none.
+  int? _getLastRepsForExercise(String exerciseId) {
+    for (final session in widget.history) {
+      for (final log in session.logs.reversed) {
+        if (log.exerciseId == exerciseId) {
+          return log.reps;
+        }
+      }
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1953,7 +1965,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   void _initializeCurrentExercise() {
     if (_orderedExercises.isNotEmpty) {
       final current = _orderedExercises[currentExerciseIndex];
-      currentReps = current.targetReps;
+      // Use last logged reps for this exercise, else template target
+      final lastReps = _getLastRepsForExercise(current.exercise.id);
+      currentReps = lastReps ?? current.targetReps;
       // Use last logged weight for this exercise, else template target
       final lastWeight = _getLastWeightForExercise(current.exercise.id);
       currentWeight = lastWeight ?? current.targetWeight;

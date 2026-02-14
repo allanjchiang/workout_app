@@ -517,7 +517,7 @@ List<String> _filterExerciseSuggestions(String query, {int max = 8}) {
   return matches;
 }
 
-/// Exercise name that uses assistance weight (minus weight) instead of reps.
+/// Exercise name that logs "minus weight" (weight taken off by the machine) plus reps.
 const String kAssistedPullUpName = 'Assisted Pull-Up';
 
 bool _isAssistedPullUp(String exerciseName) =>
@@ -2108,16 +2108,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   void _initializeCurrentExercise() {
     if (_orderedExercises.isNotEmpty) {
       final current = _orderedExercises[currentExerciseIndex];
-      if (_isAssistedPullUp(current.exercise.name)) {
-        currentReps = 0;
-        final lastWeight = _getLastWeightForExercise(current.exercise.id);
-        currentWeight = lastWeight ?? current.targetWeight;
-      } else {
-        final lastReps = _getLastRepsForExercise(current.exercise.id);
-        currentReps = lastReps ?? current.targetReps;
-        final lastWeight = _getLastWeightForExercise(current.exercise.id);
-        currentWeight = lastWeight ?? current.targetWeight;
-      }
+      final lastReps = _getLastRepsForExercise(current.exercise.id);
+      currentReps = lastReps ?? current.targetReps;
+      final lastWeight = _getLastWeightForExercise(current.exercise.id);
+      currentWeight = lastWeight ?? current.targetWeight;
     }
   }
 
@@ -2277,7 +2271,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
       exerciseId: current.exercise.id,
       exerciseName: current.exercise.name,
       setNumber: currentSet,
-      reps: _isAssistedPullUp(current.exercise.name) ? 0 : currentReps,
+      reps: currentReps,
       weight: currentWeight,
       timestamp: DateTime.now(),
     );
@@ -2997,9 +2991,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                   ),
                   textAlign: TextAlign.center,
                 ),
-                // Show previous best reps if available (not for Assisted Pull-Up)
-                if (previousBestReps.containsKey(current.exercise.id) &&
-                    !_isAssistedPullUp(current.exercise.name)) ...[
+                // Show previous best reps if available
+                if (previousBestReps.containsKey(current.exercise.id)) ...[
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -3279,114 +3272,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
             ),
           ),
           const SizedBox(height: 20),
-          // Assisted Pull-Up: log assistance weight (minus weight) instead of reps
-          if (_isAssistedPullUp(current.exercise.name)) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1A2634) : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  _LargeRoundButton(
-                    icon: Icons.remove,
-                    color: Colors.orange.shade400,
-                    onPressed: () {
-                      if (currentWeight > 0) {
-                        setState(
-                          () => currentWeight =
-                              (currentWeight - 0.5).clamp(0, 999),
-                        );
-                      }
-                    },
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => _showNumberInputDialog(
-                        context: context,
-                        title: _weightUnit == 'lbs'
-                            ? l10n.get('assistanceLbs')
-                            : l10n.get('assistanceKg'),
-                        currentValue: _kgToDisplay(currentWeight),
-                        isInteger: false,
-                        accentColor: Colors.orange,
-                        onSave: (value) =>
-                            setState(() => currentWeight = _displayToKg(value)),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            _weightUnit == 'lbs'
-                                ? l10n.get('assistanceLbs')
-                                : l10n.get('assistanceKg'),
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: isDark
-                                  ? Colors.grey.shade400
-                                  : Colors.grey.shade600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? Colors.orange.withValues(alpha: 0.2)
-                                  : Colors.orange.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: Colors.orange.withValues(alpha: 0.5),
-                                width: 2,
-                              ),
-                            ),
-                            child: Text(
-                              _formatWeightDisplay(currentWeight),
-                              style: TextStyle(
-                                fontSize: 42,
-                                fontWeight: FontWeight.bold,
-                                color: isDark
-                                    ? Colors.white
-                                    : Colors.orange.shade700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            l10n.get('tapToEdit'),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark
-                                  ? Colors.grey.shade500
-                                  : Colors.grey.shade500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  _LargeRoundButton(
-                    icon: Icons.add,
-                    color: Colors.green.shade400,
-                    onPressed: () => setState(() => currentWeight += 0.5),
-                  ),
-                ],
-              ),
-            ),
-          ] else ...[
-            // Weight counter (above reps) – vertical layout
-            Container(
+          // First row: weight, or "Minus weight" for Assisted Pull-Up (elderly-friendly labels)
+          Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1A2634) : Colors.white,
@@ -3417,9 +3304,13 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                     child: GestureDetector(
                       onTap: () => _showNumberInputDialog(
                         context: context,
-                        title: _weightUnit == 'lbs'
-                            ? l10n.get('weightLbs')
-                            : l10n.get('weight'),
+                        title: _isAssistedPullUp(current.exercise.name)
+                            ? (_weightUnit == 'lbs'
+                                ? l10n.get('minusWeightLbs')
+                                : l10n.get('minusWeightKg'))
+                            : (_weightUnit == 'lbs'
+                                ? l10n.get('weightLbs')
+                                : l10n.get('weight')),
                         currentValue: _kgToDisplay(currentWeight),
                         isInteger: false,
                         accentColor: Colors.orange,
@@ -3429,11 +3320,15 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                       child: Column(
                         children: [
                           Text(
-                            _weightUnit == 'lbs'
-                                ? l10n.get('weightLbs')
-                                : l10n.get('weight'),
+                            _isAssistedPullUp(current.exercise.name)
+                                ? (_weightUnit == 'lbs'
+                                    ? l10n.get('minusWeightLbs')
+                                    : l10n.get('minusWeightKg'))
+                                : (_weightUnit == 'lbs'
+                                    ? l10n.get('weightLbs')
+                                    : l10n.get('weight')),
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 18,
                               fontWeight: FontWeight.w600,
                               color: isDark
                                   ? Colors.grey.shade400
@@ -3587,17 +3482,12 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                 ],
               ),
             ),
-          ],
           const SizedBox(height: 16),
           // Log set button
           SizedBox(
             height: 70,
             child: ElevatedButton.icon(
-              onPressed: (_isAssistedPullUp(current.exercise.name)
-                      ? currentWeight > 0
-                      : currentReps > 0)
-                  ? _logSet
-                  : null,
+              onPressed: currentReps > 0 ? _logSet : null,
               icon: const Icon(Icons.check, size: 30),
               label: Text(
                 l10n.get('logSet'),
@@ -3721,7 +3611,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              '${current.exercise.name} ${l10n.get('set')} ${log.setNumber}: ${_isAssistedPullUp(current.exercise.name) && log.reps == 0 && log.weight > 0 ? '${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('assistance')}' : '${log.reps} ${l10n.reps}${log.weight > 0 ? ' ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}' : ''}'}',
+                              '${current.exercise.name} ${l10n.get('set')} ${log.setNumber}: ${_isAssistedPullUp(current.exercise.name) && log.weight > 0 ? '${log.reps} ${l10n.reps}, ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('minusWeight')}' : '${log.reps} ${l10n.reps}${log.weight > 0 ? ' ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}' : ''}'}',
                               style: TextStyle(
                                 fontSize: 18,
                                 color: isDark ? Colors.white : Colors.black87,
@@ -4003,11 +3893,9 @@ class _HistoryCard extends StatelessWidget {
                       const SizedBox(height: 10),
                       ...logs.map((log) {
                         final isAssisted =
-                            _isAssistedPullUp(exerciseName) &&
-                                log.reps == 0 &&
-                                log.weight > 0;
+                            _isAssistedPullUp(exerciseName) && log.weight > 0;
                         final line = isAssisted
-                            ? '${l10n.get('set')} ${log.setNumber}: ${_formatWeightDisplay(log.weight)} ${weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('assistance')}'
+                            ? '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}, ${_formatWeightDisplay(log.weight)} ${weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('minusWeight')}'
                             : '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}${log.weight > 0 ? ' ${_formatWeightDisplay(log.weight)} ${weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}' : ''}';
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 6),

@@ -5424,6 +5424,7 @@ class _SettingsPageState extends State<SettingsPage> {
         'exportDate': DateTime.now().toIso8601String(),
         'templates': templatesJson != null ? jsonDecode(templatesJson) : [],
         'history': historyJson != null ? jsonDecode(historyJson) : [],
+        'defaultRestSeconds': prefs.getInt('default_rest_seconds') ?? 60,
       };
 
       // Create temporary file
@@ -5575,6 +5576,14 @@ class _SettingsPageState extends State<SettingsPage> {
         'workout_history',
         jsonEncode(backupData['history']),
       );
+      // Restore rest timer setting if present in backup (e.g. 30 seconds)
+      final importedRest = backupData['defaultRestSeconds'];
+      if (importedRest is int) {
+        await prefs.setInt(
+          'default_rest_seconds',
+          importedRest.clamp(30, 600),
+        );
+      }
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

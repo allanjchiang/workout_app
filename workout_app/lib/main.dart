@@ -10,6 +10,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:vibration/vibration.dart';
 import 'l10n/app_localizations.dart';
 
 void main() {
@@ -2157,6 +2158,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
           timer.cancel();
           isResting = false;
           _playBeep();
+          _vibrateRestEnd();
         }
       });
     });
@@ -2183,6 +2185,20 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
       await audioPlayer.play(AssetSource('audio/timer_beep.wav'));
     } catch (e) {
       // Ignore audio errors
+    }
+  }
+
+  /// Vibrates when rest timer ends. Uses a double-pulse pattern that is
+  /// easy to notice for elderly users without being harsh.
+  Future<void> _vibrateRestEnd() async {
+    try {
+      if (await Vibration.hasVibrator()) {
+        await Vibration.vibrate(
+          pattern: [0, 500, 200, 500],
+        );
+      }
+    } catch (_) {
+      // Ignore vibration errors (e.g. unsupported platform)
     }
   }
 

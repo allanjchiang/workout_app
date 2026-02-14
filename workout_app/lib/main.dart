@@ -444,6 +444,79 @@ const List<String> kExerciseIconKeys = [
   'pan_tool',
 ];
 
+/// Common gym exercise names for elderly-friendly autocomplete when adding exercises.
+const List<String> kCommonExerciseNames = [
+  'Ankle Eversion',
+  'Assisted Pull-Up',
+  'Balancing on One Leg',
+  'Bench Press',
+  'Bent-Over Row',
+  'Bicep Curl',
+  'Bicycle Crunch',
+  'Bird Dog',
+  'Calf Raise',
+  'Cable Fly',
+  'Chest Fly',
+  'Chin-Up',
+  'Clamshell',
+  'Crunch',
+  'Dead Bug',
+  'Deadlift',
+  'Dumbbell Fly',
+  'Face Pull',
+  'Farmer\'s Carry',
+  'Front Raise',
+  'Goblet Squat',
+  'Hack Squat',
+  'Hammer Curl',
+  'High Row',
+  'Hip Thrust',
+  'Incline Bench Press',
+  'Lat Pulldown',
+  'Lateral Raise',
+  'Leg Curl',
+  'Leg Extension',
+  'Leg Press',
+  'Leg Raise',
+  'Lunge',
+  'Lying Leg Curl',
+  'Overhead Press',
+  'Overhead Tricep Extension',
+  'Pec Deck',
+  'Plank',
+  'Preacher Curl',
+  'Pull-Up',
+  'Push-Up',
+  'Rear Delt Fly',
+  'Reverse Fly',
+  'Romanian Deadlift',
+  'Seated Calf Raise',
+  'Seated Row',
+  'Side Plank',
+  'Single-Arm Row',
+  'Skullcrusher',
+  'Squat',
+  'T-Bar Row',
+  'Tibialis Posterior',
+  'Toe Curl',
+  'Toe Raise',
+  'Tricep Dip',
+  'Tricep Pushdown',
+  'Upright Row',
+  'Walking Lunge',
+];
+
+/// Returns exercise names that match the query (case-insensitive substring), for autocomplete.
+List<String> _filterExerciseSuggestions(String query, {int max = 8}) {
+  if (query.trim().isEmpty) return [];
+  final q = query.trim().toLowerCase();
+  final matches = kCommonExerciseNames
+      .where((name) => name.toLowerCase().contains(q))
+      .take(max)
+      .toList();
+  return matches;
+}
+
 String _iconKeyFromLegacy(int? codePoint) {
   if (codePoint == null) return 'fitness_center';
   for (final entry in kExerciseIconMap.entries) {
@@ -1347,6 +1420,69 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                     contentPadding: const EdgeInsets.all(16),
                   ),
                   textCapitalization: TextCapitalization.words,
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+                // Elderly-friendly autocomplete: large tap targets, clear text
+                Builder(
+                  builder: (context) {
+                    final suggestions = _filterExerciseSuggestions(
+                      nameController.text,
+                      max: 8,
+                    );
+                    if (suggestions.isEmpty) return const SizedBox.shrink();
+                    final isDark =
+                        Theme.of(context).brightness == Brightness.dark;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(height: 8),
+                        Text(
+                          l10n.get('suggestions'),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        ...suggestions.map((name) => Material(
+                              color: isDark
+                                  ? const Color(0xFF232F3E)
+                                  : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                              child: InkWell(
+                                onTap: () {
+                                  nameController.text = name;
+                                  setDialogState(() {});
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 16,
+                                  ),
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    name,
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark
+                                          ? Colors.white
+                                          : Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )),
+                        const SizedBox(height: 16),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
                 TextField(

@@ -77,6 +77,7 @@ class AppLocalizations {
     'set': 'Set',
     'targetReps': 'Target Reps',
     'chooseIcon': 'Choose Icon:',
+    'suggestions': 'Suggestions',
 
     // Active workout
     'endWorkout': 'End Workout?',
@@ -330,6 +331,7 @@ class AppLocalizations {
     'set': '組',
     'targetReps': '目標次數',
     'chooseIcon': '選擇圖示：',
+    'suggestions': '建議',
 
     // Active workout
     'endWorkout': '結束運動？',

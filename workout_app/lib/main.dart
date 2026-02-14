@@ -517,6 +517,12 @@ List<String> _filterExerciseSuggestions(String query, {int max = 8}) {
   return matches;
 }
 
+/// Exercise name that uses assistance weight (minus weight) instead of reps.
+const String kAssistedPullUpName = 'Assisted Pull-Up';
+
+bool _isAssistedPullUp(String exerciseName) =>
+    exerciseName == kAssistedPullUpName;
+
 String _iconKeyFromLegacy(int? codePoint) {
   if (codePoint == null) return 'fitness_center';
   for (final entry in kExerciseIconMap.entries) {
@@ -2102,12 +2108,16 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   void _initializeCurrentExercise() {
     if (_orderedExercises.isNotEmpty) {
       final current = _orderedExercises[currentExerciseIndex];
-      // Use last logged reps for this exercise, else template target
-      final lastReps = _getLastRepsForExercise(current.exercise.id);
-      currentReps = lastReps ?? current.targetReps;
-      // Use last logged weight for this exercise, else template target
-      final lastWeight = _getLastWeightForExercise(current.exercise.id);
-      currentWeight = lastWeight ?? current.targetWeight;
+      if (_isAssistedPullUp(current.exercise.name)) {
+        currentReps = 0;
+        final lastWeight = _getLastWeightForExercise(current.exercise.id);
+        currentWeight = lastWeight ?? current.targetWeight;
+      } else {
+        final lastReps = _getLastRepsForExercise(current.exercise.id);
+        currentReps = lastReps ?? current.targetReps;
+        final lastWeight = _getLastWeightForExercise(current.exercise.id);
+        currentWeight = lastWeight ?? current.targetWeight;
+      }
     }
   }
 
@@ -2267,7 +2277,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
       exerciseId: current.exercise.id,
       exerciseName: current.exercise.name,
       setNumber: currentSet,
-      reps: currentReps,
+      reps: _isAssistedPullUp(current.exercise.name) ? 0 : currentReps,
       weight: currentWeight,
       timestamp: DateTime.now(),
     );
@@ -2987,8 +2997,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                   ),
                   textAlign: TextAlign.center,
                 ),
-                // Show previous best reps if available
-                if (previousBestReps.containsKey(current.exercise.id)) ...[
+                // Show previous best reps if available (not for Assisted Pull-Up)
+                if (previousBestReps.containsKey(current.exercise.id) &&
+                    !_isAssistedPullUp(current.exercise.name)) ...[
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -3268,220 +3279,325 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
             ),
           ),
           const SizedBox(height: 20),
-          // Weight counter (above reps) – vertical layout
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1A2634) : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                // Minus button
-                _LargeRoundButton(
-                  icon: Icons.remove,
-                  color: Colors.orange.shade400,
-                  onPressed: () {
-                    if (currentWeight > 0) {
-                      setState(
-                        () =>
-                            currentWeight = (currentWeight - 0.5).clamp(0, 999),
-                      );
-                    }
-                  },
-                ),
-                // Weight display (tappable)
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _showNumberInputDialog(
-                      context: context,
-                      title: _weightUnit == 'lbs'
-                          ? l10n.get('weightLbs')
-                          : l10n.get('weight'),
-                      currentValue: _kgToDisplay(currentWeight),
-                      isInteger: false,
-                      accentColor: Colors.orange,
-                      onSave: (value) =>
-                          setState(() => currentWeight = _displayToKg(value)),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          _weightUnit == 'lbs'
-                              ? l10n.get('weightLbs')
-                              : l10n.get('weight'),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: isDark
-                                ? Colors.grey.shade400
-                                : Colors.grey.shade600,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? Colors.orange.withValues(alpha: 0.2)
-                                : Colors.orange.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Colors.orange.withValues(alpha: 0.5),
-                              width: 2,
-                            ),
-                          ),
-                          child: Text(
-                            _formatWeightDisplay(currentWeight),
+          // Assisted Pull-Up: log assistance weight (minus weight) instead of reps
+          if (_isAssistedPullUp(current.exercise.name)) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A2634) : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  _LargeRoundButton(
+                    icon: Icons.remove,
+                    color: Colors.orange.shade400,
+                    onPressed: () {
+                      if (currentWeight > 0) {
+                        setState(
+                          () => currentWeight =
+                              (currentWeight - 0.5).clamp(0, 999),
+                        );
+                      }
+                    },
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _showNumberInputDialog(
+                        context: context,
+                        title: _weightUnit == 'lbs'
+                            ? l10n.get('assistanceLbs')
+                            : l10n.get('assistanceKg'),
+                        currentValue: _kgToDisplay(currentWeight),
+                        isInteger: false,
+                        accentColor: Colors.orange,
+                        onSave: (value) =>
+                            setState(() => currentWeight = _displayToKg(value)),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            _weightUnit == 'lbs'
+                                ? l10n.get('assistanceLbs')
+                                : l10n.get('assistanceKg'),
                             style: TextStyle(
-                              fontSize: 42,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
                               color: isDark
-                                  ? Colors.white
-                                  : Colors.orange.shade700,
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade600,
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          l10n.get('tapToEdit'),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark
-                                ? Colors.grey.shade500
-                                : Colors.grey.shade500,
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.orange.withValues(alpha: 0.2)
+                                  : Colors.orange.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: Colors.orange.withValues(alpha: 0.5),
+                                width: 2,
+                              ),
+                            ),
+                            child: Text(
+                              _formatWeightDisplay(currentWeight),
+                              style: TextStyle(
+                                fontSize: 42,
+                                fontWeight: FontWeight.bold,
+                                color: isDark
+                                    ? Colors.white
+                                    : Colors.orange.shade700,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.get('tapToEdit'),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? Colors.grey.shade500
+                                  : Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                // Plus button
-                _LargeRoundButton(
-                  icon: Icons.add,
-                  color: Colors.green.shade400,
-                  onPressed: () => setState(() => currentWeight += 0.5),
-                ),
-              ],
+                  _LargeRoundButton(
+                    icon: Icons.add,
+                    color: Colors.green.shade400,
+                    onPressed: () => setState(() => currentWeight += 0.5),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          // Reps counter (vertical layout)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1A2634) : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                // Minus button
-                _LargeRoundButton(
-                  icon: Icons.remove,
-                  color: Colors.red.shade400,
-                  onPressed: () {
-                    if (currentReps > 0) {
-                      setState(() => currentReps--);
-                    }
-                  },
-                ),
-                // Reps display (tappable)
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _showNumberInputDialog(
-                      context: context,
-                      title: l10n.reps,
-                      currentValue: currentReps.toDouble(),
-                      isInteger: true,
-                      accentColor: colorScheme.primary,
-                      onSave: (value) =>
-                          setState(() => currentReps = value.toInt()),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          l10n.reps,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: isDark
-                                ? Colors.grey.shade400
-                                : Colors.grey.shade600,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? colorScheme.primary.withValues(alpha: 0.2)
-                                : colorScheme.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: colorScheme.primary.withValues(alpha: 0.5),
-                              width: 2,
-                            ),
-                          ),
-                          child: Text(
-                            '$currentReps',
+          ] else ...[
+            // Weight counter (above reps) – vertical layout
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A2634) : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  _LargeRoundButton(
+                    icon: Icons.remove,
+                    color: Colors.orange.shade400,
+                    onPressed: () {
+                      if (currentWeight > 0) {
+                        setState(
+                          () =>
+                              currentWeight = (currentWeight - 0.5).clamp(0, 999),
+                        );
+                      }
+                    },
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _showNumberInputDialog(
+                        context: context,
+                        title: _weightUnit == 'lbs'
+                            ? l10n.get('weightLbs')
+                            : l10n.get('weight'),
+                        currentValue: _kgToDisplay(currentWeight),
+                        isInteger: false,
+                        accentColor: Colors.orange,
+                        onSave: (value) =>
+                            setState(() => currentWeight = _displayToKg(value)),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            _weightUnit == 'lbs'
+                                ? l10n.get('weightLbs')
+                                : l10n.get('weight'),
                             style: TextStyle(
-                              fontSize: 42,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
                               color: isDark
-                                  ? Colors.white
-                                  : colorScheme.primary,
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade600,
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          l10n.get('tapToEdit'),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark
-                                ? Colors.grey.shade500
-                                : Colors.grey.shade500,
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.orange.withValues(alpha: 0.2)
+                                  : Colors.orange.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: Colors.orange.withValues(alpha: 0.5),
+                                width: 2,
+                              ),
+                            ),
+                            child: Text(
+                              _formatWeightDisplay(currentWeight),
+                              style: TextStyle(
+                                fontSize: 42,
+                                fontWeight: FontWeight.bold,
+                                color: isDark
+                                    ? Colors.white
+                                    : Colors.orange.shade700,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.get('tapToEdit'),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? Colors.grey.shade500
+                                  : Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                // Plus button
-                _LargeRoundButton(
-                  icon: Icons.add,
-                  color: Colors.green.shade400,
-                  onPressed: () => setState(() => currentReps++),
-                ),
-              ],
+                  _LargeRoundButton(
+                    icon: Icons.add,
+                    color: Colors.green.shade400,
+                    onPressed: () => setState(() => currentWeight += 0.5),
+                  ),
+                ],
+              ),
             ),
-          ),
+            const SizedBox(height: 12),
+            // Reps counter (vertical layout)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A2634) : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  _LargeRoundButton(
+                    icon: Icons.remove,
+                    color: Colors.red.shade400,
+                    onPressed: () {
+                      if (currentReps > 0) {
+                        setState(() => currentReps--);
+                      }
+                    },
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _showNumberInputDialog(
+                        context: context,
+                        title: l10n.reps,
+                        currentValue: currentReps.toDouble(),
+                        isInteger: true,
+                        accentColor: colorScheme.primary,
+                        onSave: (value) =>
+                            setState(() => currentReps = value.toInt()),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            l10n.reps,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? colorScheme.primary.withValues(alpha: 0.2)
+                                  : colorScheme.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: colorScheme.primary.withValues(alpha: 0.5),
+                                width: 2,
+                              ),
+                            ),
+                            child: Text(
+                              '$currentReps',
+                              style: TextStyle(
+                                fontSize: 42,
+                                fontWeight: FontWeight.bold,
+                                color: isDark
+                                    ? Colors.white
+                                    : colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.get('tapToEdit'),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? Colors.grey.shade500
+                                  : Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  _LargeRoundButton(
+                    icon: Icons.add,
+                    color: Colors.green.shade400,
+                    onPressed: () => setState(() => currentReps++),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
-          // Log set button (always "Log Set"; can add extra sets beyond template target)
+          // Log set button
           SizedBox(
             height: 70,
             child: ElevatedButton.icon(
-              onPressed: currentReps > 0 ? _logSet : null,
+              onPressed: (_isAssistedPullUp(current.exercise.name)
+                      ? currentWeight > 0
+                      : currentReps > 0)
+                  ? _logSet
+                  : null,
               icon: const Icon(Icons.check, size: 30),
               label: Text(
                 l10n.get('logSet'),
@@ -3605,7 +3721,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              '${current.exercise.name} ${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}${log.weight > 0 ? ' ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}' : ''}',
+                              '${current.exercise.name} ${l10n.get('set')} ${log.setNumber}: ${_isAssistedPullUp(current.exercise.name) && log.reps == 0 && log.weight > 0 ? '${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('assistance')}' : '${log.reps} ${l10n.reps}${log.weight > 0 ? ' ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}' : ''}'}',
                               style: TextStyle(
                                 fontSize: 18,
                                 color: isDark ? Colors.white : Colors.black87,
@@ -3886,13 +4002,17 @@ class _HistoryCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       ...logs.map((log) {
-                        final weightStr = log.weight > 0
-                            ? ' ${_formatWeightDisplay(log.weight)} ${weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}'
-                            : '';
+                        final isAssisted =
+                            _isAssistedPullUp(exerciseName) &&
+                                log.reps == 0 &&
+                                log.weight > 0;
+                        final line = isAssisted
+                            ? '${l10n.get('set')} ${log.setNumber}: ${_formatWeightDisplay(log.weight)} ${weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('assistance')}'
+                            : '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}${log.weight > 0 ? ' ${_formatWeightDisplay(log.weight)} ${weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}' : ''}';
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 6),
                           child: Text(
-                            '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}$weightStr',
+                            line,
                             style: TextStyle(
                               fontSize: 18,
                               color: isDark

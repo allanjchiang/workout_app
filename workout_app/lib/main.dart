@@ -2455,6 +2455,69 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                     ),
                   ),
                   textCapitalization: TextCapitalization.words,
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+                // Elderly-friendly autocomplete (same as template editor)
+                Builder(
+                  builder: (context) {
+                    final suggestions = _filterExerciseSuggestions(
+                      nameController.text,
+                      max: 8,
+                    );
+                    if (suggestions.isEmpty) return const SizedBox.shrink();
+                    final dialogIsDark =
+                        Theme.of(context).brightness == Brightness.dark;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(height: 8),
+                        Text(
+                          l10n.get('suggestions'),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: dialogIsDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        ...suggestions.map((name) => Material(
+                              color: dialogIsDark
+                                  ? const Color(0xFF232F3E)
+                                  : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                              child: InkWell(
+                                onTap: () {
+                                  nameController.text = name;
+                                  setDialogState(() {});
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 16,
+                                  ),
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    name,
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w500,
+                                      color: dialogIsDark
+                                          ? Colors.white
+                                          : Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )),
+                        const SizedBox(height: 16),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 24),
                 // Sets – full-width row to avoid overflow and keep large tap targets

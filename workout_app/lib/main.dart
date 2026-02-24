@@ -3125,12 +3125,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   Widget _buildExerciseScreen(AppLocalizations l10n, TemplateExercise current) {
     final completedExerciseIds = <String>{};
     for (final exercise in _orderedExercises) {
-      final completedSets = logs
+      final loggedSetsCount = logs
           .where((log) => log.exerciseId == exercise.exercise.id)
-          .map((log) => log.setNumber)
-          .toSet()
           .length;
-      if (completedSets >= exercise.sets) {
+      if (loggedSetsCount >= exercise.sets) {
         completedExerciseIds.add(exercise.exercise.id);
       }
     }
@@ -3412,7 +3410,14 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                                 ? () {
                                     setState(() {
                                       currentExerciseIndex = index;
-                                      currentSet = 1;
+                                      final exercise =
+                                          _orderedExercises[index];
+                                      final loggedForExercise = logs
+                                          .where((l) =>
+                                              l.exerciseId ==
+                                              exercise.exercise.id)
+                                          .length;
+                                      currentSet = loggedForExercise + 1;
                                       _initializeCurrentExercise();
                                     });
                                   }
@@ -3769,7 +3774,13 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                   onPressed: () {
                     setState(() {
                       currentExerciseIndex++;
-                      currentSet = 1;
+                      final exercise =
+                          _orderedExercises[currentExerciseIndex];
+                      final loggedForExercise = logs
+                          .where((l) =>
+                              l.exerciseId == exercise.exercise.id)
+                          .length;
+                      currentSet = loggedForExercise + 1;
                       _initializeCurrentExercise();
                     });
                   },

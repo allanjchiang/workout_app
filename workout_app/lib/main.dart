@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:vibration/vibration.dart';
+import 'package:intl/intl.dart';
 import 'l10n/app_localizations.dart';
 
 void main() {
@@ -2046,6 +2047,162 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     return null;
   }
 
+  /// Past workout sessions that contain logs for this exercise (newest first).
+  List<MapEntry<WorkoutSession, List<ExerciseLog>>> _getPastSessionsForExercise(
+      String exerciseId) {
+    final list = <MapEntry<WorkoutSession, List<ExerciseLog>>>[];
+    for (final session in widget.history) {
+      final logs =
+          session.logs.where((l) => l.exerciseId == exerciseId).toList();
+      if (logs.isNotEmpty) {
+        list.add(MapEntry(session, logs));
+      }
+    }
+    list.sort((a, b) => b.key.startTime.compareTo(a.key.startTime));
+    return list;
+  }
+
+  void _showPastHistoryBottomSheet(BuildContext context, Exercise exercise) {
+    final l10n = AppLocalizations.of(context)!;
+    final past = _getPastSessionsForExercise(exercise.id);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dateFormat = DateFormat('MMM d, yyyy');
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.5,
+          minChildSize: 0.25,
+          maxChildSize: 0.85,
+          builder: (_, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.grey.shade600
+                          : Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Text(
+                      '${l10n.get('pastHistory')} – ${exercise.name}',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: past.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text(
+                                l10n.get('noPastWorkoutsForExercise'),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: isDark
+                                      ? Colors.grey.shade400
+                                      : Colors.grey.shade600,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            controller: scrollController,
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                            itemCount: past.length,
+                            itemBuilder: (_, index) {
+                              final entry = past[index];
+                              final session = entry.key;
+                              final logs = entry.value;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 20),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.calendar_today,
+                                          size: 18,
+                                          color: isDark
+                                              ? Colors.grey.shade400
+                                              : Colors.grey.shade600,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '${l10n.get('workoutOn')} ${dateFormat.format(session.startTime)}',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: isDark
+                                                ? Colors.white
+                                                : Colors.black87,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    ...logs.map((log) {
+                                      final weightPart = log.weight > 0
+                                          ? _isAssistedPullUp(exercise.name)
+                                              ? '${log.reps} ${l10n.reps}, ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('minusWeight')}'
+                                              : '${log.reps} ${l10n.reps} × ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}'
+                                          : '${log.reps} ${l10n.reps}';
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          left: 26,
+                                          top: 4,
+                                        ),
+                                        child: Text(
+                                          '${l10n.get('set')} ${log.setNumber}: $weightPart',
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            color: isDark
+                                                ? Colors.grey.shade300
+                                                : Colors.grey.shade700,
+                                          ),
+                                        ),
+                                      );
+                                    }),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -3045,14 +3202,46 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                   color: colorScheme.primary,
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  current.exercise.name,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                  textAlign: TextAlign.center,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        current.exercise.name,
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Tooltip(
+                      message: l10n.get('pastHistory'),
+                      child: Material(
+                        color: (isDark ? Colors.white : Colors.black87)
+                            .withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(24),
+                        child: InkWell(
+                          onTap: () => _showPastHistoryBottomSheet(
+                              context, current.exercise),
+                          borderRadius: BorderRadius.circular(24),
+                          child: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Icon(
+                              Icons.history,
+                              size: 24,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 // Show previous best reps if available
                 if (previousBestReps.containsKey(current.exercise.id)) ...[

@@ -4573,8 +4573,6 @@ class _ProgressChartSection extends StatefulWidget {
 class _ProgressChartSectionState extends State<_ProgressChartSection> {
   String? selectedExerciseId;
   ChartViewMode viewMode = ChartViewMode.weight;
-  /// When non-null, show tooltip on this spot (tap once to show, tap again to hide).
-  int? selectedSpotIndex;
 
   // Get all unique exercises from history
   List<MapEntry<String, String>> get uniqueExercises {
@@ -4716,7 +4714,6 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
               onChanged: (value) {
                 setState(() {
                   selectedExerciseId = value;
-                  selectedSpotIndex = null;
                 });
               },
             ),
@@ -4737,10 +4734,7 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                 child: _ToggleButton(
                   label: l10n.get('weightOverTime'),
                   isSelected: viewMode == ChartViewMode.weight,
-                  onTap: () => setState(() {
-                    viewMode = ChartViewMode.weight;
-                    selectedSpotIndex = null;
-                  }),
+                  onTap: () => setState(() => viewMode = ChartViewMode.weight),
                 ),
               ),
               const SizedBox(width: 4),
@@ -4748,10 +4742,7 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                 child: _ToggleButton(
                   label: l10n.get('estimated1RM'),
                   isSelected: viewMode == ChartViewMode.oneRepMax,
-                  onTap: () => setState(() {
-                    viewMode = ChartViewMode.oneRepMax;
-                    selectedSpotIndex = null;
-                  }),
+                  onTap: () => setState(() => viewMode = ChartViewMode.oneRepMax),
                 ),
               ),
             ],
@@ -4914,20 +4905,6 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                 lineBarsData: lineBarsData,
                 minY: 0,
                 maxY: yMax,
-                showingTooltipIndicators: lineBarsData.isNotEmpty &&
-                        selectedSpotIndex != null &&
-                        selectedSpotIndex! >= 0 &&
-                        selectedSpotIndex! < data.length
-                    ? [
-                        ShowingTooltipIndicators([
-                          LineBarSpot(
-                            lineBarsData.first,
-                            0,
-                            lineBarsData.first.spots[selectedSpotIndex!],
-                          ),
-                        ]),
-                      ]
-                    : [],
                 titlesData: FlTitlesData(
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
@@ -4999,29 +4976,6 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                 ),
                 borderData: FlBorderData(show: false),
                 lineTouchData: LineTouchData(
-                  handleBuiltInTouches: false,
-                  touchSpotThreshold: 120,
-                  distanceCalculator: (touchPoint, spotPixelCoordinates) =>
-                      (touchPoint - spotPixelCoordinates).distance,
-                  touchCallback: (event, response) {
-                    if (event is FlTapDownEvent ||
-                        event is FlTapUpEvent) {
-                      setState(() {
-                        if (response?.lineBarSpots != null &&
-                            response!.lineBarSpots!.isNotEmpty) {
-                          final spot = response.lineBarSpots!.first;
-                          final index = spot.spotIndex;
-                          if (selectedSpotIndex == index) {
-                            selectedSpotIndex = null;
-                          } else {
-                            selectedSpotIndex = index;
-                          }
-                        } else {
-                          selectedSpotIndex = null;
-                        }
-                      });
-                    }
-                  },
                   touchTooltipData: LineTouchTooltipData(
                     getTooltipColor: (touchedSpot) =>
                         isDark ? const Color(0xFF2A3A4A) : Colors.grey.shade800,

@@ -5000,9 +5000,12 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                 borderData: FlBorderData(show: false),
                 lineTouchData: LineTouchData(
                   handleBuiltInTouches: false,
-                  touchSpotThreshold: 48,
+                  touchSpotThreshold: 120,
+                  distanceCalculator: (touchPoint, spotPixelCoordinates) =>
+                      (touchPoint - spotPixelCoordinates).distance,
                   touchCallback: (event, response) {
-                    if (event is FlTapDownEvent) {
+                    if (event is FlTapDownEvent ||
+                        event is FlTapUpEvent) {
                       setState(() {
                         if (response?.lineBarSpots != null &&
                             response!.lineBarSpots!.isNotEmpty) {

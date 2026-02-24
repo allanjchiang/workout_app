@@ -4558,7 +4558,7 @@ class StatisticsPage extends StatelessWidget {
 
 // ============== PROGRESS CHART SECTION ==============
 
-enum ChartViewMode { reps, weight, oneRepMax }
+enum ChartViewMode { weight, oneRepMax }
 
 class _ProgressChartSection extends StatefulWidget {
   final List<WorkoutSession> history;
@@ -4572,7 +4572,7 @@ class _ProgressChartSection extends StatefulWidget {
 
 class _ProgressChartSectionState extends State<_ProgressChartSection> {
   String? selectedExerciseId;
-  ChartViewMode viewMode = ChartViewMode.reps;
+  ChartViewMode viewMode = ChartViewMode.weight;
 
   // Get all unique exercises from history
   List<MapEntry<String, String>> get uniqueExercises {
@@ -4586,7 +4586,7 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
       ..sort((a, b) => a.value.compareTo(b.value));
   }
 
-  // Get chart data points for selected exercise
+  // Get chart data points for selected exercise (weight + estimated 1RM only)
   List<_ChartDataPoint> get chartData {
     if (selectedExerciseId == null) return [];
 
@@ -4597,29 +4597,41 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
           .where((log) => log.exerciseId == selectedExerciseId)
           .toList();
 
-      if (logsForExercise.isNotEmpty) {
-        // Get the best (max) reps and weight for this session
-        final maxReps = logsForExercise.map((l) => l.reps).reduce(math.max);
-        final maxWeight = logsForExercise.map((l) => l.weight).reduce(math.max);
-        // Estimated 1RM per set (Epley: weight * (1 + reps/30)), then max for session
-        double? max1RM;
-        for (final log in logsForExercise) {
-          if (log.weight <= 0) continue;
-          final oneRM = log.reps >= 1
-              ? log.weight * (1 + log.reps / 30)
-              : log.weight;
-          if (max1RM == null || oneRM > max1RM) max1RM = oneRM;
-        }
+      if (logsForExercise.isEmpty) continue;
 
-        dataPoints.add(
-          _ChartDataPoint(
-            date: session.startTime,
-            reps: maxReps,
-            weight: maxWeight,
-            estimated1RM: max1RM ?? 0,
-          ),
-        );
+      // Max weight in session and reps from that set
+      final logWithMaxWeight = logsForExercise.reduce(
+        (a, b) => a.weight >= b.weight ? a : b,
+      );
+      final maxWeight = logWithMaxWeight.weight;
+      final repsAtMaxWeight = logWithMaxWeight.reps;
+
+      // Estimated 1RM (Epley: weight * (1 + reps/30)), and the set that produced it
+      double max1RM = 0;
+      double weightFor1RM = 0;
+      int repsFor1RM = 0;
+      for (final log in logsForExercise) {
+        if (log.weight <= 0) continue;
+        final oneRM = log.reps >= 1
+            ? log.weight * (1 + log.reps / 30)
+            : log.weight;
+        if (oneRM > max1RM) {
+          max1RM = oneRM;
+          weightFor1RM = log.weight;
+          repsFor1RM = log.reps;
+        }
       }
+
+      dataPoints.add(
+        _ChartDataPoint(
+          date: session.startTime,
+          weight: maxWeight,
+          repsAtMaxWeight: repsAtMaxWeight,
+          estimated1RM: max1RM,
+          weightFor1RM: weightFor1RM,
+          repsFor1RM: repsFor1RM,
+        ),
+      );
     }
 
     // Sort by date (oldest first)
@@ -4709,7 +4721,7 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
         ),
         const SizedBox(height: 16),
 
-        // View Mode Toggle (Reps / Weight / Both)
+        // View Mode Toggle (Weight / 1RM)
         Container(
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF1A2634) : Colors.grey.shade200,
@@ -4718,14 +4730,6 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
           padding: const EdgeInsets.all(4),
           child: Row(
             children: [
-              Expanded(
-                child: _ToggleButton(
-                  label: l10n.get('repsOverTime'),
-                  isSelected: viewMode == ChartViewMode.reps,
-                  onTap: () => setState(() => viewMode = ChartViewMode.reps),
-                ),
-              ),
-              const SizedBox(width: 4),
               Expanded(
                 child: _ToggleButton(
                   label: l10n.get('weightOverTime'),
@@ -4778,23 +4782,18 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
       );
     }
 
-    // Calculate min/max values for axes
-    final repsValues = data.map((d) => d.reps.toDouble()).toList();
+    // Calculate min/max values for Y-axis (weight or 1RM only)
     final weightValues = data.map((d) => d.weight).toList();
-
-    final maxReps = repsValues.reduce(math.max);
     final maxWeightKg = weightValues.reduce(math.max);
     final isLbs = widget.weightUnit == 'lbs';
     const double kgToLbs = 2.2046226218;
     final maxWeightDisplay = isLbs ? maxWeightKg * kgToLbs : maxWeightKg;
 
-    // Create line chart data (weight in display unit when weight-only / 1RM view so Y-axis matches)
-    final repsSpots = <FlSpot>[];
+    // Create line chart data (weight / 1RM in display unit)
     final weightSpots = <FlSpot>[];
     final oneRMSpots = <FlSpot>[];
 
     for (int i = 0; i < data.length; i++) {
-      repsSpots.add(FlSpot(i.toDouble(), data[i].reps.toDouble()));
       final w = data[i].weight;
       weightSpots.add(
         FlSpot(
@@ -4812,34 +4811,6 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
     }
 
     final lineBarsData = <LineChartBarData>[];
-
-    // Reps line (blue)
-    if (viewMode == ChartViewMode.reps) {
-      lineBarsData.add(
-        LineChartBarData(
-          spots: repsSpots,
-          isCurved: true,
-          color: Colors.blue,
-          barWidth: 3,
-          isStrokeCapRound: true,
-          dotData: FlDotData(
-            show: true,
-            getDotPainter: (spot, percent, barData, index) {
-              return FlDotCirclePainter(
-                radius: 5,
-                color: Colors.blue,
-                strokeWidth: 2,
-                strokeColor: Colors.white,
-              );
-            },
-          ),
-          belowBarData: BarAreaData(
-            show: true,
-            color: Colors.blue.withValues(alpha: 0.1),
-          ),
-        ),
-      );
-    }
 
     // Weight line (green)
     if (viewMode == ChartViewMode.weight) {
@@ -4897,18 +4868,13 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
       );
     }
 
-    // Determine Y-axis max
+    // Determine Y-axis max (weight or 1RM only)
     final max1RMDisplay = data.isEmpty
         ? 0.0
         : (data.map((d) => d.estimated1RM).reduce(math.max)) * (isLbs ? kgToLbs : 1);
-    double yMax;
-    if (viewMode == ChartViewMode.reps) {
-      yMax = maxReps + 2;
-    } else if (viewMode == ChartViewMode.weight) {
-      yMax = maxWeightDisplay + (isLbs ? 10 : 5);
-    } else {
-      yMax = max1RMDisplay + (isLbs ? 10 : 5);
-    }
+    final double yMax = viewMode == ChartViewMode.weight
+        ? maxWeightDisplay + (isLbs ? 10 : 5)
+        : max1RMDisplay + (isLbs ? 10 : 5);
 
     return Container(
       height: 280,
@@ -4919,17 +4885,20 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
       ),
       child: Column(
         children: [
-          // Legend for 1RM
-          if (viewMode == ChartViewMode.oneRepMax)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Center(
-                child: _LegendItem(
-                  color: Colors.orange,
-                  label: l10n.get('estimated1RM'),
-                ),
+          // Legend
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Center(
+              child: _LegendItem(
+                color: viewMode == ChartViewMode.weight
+                    ? Colors.green
+                    : Colors.orange,
+                label: viewMode == ChartViewMode.weight
+                    ? l10n.get('weightOverTime')
+                    : l10n.get('estimated1RM'),
               ),
             ),
+          ),
           Expanded(
             child: LineChart(
               LineChartData(
@@ -4942,15 +4911,9 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                       showTitles: true,
                       reservedSize: 40,
                       getTitlesWidget: (value, meta) {
-                        final String label;
-                        if (viewMode == ChartViewMode.weight ||
-                            viewMode == ChartViewMode.oneRepMax) {
-                          label = value == value.toInt()
-                              ? value.toInt().toString()
-                              : value.toStringAsFixed(1);
-                        } else {
-                          label = value.toInt().toString();
-                        }
+                        final label = value == value.toInt()
+                            ? value.toInt().toString()
+                            : value.toStringAsFixed(1);
                         return Text(
                           label,
                           style: TextStyle(
@@ -5020,43 +4983,65 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                     getTooltipItems: (touchedSpots) {
                       return touchedSpots.map((spot) {
                         final index = spot.x.toInt();
+                        if (index < 0 || index >= data.length) {
+                          return LineTooltipItem(
+                            '',
+                            const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                          );
+                        }
                         final dataPoint = data[index];
+                        final isLbs = widget.weightUnit == 'lbs';
+                        const kgToLbs = 2.2046226218;
 
-                        final weightDisplay = widget.weightUnit == 'lbs'
-                            ? (dataPoint.weight * 2.2046226218)
-                            : dataPoint.weight;
-                        final weightStr = weightDisplay == weightDisplay.toInt()
-                            ? '${weightDisplay.toInt()}'
-                            : weightDisplay.toStringAsFixed(1);
-                        final unitLabel = widget.weightUnit == 'lbs'
-                            ? l10n.get('weightShortLbs')
-                            : l10n.get('weightShort');
-                        String label;
-                        if (viewMode == ChartViewMode.oneRepMax) {
-                          final oneRMDisplay = widget.weightUnit == 'lbs'
-                              ? (dataPoint.estimated1RM * 2.2046226218)
+                        if (viewMode == ChartViewMode.weight) {
+                          final weightDisplay = isLbs
+                              ? dataPoint.weight * kgToLbs
+                              : dataPoint.weight;
+                          final weightStr = weightDisplay == weightDisplay.toInt()
+                              ? '${weightDisplay.toInt()}'
+                              : weightDisplay.toStringAsFixed(1);
+                          final unitLabel = isLbs
+                              ? l10n.get('weightShortLbs')
+                              : l10n.get('weightShort');
+                          return LineTooltipItem(
+                            '$weightStr $unitLabel · ${dataPoint.repsAtMaxWeight} ${l10n.reps}',
+                            const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          );
+                        } else {
+                          final oneRMDisplay = isLbs
+                              ? dataPoint.estimated1RM * kgToLbs
                               : dataPoint.estimated1RM;
                           final oneRMStr = oneRMDisplay == oneRMDisplay.toInt()
                               ? '${oneRMDisplay.toInt()}'
                               : oneRMDisplay.toStringAsFixed(1);
-                          final oneRMUnit = widget.weightUnit == 'lbs'
+                          final oneRMUnit = isLbs
                               ? l10n.get('weightShortLbs')
                               : l10n.get('weightShort');
-                          label = '${l10n.get('estimated1RM')}: $oneRMStr $oneRMUnit';
-                        } else if (viewMode == ChartViewMode.reps) {
-                          label = '${dataPoint.reps} ${l10n.reps}';
-                        } else {
-                          label = '$weightStr $unitLabel';
+                          final fromW = isLbs
+                              ? dataPoint.weightFor1RM * kgToLbs
+                              : dataPoint.weightFor1RM;
+                          final fromWStr = fromW == fromW.toInt()
+                              ? '${fromW.toInt()}'
+                              : fromW.toStringAsFixed(1);
+                          final fromPart = dataPoint.repsFor1RM > 0
+                              ? ' (${l10n.get('fromSet')}: $fromWStr $oneRMUnit × ${dataPoint.repsFor1RM} ${l10n.reps})'
+                              : '';
+                          return LineTooltipItem(
+                            '${l10n.get('estimated1RM')}: $oneRMStr $oneRMUnit$fromPart',
+                            const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          );
                         }
-
-                        return LineTooltipItem(
-                          label,
-                          const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        );
                       }).toList();
                     },
                   ),
@@ -5072,15 +5057,19 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
 
 class _ChartDataPoint {
   final DateTime date;
-  final int reps;
   final double weight;
+  final int repsAtMaxWeight;
   final double estimated1RM;
+  final double weightFor1RM;
+  final int repsFor1RM;
 
   _ChartDataPoint({
     required this.date,
-    required this.reps,
     required this.weight,
+    required this.repsAtMaxWeight,
     this.estimated1RM = 0,
+    this.weightFor1RM = 0,
+    this.repsFor1RM = 0,
   });
 }
 

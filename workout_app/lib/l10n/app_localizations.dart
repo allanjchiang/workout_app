@@ -252,6 +252,8 @@ class AppLocalizations {
     'defaultRestTimerDesc': 'Rest time after each set. Tap ±30 to change.',
     'add30Seconds': '+ 30 sec',
     'subtract30Seconds': '− 30 sec',
+    'viewWorkoutPlan': 'View workout plan',
+    'backToRestTimer': 'Back to rest timer',
     'restTimerWorkout': 'Workout',
 
     // Weight tracking
@@ -506,6 +508,8 @@ class AppLocalizations {
     'defaultRestTimerDesc': '每組後的休息時間。點擊 ±30 可調整。',
     'add30Seconds': '+ 30 秒',
     'subtract30Seconds': '− 30 秒',
+    'viewWorkoutPlan': '查看運動計畫',
+    'backToRestTimer': '返回休息計時',
     'restTimerWorkout': '運動',
 
     // Progress Chart

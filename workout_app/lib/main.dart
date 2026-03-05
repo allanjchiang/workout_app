@@ -2003,6 +2003,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   int restSeconds = 0;
   bool isResting = false;
   int _defaultRestSeconds = 60;
+  /// When true, show workout plan during rest (timer keeps running); tap "Back to rest" to return.
+  bool _viewingPlanDuringRest = false;
 
   // Previous best reps for each exercise
   Map<String, int> previousBestReps = {};
@@ -2455,6 +2457,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
         } else {
           timer.cancel();
           isResting = false;
+          _viewingPlanDuringRest = false;
           _playBeep();
           _vibrateRestEnd();
         }
@@ -2475,6 +2478,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     setState(() {
       isResting = false;
       restSeconds = 0;
+      _viewingPlanDuringRest = false;
     });
   }
 
@@ -2985,10 +2989,69 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
         ),
         body: SafeArea(
           child: isResting
-              ? _buildRestScreen(l10n)
+              ? (_viewingPlanDuringRest
+                  ? _buildPlanViewDuringRest(l10n, current)
+                  : _buildRestScreen(l10n))
               : _buildExerciseScreen(l10n, current),
         ),
       ),
+    );
+  }
+
+  /// Compact bar shown at top when viewing workout plan during rest; timer keeps running.
+  Widget _buildRestBar(AppLocalizations l10n) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      elevation: 2,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        color: isDark ? const Color(0xFF1A2634) : Colors.white,
+        child: SafeArea(
+          bottom: false,
+          child: Row(
+            children: [
+              Icon(
+                Icons.timer,
+                size: 28,
+                color: restSeconds <= 10 ? Colors.red : colorScheme.primary,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                _formatDuration(restSeconds),
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: restSeconds <= 10 ? Colors.red : colorScheme.primary,
+                ),
+              ),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: () => setState(() => _viewingPlanDuringRest = false),
+                icon: const Icon(Icons.timer, size: 20),
+                label: Text(l10n.get('backToRestTimer')),
+                style: FilledButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlanViewDuringRest(AppLocalizations l10n, TemplateExercise current) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildRestBar(l10n),
+        Expanded(
+          child: _buildExerciseScreen(l10n, current, allowTapToJumpDuringRest: true),
+        ),
+      ],
     );
   }
 
@@ -3093,6 +3156,29 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: 260,
+              height: minTapHeight,
+              child: OutlinedButton.icon(
+                onPressed: () => setState(() => _viewingPlanDuringRest = true),
+                icon: const Icon(Icons.list, size: 24),
+                label: Text(
+                  l10n.get('viewWorkoutPlan'),
+                  style: const TextStyle(
+                    fontSize: buttonFontSize,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.blue.shade700,
+                  side: BorderSide(color: Colors.blue.shade700, width: 2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(height: 20),
             // Finish workout – always available during rest, elderly-friendly
             SizedBox(
@@ -3123,7 +3209,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     );
   }
 
-  Widget _buildExerciseScreen(AppLocalizations l10n, TemplateExercise current) {
+  Widget _buildExerciseScreen(AppLocalizations l10n, TemplateExercise current,
+      {bool allowTapToJumpDuringRest = false}) {
     final completedExerciseIds = <String>{};
     for (final exercise in _orderedExercises) {
       final loggedSetsCount = logs
@@ -3389,7 +3476,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                     final isCompleted = completedExerciseIds.contains(
                       exercise.exercise.id,
                     );
-                    final isAvailable = !isResting;
+                    final isAvailable = !isResting || allowTapToJumpDuringRest;
                     final loggedSetsCount = logs
                         .where((l) => l.exerciseId == exercise.exercise.id)
                         .length;

@@ -45,6 +45,11 @@ dependencies:
   path_provider: ^2.1.2
   vibration: ^3.1.6
 
+# Pin path_provider_foundation to avoid objective_c.framework with wrong
+# arm64 slice (simulator) and minimum OS version issues when distributing to App Store.
+dependency_overrides:
+  path_provider_foundation: 2.5.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

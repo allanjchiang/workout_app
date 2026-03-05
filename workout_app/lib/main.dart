@@ -2024,10 +2024,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     return v == v.toInt() ? '${v.toInt()}' : v.toStringAsFixed(1);
   }
 
-  double? _getLastWeightForExercise(String exerciseId) {
+  /// Look up by exercise name so history is shared across templates (same exercise name).
+  double? _getLastWeightForExercise(String exerciseName) {
     for (final session in widget.history) {
       for (final log in session.logs.reversed) {
-        if (log.exerciseId == exerciseId && log.weight > 0) {
+        if (log.exerciseName == exerciseName && log.weight > 0) {
           return log.weight;
         }
       }
@@ -2035,11 +2036,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     return null;
   }
 
-  /// Last reps logged for this exercise (most recent session); null if none.
-  int? _getLastRepsForExercise(String exerciseId) {
+  /// Last reps logged for this exercise (most recent session); null if none. Uses name so history is shared across templates.
+  int? _getLastRepsForExercise(String exerciseName) {
     for (final session in widget.history) {
       for (final log in session.logs.reversed) {
-        if (log.exerciseId == exerciseId) {
+        if (log.exerciseName == exerciseName) {
           return log.reps;
         }
       }
@@ -2047,13 +2048,13 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     return null;
   }
 
-  /// Past workout sessions that contain logs for this exercise (newest first).
+  /// Past workout sessions that contain logs for this exercise (newest first). Matches by exercise name so history is shared across templates.
   List<MapEntry<WorkoutSession, List<ExerciseLog>>> _getPastSessionsForExercise(
-      String exerciseId) {
+      String exerciseName) {
     final list = <MapEntry<WorkoutSession, List<ExerciseLog>>>[];
     for (final session in widget.history) {
       final logs =
-          session.logs.where((l) => l.exerciseId == exerciseId).toList();
+          session.logs.where((l) => l.exerciseName == exerciseName).toList();
       if (logs.isNotEmpty) {
         list.add(MapEntry(session, logs));
       }
@@ -2064,7 +2065,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
 
   void _showPastHistoryBottomSheet(BuildContext context, Exercise exercise) {
     final l10n = AppLocalizations.of(context)!;
-    final past = _getPastSessionsForExercise(exercise.id);
+    final past = _getPastSessionsForExercise(exercise.name);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dateFormat = DateFormat('MMM d, yyyy');
 
@@ -2243,12 +2244,12 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   }
 
   void _loadPreviousBestReps() {
-    // Find the best (highest) reps for each exercise from history
+    // Find the best (highest) reps for each exercise from history (by name so shared across templates)
     for (final session in widget.history) {
       for (final log in session.logs) {
-        final currentBest = previousBestReps[log.exerciseId] ?? 0;
+        final currentBest = previousBestReps[log.exerciseName] ?? 0;
         if (log.reps > currentBest) {
-          previousBestReps[log.exerciseId] = log.reps;
+          previousBestReps[log.exerciseName] = log.reps;
         }
       }
     }
@@ -2265,9 +2266,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   void _initializeCurrentExercise() {
     if (_orderedExercises.isNotEmpty) {
       final current = _orderedExercises[currentExerciseIndex];
-      final lastReps = _getLastRepsForExercise(current.exercise.id);
+      final lastReps = _getLastRepsForExercise(current.exercise.name);
       currentReps = lastReps ?? current.targetReps;
-      final lastWeight = _getLastWeightForExercise(current.exercise.id);
+      final lastWeight = _getLastWeightForExercise(current.exercise.name);
       currentWeight = lastWeight ?? current.targetWeight;
     }
   }
@@ -3242,7 +3243,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                   ],
                 ),
                 // Show previous best reps if available
-                if (previousBestReps.containsKey(current.exercise.id)) ...[
+                if (previousBestReps.containsKey(current.exercise.name)) ...[
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -3267,7 +3268,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          '${l10n.get('previousBest')}: ${previousBestReps[current.exercise.id]} ${l10n.reps}',
+                          '${l10n.get('previousBest')}: ${previousBestReps[current.exercise.name]} ${l10n.reps}',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,

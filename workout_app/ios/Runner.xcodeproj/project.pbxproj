@@ -198,6 +198,7 @@
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				A5582BF5FE245764C95D657A /* [CP] Embed Pods Frameworks */,
+				E1A2B3C4D5E6F7890123456 /* Fix Frameworks for Distribution */,
 			);
 			buildRules = (
 			);
@@ -359,6 +360,21 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		E1A2B3C4D5E6F7890123456 /* Fix Frameworks for Distribution */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Fix Frameworks for Distribution";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Fix objective_c.framework and other embedded frameworks for App Store validation.\n# Run only for Release/Profile (device distribution).\nif [ \"${CONFIGURATION}\" != \"Release\" ] && [ \"${CONFIGURATION}\" != \"Profile\" ]; then\n  exit 0\nfi\n\nFRAMEWORKS_DIR=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Frameworks\"\nif [ ! -d \"$FRAMEWORKS_DIR\" ]; then\n  exit 0\nfi\n\nfor FRAMEWORK in \"$FRAMEWORKS_DIR\"/*.framework; do\n  [ -d \"$FRAMEWORK\" ] || continue\n  FRAMEWORK_NAME=$(basename \"$FRAMEWORK\" .framework)\n  FRAMEWORK_BINARY=\"$FRAMEWORK/$FRAMEWORK_NAME\"\n  if [ ! -f \"$FRAMEWORK_BINARY\" ]; then\n    continue\n  fi\n  # Strip Intel simulator slice (x86_64) so validation accepts the app\n  if lipo -info \"$FRAMEWORK_BINARY\" 2>/dev/null | grep -q x86_64; then\n    lipo -remove x86_64 \"$FRAMEWORK_BINARY\" -output \"${FRAMEWORK_BINARY}.tmp\" 2>/dev/null && mv \"${FRAMEWORK_BINARY}.tmp\" \"$FRAMEWORK_BINARY\" || true\n  fi\n  # Fix objective_c.framework minimum OS version for validation\n  if [ \"$FRAMEWORK_NAME\" = \"objective_c\" ]; then\n    PLIST=\"$FRAMEWORK/Info.plist\"\n    if [ -f \"$PLIST\" ]; then\n      /usr/libexec/PlistBuddy -c \"Set :MinimumOSVersion 13.0\" \"$PLIST\" 2>/dev/null || \\\n      /usr/libexec/PlistBuddy -c \"Add :MinimumOSVersion string 13.0\" \"$PLIST\" 2>/dev/null || true\n    else\n      echo \"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?><!DOCTYPE plist PUBLIC \\\"-//Apple//DTD PLIST 1.0//EN\\\" \\\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\\\"><plist version=\\\"1.0\\\"><dict><key>MinimumOSVersion</key><string>13.0</string></dict></plist>\" > \"$PLIST\"\n    fi\n  fi\ndone\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */

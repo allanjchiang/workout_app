@@ -4101,13 +4101,14 @@ class _HistoryCard extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
     final sessionDate = DateTime(date.year, date.month, date.day);
+    final timeStr = DateFormat.jm().format(date);
 
     if (sessionDate == today) {
-      return 'Today';
+      return 'Today, $timeStr';
     } else if (sessionDate == yesterday) {
-      return 'Yesterday';
+      return 'Yesterday, $timeStr';
     } else {
-      return '${date.day}/${date.month}/${date.year}';
+      return '${date.day}/${date.month}/${date.year}, $timeStr';
     }
   }
 

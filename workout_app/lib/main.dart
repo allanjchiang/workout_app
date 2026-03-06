@@ -4646,7 +4646,7 @@ class StatisticsPage extends StatelessWidget {
 
 // ============== PROGRESS CHART SECTION ==============
 
-enum ChartViewMode { weight, oneRepMax }
+enum ChartViewMode { weight, reps, oneRepMax }
 
 class _ProgressChartSection extends StatefulWidget {
   final List<WorkoutSession> history;
@@ -4687,6 +4687,9 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
 
       if (logsForExercise.isEmpty) continue;
 
+      // Max reps in session (for reps-over-time chart)
+      final maxReps = logsForExercise.map((l) => l.reps).reduce(math.max);
+
       // Max weight in session and reps from that set
       final logWithMaxWeight = logsForExercise.reduce(
         (a, b) => a.weight >= b.weight ? a : b,
@@ -4714,6 +4717,7 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
         _ChartDataPoint(
           date: session.startTime,
           weight: maxWeight,
+          maxReps: maxReps,
           repsAtMaxWeight: repsAtMaxWeight,
           estimated1RM: max1RM,
           weightFor1RM: weightFor1RM,
@@ -4809,7 +4813,7 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
         ),
         const SizedBox(height: 16),
 
-        // View Mode Toggle (Weight / 1RM)
+        // View Mode Toggle (Weight / Reps / 1RM)
         Container(
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF1A2634) : Colors.grey.shade200,
@@ -4823,6 +4827,14 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                   label: l10n.get('weightOverTime'),
                   isSelected: viewMode == ChartViewMode.weight,
                   onTap: () => setState(() => viewMode = ChartViewMode.weight),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: _ToggleButton(
+                  label: l10n.get('repsOverTime'),
+                  isSelected: viewMode == ChartViewMode.reps,
+                  onTap: () => setState(() => viewMode = ChartViewMode.reps),
                 ),
               ),
               const SizedBox(width: 4),
@@ -4877,8 +4889,9 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
     const double kgToLbs = 2.2046226218;
     final maxWeightDisplay = isLbs ? maxWeightKg * kgToLbs : maxWeightKg;
 
-    // Create line chart data (weight / 1RM in display unit)
+    // Create line chart data (weight / reps / 1RM in display unit)
     final weightSpots = <FlSpot>[];
+    final repsSpots = <FlSpot>[];
     final oneRMSpots = <FlSpot>[];
 
     for (int i = 0; i < data.length; i++) {
@@ -4889,6 +4902,7 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
           viewMode == ChartViewMode.weight && isLbs ? w * kgToLbs : w,
         ),
       );
+      repsSpots.add(FlSpot(i.toDouble(), data[i].maxReps.toDouble()));
       final oneRM = data[i].estimated1RM;
       oneRMSpots.add(
         FlSpot(
@@ -4928,6 +4942,34 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
       );
     }
 
+    // Reps line (blue)
+    if (viewMode == ChartViewMode.reps) {
+      lineBarsData.add(
+        LineChartBarData(
+          spots: repsSpots,
+          isCurved: true,
+          color: Colors.blue,
+          barWidth: 3,
+          isStrokeCapRound: true,
+          dotData: FlDotData(
+            show: true,
+            getDotPainter: (spot, percent, barData, index) {
+              return FlDotCirclePainter(
+                radius: 5,
+                color: Colors.blue,
+                strokeWidth: 2,
+                strokeColor: Colors.white,
+              );
+            },
+          ),
+          belowBarData: BarAreaData(
+            show: true,
+            color: Colors.blue.withValues(alpha: 0.1),
+          ),
+        ),
+      );
+    }
+
     // Estimated 1RM line (orange)
     if (viewMode == ChartViewMode.oneRepMax) {
       lineBarsData.add(
@@ -4956,13 +4998,16 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
       );
     }
 
-    // Determine Y-axis max (weight or 1RM only)
+    // Determine Y-axis max (weight / reps / 1RM)
+    final maxReps = data.isEmpty ? 0 : data.map((d) => d.maxReps).reduce(math.max);
     final max1RMDisplay = data.isEmpty
         ? 0.0
         : (data.map((d) => d.estimated1RM).reduce(math.max)) * (isLbs ? kgToLbs : 1);
     final double yMax = viewMode == ChartViewMode.weight
         ? maxWeightDisplay + (isLbs ? 10 : 5)
-        : max1RMDisplay + (isLbs ? 10 : 5);
+        : viewMode == ChartViewMode.reps
+            ? (maxReps + 2).toDouble()
+            : max1RMDisplay + (isLbs ? 10 : 5);
 
     return Container(
       height: 280,
@@ -4980,10 +5025,14 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
               child: _LegendItem(
                 color: viewMode == ChartViewMode.weight
                     ? Colors.green
-                    : Colors.orange,
+                    : viewMode == ChartViewMode.reps
+                        ? Colors.blue
+                        : Colors.orange,
                 label: viewMode == ChartViewMode.weight
                     ? l10n.get('weightOverTime')
-                    : l10n.get('estimated1RM'),
+                    : viewMode == ChartViewMode.reps
+                        ? l10n.get('repsOverTime')
+                        : l10n.get('estimated1RM'),
               ),
             ),
           ),
@@ -4999,9 +5048,11 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                       showTitles: true,
                       reservedSize: 40,
                       getTitlesWidget: (value, meta) {
-                        final label = value == value.toInt()
+                        final label = viewMode == ChartViewMode.reps
                             ? value.toInt().toString()
-                            : value.toStringAsFixed(1);
+                            : (value == value.toInt()
+                                ? value.toInt().toString()
+                                : value.toStringAsFixed(1));
                         return Text(
                           label,
                           style: TextStyle(
@@ -5102,6 +5153,15 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                               fontSize: 14,
                             ),
                           );
+                        } else if (viewMode == ChartViewMode.reps) {
+                          return LineTooltipItem(
+                            '${dataPoint.maxReps} ${l10n.reps}',
+                            const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          );
                         } else {
                           final oneRMDisplay = isLbs
                               ? dataPoint.estimated1RM * kgToLbs
@@ -5146,6 +5206,7 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
 class _ChartDataPoint {
   final DateTime date;
   final double weight;
+  final int maxReps;
   final int repsAtMaxWeight;
   final double estimated1RM;
   final double weightFor1RM;
@@ -5154,6 +5215,7 @@ class _ChartDataPoint {
   _ChartDataPoint({
     required this.date,
     required this.weight,
+    required this.maxReps,
     required this.repsAtMaxWeight,
     this.estimated1RM = 0,
     this.weightFor1RM = 0,

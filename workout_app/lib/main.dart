@@ -414,6 +414,99 @@ class WorkoutSession {
   );
 }
 
+/// In-progress workout persisted for crash / force-quit recovery.
+const String kWorkoutDraftPrefsKey = 'workout_draft_v1';
+
+class WorkoutDraft {
+  static const int schemaVersion = 1;
+
+  final WorkoutTemplate template;
+  final DateTime startTime;
+  final int elapsedSeconds;
+  final int currentExerciseIndex;
+  final int currentSet;
+  final int currentReps;
+  final double currentWeight;
+  final List<ExerciseLog> logs;
+  final bool isResting;
+  final int restSeconds;
+  final int defaultRestSeconds;
+  final bool viewingPlanDuringRest;
+
+  const WorkoutDraft({
+    required this.template,
+    required this.startTime,
+    required this.elapsedSeconds,
+    required this.currentExerciseIndex,
+    required this.currentSet,
+    required this.currentReps,
+    required this.currentWeight,
+    required this.logs,
+    required this.isResting,
+    required this.restSeconds,
+    required this.defaultRestSeconds,
+    required this.viewingPlanDuringRest,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'version': schemaVersion,
+        'template': template.toJson(),
+        'startTime': startTime.toIso8601String(),
+        'elapsedSeconds': elapsedSeconds,
+        'currentExerciseIndex': currentExerciseIndex,
+        'currentSet': currentSet,
+        'currentReps': currentReps,
+        'currentWeight': currentWeight,
+        'logs': logs.map((l) => l.toJson()).toList(),
+        'isResting': isResting,
+        'restSeconds': restSeconds,
+        'defaultRestSeconds': defaultRestSeconds,
+        'viewingPlanDuringRest': viewingPlanDuringRest,
+      };
+
+  factory WorkoutDraft.fromJson(Map<String, dynamic> json) {
+    final ver = json['version'] as int? ?? 1;
+    if (ver != schemaVersion) {
+      throw FormatException('Unsupported workout draft version: $ver');
+    }
+    return WorkoutDraft(
+      template: WorkoutTemplate.fromJson(
+        json['template'] as Map<String, dynamic>,
+      ),
+      startTime: DateTime.parse(json['startTime'] as String),
+      elapsedSeconds: json['elapsedSeconds'] as int,
+      currentExerciseIndex: json['currentExerciseIndex'] as int,
+      currentSet: json['currentSet'] as int,
+      currentReps: json['currentReps'] as int,
+      currentWeight: (json['currentWeight'] as num).toDouble(),
+      logs: (json['logs'] as List<dynamic>)
+          .map((l) => ExerciseLog.fromJson(l as Map<String, dynamic>))
+          .toList(),
+      isResting: json['isResting'] as bool? ?? false,
+      restSeconds: json['restSeconds'] as int? ?? 0,
+      defaultRestSeconds: json['defaultRestSeconds'] as int? ?? 60,
+      viewingPlanDuringRest: json['viewingPlanDuringRest'] as bool? ?? false,
+    );
+  }
+}
+
+Future<void> clearWorkoutDraftPrefs() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.remove(kWorkoutDraftPrefsKey);
+}
+
+Future<WorkoutDraft?> loadWorkoutDraft() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(kWorkoutDraftPrefsKey);
+    if (raw == null || raw.isEmpty) return null;
+    return WorkoutDraft.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+  } catch (_) {
+    await clearWorkoutDraftPrefs();
+    return null;
+  }
+}
+
 // Available icons for exercises (const to allow tree shaking)
 const Map<String, IconData> kExerciseIconMap = {
   'fitness_center': Icons.fitness_center,
@@ -551,16 +644,17 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
   List<WorkoutSession> history = [];
   Map<String, int> _pendingOldWorkouts = {};
   bool _postFrameInitialized = false;
+  bool _draftResumeOffered = false;
   String _weightUnit = 'kg';
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _ensureDefaultTemplateAndMigrate();
-      }
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await _ensureDefaultTemplateAndMigrate();
+      if (mounted) await _offerWorkoutDraftResumeIfNeeded();
     });
   }
 
@@ -855,6 +949,129 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     _saveHistory();
   }
 
+  void _pushActiveWorkout({
+    required WorkoutTemplate template,
+    WorkoutDraft? restoredDraft,
+  }) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ActiveWorkoutPage(
+          template: template,
+          restoredDraft: restoredDraft,
+          onComplete: _addSession,
+          history: history,
+          weightUnit: _weightUnit,
+          onUpdateTemplate: _updateTemplate,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onStartWorkout(WorkoutTemplate template) async {
+    final existing = await loadWorkoutDraft();
+    if (!mounted) return;
+    if (existing != null) {
+      final l10n = AppLocalizations.of(context)!;
+      final choice = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: Text(
+            l10n.get('draftConflictTitle'),
+            style: const TextStyle(fontSize: 22),
+          ),
+          content: Text(
+            l10n.get('draftConflictBody'),
+            style: const TextStyle(fontSize: 18),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'cancel'),
+              child: Text(l10n.cancel, style: const TextStyle(fontSize: 18)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'resume'),
+              child: Text(l10n.get('draftResume'), style: const TextStyle(fontSize: 18)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, 'discard'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.primary,
+                foregroundColor: Theme.of(ctx).colorScheme.onPrimary,
+              ),
+              child: Text(
+                l10n.get('draftDiscardAndStart'),
+                style: const TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || choice == null || choice == 'cancel') return;
+      if (choice == 'resume') {
+        _pushActiveWorkout(
+          template: existing.template,
+          restoredDraft: existing,
+        );
+        return;
+      }
+      await clearWorkoutDraftPrefs();
+    }
+    if (mounted) {
+      _pushActiveWorkout(template: template);
+    }
+  }
+
+  Future<void> _offerWorkoutDraftResumeIfNeeded() async {
+    if (_draftResumeOffered || !mounted) return;
+    final draft = await loadWorkoutDraft();
+    if (draft == null || !mounted) return;
+    _draftResumeOffered = true;
+    final l10n = AppLocalizations.of(context)!;
+    final timeStr = DateFormat('MMM d, y • h:mm a').format(draft.startTime);
+    final body = l10n
+        .get('draftResumeBody')
+        .replaceAll('{name}', draft.template.name)
+        .replaceAll('{time}', timeStr);
+    final action = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          l10n.get('draftResumeTitle'),
+          style: const TextStyle(fontSize: 22),
+        ),
+        content: Text(body, style: const TextStyle(fontSize: 18)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'discard'),
+            child: Text(l10n.get('draftDiscard'), style: const TextStyle(fontSize: 18)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, 'resume'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.primary,
+              foregroundColor: Theme.of(ctx).colorScheme.onPrimary,
+            ),
+            child: Text(l10n.get('draftResume'), style: const TextStyle(fontSize: 18)),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'resume') {
+      _pushActiveWorkout(
+        template: draft.template,
+        restoredDraft: draft,
+      );
+    } else if (action == 'discard') {
+      await clearWorkoutDraftPrefs();
+    } else {
+      _draftResumeOffered = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -865,20 +1082,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         onAddTemplate: _addTemplate,
         onUpdateTemplate: _updateTemplate,
         onDeleteTemplate: _deleteTemplate,
-        onStartWorkout: (template) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ActiveWorkoutPage(
-                template: template,
-                onComplete: _addSession,
-                history: history,
-                weightUnit: _weightUnit,
-                onUpdateTemplate: _updateTemplate,
-              ),
-            ),
-          );
-        },
+        onStartWorkout: _onStartWorkout,
       ),
       HistoryPage(
         history: history,
@@ -2038,6 +2242,7 @@ class _ExerciseListItem extends StatelessWidget {
 
 class ActiveWorkoutPage extends StatefulWidget {
   final WorkoutTemplate template;
+  final WorkoutDraft? restoredDraft;
   final Function(WorkoutSession) onComplete;
   final List<WorkoutSession> history;
   final String weightUnit;
@@ -2047,6 +2252,7 @@ class ActiveWorkoutPage extends StatefulWidget {
   const ActiveWorkoutPage({
     super.key,
     required this.template,
+    this.restoredDraft,
     required this.onComplete,
     required this.history,
     this.weightUnit = 'kg',
@@ -2068,6 +2274,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   double currentWeight = 0;
   List<ExerciseLog> logs = [];
   final AudioPlayer audioPlayer = AudioPlayer();
+  Timer? _draftAutosaveTimer;
+  bool _suppressDraftSave = false;
 
   // Rest timer
   Timer? restTimer;
@@ -2281,18 +2489,54 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _orderedExercises = List.from(widget.template.exercises);
-    startTime = DateTime.now();
-    _loadPreviousBestReps();
-    _loadDefaultRestSeconds();
+    final restored = widget.restoredDraft;
+    if (restored != null) {
+      _orderedExercises = List.from(restored.template.exercises);
+      startTime = restored.startTime;
+      elapsedSeconds = restored.elapsedSeconds;
+      final n = restored.template.exercises.length;
+      currentExerciseIndex =
+          n == 0 ? 0 : restored.currentExerciseIndex.clamp(0, n - 1);
+      currentSet = restored.currentSet;
+      currentReps = restored.currentReps;
+      currentWeight = restored.currentWeight;
+      logs = List.from(restored.logs);
+      isResting = restored.isResting;
+      restSeconds = restored.restSeconds;
+      _defaultRestSeconds = restored.defaultRestSeconds;
+      _viewingPlanDuringRest = restored.viewingPlanDuringRest;
+      if (isResting && restSeconds <= 0) {
+        isResting = false;
+        _viewingPlanDuringRest = false;
+      }
+      _loadPreviousBestReps();
+      _restoreRestTimer();
+    } else {
+      _orderedExercises = List.from(widget.template.exercises);
+      startTime = DateTime.now();
+      _loadPreviousBestReps();
+      _loadDefaultRestSeconds();
+      _initializeCurrentExercise();
+    }
     _startWorkoutTimer();
-    _initializeCurrentExercise();
     _setBeepAudioContext();
+    _draftAutosaveTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!_suppressDraftSave && mounted) {
+        unawaited(_persistWorkoutDraft());
+      }
+    });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      if (!_suppressDraftSave) {
+        unawaited(_persistWorkoutDraft());
+      }
+    }
     // After backgrounding, iOS/Android often deactivate the session or leave the
     // player in a bad state; re-apply before the next beep.
     if (state == AppLifecycleState.resumed) {
@@ -2342,6 +2586,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _draftAutosaveTimer?.cancel();
+    if (!_suppressDraftSave) {
+      unawaited(_persistWorkoutDraft());
+    }
     workoutTimer?.cancel();
     restTimer?.cancel();
     audioPlayer.dispose();
@@ -2355,6 +2603,43 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       currentReps = lastReps ?? current.targetReps;
       final lastWeight = _getLastWeightForExercise(current.exercise.name);
       currentWeight = lastWeight ?? current.targetWeight;
+    }
+  }
+
+  WorkoutTemplate _draftTemplateSnapshot() {
+    return WorkoutTemplate(
+      id: widget.template.id,
+      name: widget.template.name,
+      description: widget.template.description,
+      exercises: List.from(_orderedExercises),
+      createdAt: widget.template.createdAt,
+    );
+  }
+
+  Future<void> _persistWorkoutDraft() async {
+    if (_suppressDraftSave || !mounted) return;
+    try {
+      final draft = WorkoutDraft(
+        template: _draftTemplateSnapshot(),
+        startTime: startTime,
+        elapsedSeconds: elapsedSeconds,
+        currentExerciseIndex: currentExerciseIndex,
+        currentSet: currentSet,
+        currentReps: currentReps,
+        currentWeight: currentWeight,
+        logs: List.from(logs),
+        isResting: isResting,
+        restSeconds: restSeconds,
+        defaultRestSeconds: _defaultRestSeconds,
+        viewingPlanDuringRest: _viewingPlanDuringRest,
+      );
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        kWorkoutDraftPrefsKey,
+        jsonEncode(draft.toJson()),
+      );
+    } catch (_) {
+      // Ignore persistence errors
     }
   }
 
@@ -2525,6 +2810,25 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       currentSet++;
     });
     _startRestTimer();
+    unawaited(_persistWorkoutDraft());
+  }
+
+  void _onRestTimerTick(Timer timer) {
+    if (!mounted) {
+      timer.cancel();
+      return;
+    }
+    setState(() {
+      if (restSeconds > 0) {
+        restSeconds--;
+      } else {
+        timer.cancel();
+        isResting = false;
+        _viewingPlanDuringRest = false;
+        _playBeep();
+        _vibrateRestEnd();
+      }
+    });
   }
 
   void _startRestTimer() {
@@ -2532,20 +2836,14 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       isResting = true;
       restSeconds = _defaultRestSeconds;
     });
+    restTimer?.cancel();
+    restTimer = Timer.periodic(const Duration(seconds: 1), _onRestTimerTick);
+  }
 
-    restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        if (restSeconds > 0) {
-          restSeconds--;
-        } else {
-          timer.cancel();
-          isResting = false;
-          _viewingPlanDuringRest = false;
-          _playBeep();
-          _vibrateRestEnd();
-        }
-      });
-    });
+  void _restoreRestTimer() {
+    restTimer?.cancel();
+    if (!isResting || restSeconds <= 0) return;
+    restTimer = Timer.periodic(const Duration(seconds: 1), _onRestTimerTick);
   }
 
   void _addRestSeconds(int delta) {
@@ -2563,6 +2861,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       restSeconds = 0;
       _viewingPlanDuringRest = false;
     });
+    unawaited(_persistWorkoutDraft());
   }
 
   Future<void> _playBeep() async {
@@ -2589,7 +2888,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     }
   }
 
-  void _finishWorkout() {
+  Future<void> _finishWorkout() async {
+    _suppressDraftSave = true;
+    _draftAutosaveTimer?.cancel();
+    await clearWorkoutDraftPrefs();
     workoutTimer?.cancel();
     restTimer?.cancel();
 
@@ -2603,12 +2905,17 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       logs: logs,
     );
 
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final l10n = AppLocalizations.of(context)!;
     widget.onComplete(session);
     Navigator.pop(context);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Workout completed!', style: TextStyle(fontSize: 18)),
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          l10n.get('workoutComplete'),
+          style: const TextStyle(fontSize: 18),
+        ),
         backgroundColor: Colors.green,
       ),
     );
@@ -2618,7 +2925,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(
           l10n.get('endWorkout'),
           style: const TextStyle(fontSize: 22),
@@ -2629,18 +2936,21 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: Text(l10n.cancel, style: const TextStyle(fontSize: 18)),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
+            onPressed: () async {
+              Navigator.pop(dialogContext);
               if (logs.isNotEmpty) {
-                _finishWorkout();
+                await _finishWorkout();
               } else {
+                _suppressDraftSave = true;
+                _draftAutosaveTimer?.cancel();
+                await clearWorkoutDraftPrefs();
                 workoutTimer?.cancel();
                 restTimer?.cancel();
-                Navigator.pop(context);
+                if (mounted) Navigator.pop(context);
               }
             },
             style: ElevatedButton.styleFrom(
@@ -3270,7 +3580,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
               width: 260,
               height: minTapHeight,
               child: OutlinedButton.icon(
-                onPressed: _finishWorkout,
+                onPressed: () => unawaited(_finishWorkout()),
                 icon: const Icon(Icons.flag, size: 26),
                 label: Text(
                   l10n.get('finishWorkout'),
@@ -3982,7 +4292,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
           SizedBox(
             height: 64,
             child: OutlinedButton.icon(
-              onPressed: _finishWorkout,
+              onPressed: () => unawaited(_finishWorkout()),
               icon: const Icon(Icons.flag, size: 28),
               label: Text(
                 l10n.get('finishWorkout'),

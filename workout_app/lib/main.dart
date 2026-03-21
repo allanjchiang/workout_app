@@ -2057,7 +2057,8 @@ class ActiveWorkoutPage extends StatefulWidget {
   State<ActiveWorkoutPage> createState() => _ActiveWorkoutPageState();
 }
 
-class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
+class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
+    with WidgetsBindingObserver {
   late DateTime startTime;
   Timer? workoutTimer;
   int elapsedSeconds = 0;
@@ -2279,6 +2280,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _orderedExercises = List.from(widget.template.exercises);
     startTime = DateTime.now();
     _loadPreviousBestReps();
@@ -2286,6 +2288,16 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     _startWorkoutTimer();
     _initializeCurrentExercise();
     _setBeepAudioContext();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // After backgrounding, iOS/Android often deactivate the session or leave the
+    // player in a bad state; re-apply before the next beep.
+    if (state == AppLifecycleState.resumed) {
+      _setBeepAudioContext();
+    }
   }
 
   /// Configure beep to duck background music (lower it during beep, then restore).
@@ -2329,6 +2341,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     workoutTimer?.cancel();
     restTimer?.cancel();
     audioPlayer.dispose();
@@ -2554,6 +2567,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
 
   Future<void> _playBeep() async {
     try {
+      await _setBeepAudioContext();
+      await audioPlayer.stop();
       await audioPlayer.play(AssetSource('audio/timer_beep.wav'));
     } catch (e) {
       // Ignore audio errors

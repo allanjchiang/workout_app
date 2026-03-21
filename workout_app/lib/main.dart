@@ -459,6 +459,7 @@ const List<String> kCommonExerciseNames = [
   'Cable Fly',
   'Chest Fly',
   'Chin-Up',
+  'Chest Press',
   'Clamshell',
   'Crunch',
   'Dead Bug',
@@ -490,6 +491,7 @@ const List<String> kCommonExerciseNames = [
   'Push-Up',
   'Rear Delt Fly',
   'Reverse Fly',
+  'Row',
   'Romanian Deadlift',
   'Seated Calf Raise',
   'Seated Row',
@@ -605,14 +607,30 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     _postFrameInitialized = true;
 
     final l10n = AppLocalizations.of(context)!;
-    const defaultTemplateId = 'default_shoulder_workout';
+    const upperId = 'default_beginner_upper_body';
+    const legsId = 'default_beginner_legs_day';
 
-    final hasDefault = templates.any((t) => t.id == defaultTemplateId);
-    if (!hasDefault) {
-      final shoulderTemplate = _createDefaultShoulderTemplate(l10n);
+    var changed = false;
+    setState(() {
+      final hadOldShoulder = templates.any((t) => t.id == 'default_shoulder_workout');
+      if (hadOldShoulder) {
+        templates.removeWhere((t) => t.id == 'default_shoulder_workout');
+        changed = true;
+      }
+    });
+
+    final needUpper = !templates.any((t) => t.id == upperId);
+    final needLegs = !templates.any((t) => t.id == legsId);
+    if (needUpper || needLegs) {
       setState(() {
-        templates.insert(0, shoulderTemplate);
+        final toInsert = <WorkoutTemplate>[];
+        if (needUpper) toInsert.add(_createBeginnerUpperBodyTemplate(l10n));
+        if (needLegs) toInsert.add(_createBeginnerLegsDayTemplate(l10n));
+        templates.insertAll(0, toInsert);
       });
+      changed = true;
+    }
+    if (changed) {
       await _saveTemplates();
     }
 
@@ -642,10 +660,12 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       }
 
       if (migrationLogs.isNotEmpty) {
-        final defaultTemplate = templates.firstWhere(
-          (t) => t.id == defaultTemplateId,
-          orElse: () => _createDefaultShoulderTemplate(l10n),
-        );
+        final defaultTemplate = templates.isNotEmpty
+            ? templates.firstWhere(
+                (t) => t.id == upperId,
+                orElse: () => templates.first,
+              )
+            : _createBeginnerUpperBodyTemplate(l10n);
         final migrationSession = WorkoutSession(
           id: 'migrated_${DateTime.now().millisecondsSinceEpoch}',
           templateId: defaultTemplate.id,
@@ -669,59 +689,109 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     }
   }
 
-  /// Creates the default Shoulder Workout template with the 5 original exercises
-  WorkoutTemplate _createDefaultShoulderTemplate(AppLocalizations l10n) {
+  WorkoutTemplate _createBeginnerUpperBodyTemplate(AppLocalizations l10n) {
     return WorkoutTemplate(
-      id: 'default_shoulder_workout',
-      name: l10n.get('shoulderWorkoutTemplate'),
-      description: l10n.get('shoulderWorkoutTemplateDesc'),
+      id: 'default_beginner_upper_body',
+      name: l10n.get('beginnerUpperBodyDay'),
+      description: l10n.get('beginnerUpperBodyDayDesc'),
       exercises: [
         TemplateExercise(
-          exercise: Exercise(
-            id: 'shoulderPress',
-            name: l10n.get('shoulderPress'),
-            description: l10n.get('shoulderPressDesc'),
+          exercise: const Exercise(
+            id: 'chest_press',
+            name: 'Chest Press',
+            iconKey: 'fitness_center',
+          ),
+          targetReps: 10,
+          sets: 3,
+        ),
+        TemplateExercise(
+          exercise: const Exercise(
+            id: 'shoulder_press',
+            name: 'Shoulder Press',
             iconKey: 'arrow_upward',
           ),
           targetReps: 10,
           sets: 3,
         ),
         TemplateExercise(
-          exercise: Exercise(
-            id: 'lateralRaise',
-            name: l10n.get('lateralRaise'),
-            description: l10n.get('lateralRaiseDesc'),
-            iconKey: 'open_with',
-          ),
-          targetReps: 10,
-          sets: 3,
-        ),
-        TemplateExercise(
-          exercise: Exercise(
-            id: 'frontRaise',
-            name: l10n.get('frontRaise'),
-            description: l10n.get('frontRaiseDesc'),
-            iconKey: 'arrow_forward',
-          ),
-          targetReps: 10,
-          sets: 3,
-        ),
-        TemplateExercise(
-          exercise: Exercise(
-            id: 'reverseFly',
-            name: l10n.get('reverseFly'),
-            description: l10n.get('reverseFlyDesc'),
+          exercise: const Exercise(
+            id: 'row',
+            name: 'Row',
             iconKey: 'compare_arrows',
           ),
           targetReps: 10,
           sets: 3,
         ),
         TemplateExercise(
-          exercise: Exercise(
-            id: 'shrugs',
-            name: l10n.get('shrugs'),
-            description: l10n.get('shrugsDesc'),
+          exercise: const Exercise(
+            id: 'lat_pulldown',
+            name: 'Lat Pulldown',
             iconKey: 'keyboard_double_arrow_up',
+          ),
+          targetReps: 10,
+          sets: 3,
+        ),
+        TemplateExercise(
+          exercise: const Exercise(
+            id: 'bicep_curl',
+            name: 'Bicep Curl',
+            iconKey: 'open_with',
+          ),
+          targetReps: 10,
+          sets: 3,
+        ),
+        TemplateExercise(
+          exercise: const Exercise(
+            id: 'tricep_pushdown',
+            name: 'Tricep Pushdown',
+            iconKey: 'arrow_forward',
+          ),
+          targetReps: 10,
+          sets: 3,
+        ),
+      ],
+      createdAt: DateTime.now(),
+    );
+  }
+
+  WorkoutTemplate _createBeginnerLegsDayTemplate(AppLocalizations l10n) {
+    return WorkoutTemplate(
+      id: 'default_beginner_legs_day',
+      name: l10n.get('beginnerLegsDay'),
+      description: l10n.get('beginnerLegsDayDesc'),
+      exercises: [
+        TemplateExercise(
+          exercise: const Exercise(
+            id: 'leg_curl',
+            name: 'Leg Curl',
+            iconKey: 'self_improvement',
+          ),
+          targetReps: 10,
+          sets: 3,
+        ),
+        TemplateExercise(
+          exercise: const Exercise(
+            id: 'leg_press',
+            name: 'Leg Press',
+            iconKey: 'sports',
+          ),
+          targetReps: 10,
+          sets: 3,
+        ),
+        TemplateExercise(
+          exercise: const Exercise(
+            id: 'calf_raise',
+            name: 'Calf Raise',
+            iconKey: 'directions_run',
+          ),
+          targetReps: 10,
+          sets: 3,
+        ),
+        TemplateExercise(
+          exercise: const Exercise(
+            id: 'leg_extension',
+            name: 'Leg Extension',
+            iconKey: 'accessibility_new',
           ),
           targetReps: 10,
           sets: 3,

@@ -235,6 +235,10 @@ class AppLocalizations {
     'shoulderWorkoutTemplate': 'Shoulder Workout',
     'shoulderWorkoutTemplateDesc': 'Resistance Band - 5 shoulder exercises',
     'fiveShoulderExercises': '5 shoulder exercises',
+    'beginnerUpperBodyDay': 'Beginner Upper Body Day',
+    'beginnerUpperBodyDayDesc': 'Chest, shoulders, back, and arms — 6 exercises, 3×10',
+    'beginnerLegsDay': 'Beginner Legs Day',
+    'beginnerLegsDayDesc': 'Lower body starter — 4 exercises, 3×10',
     'previousData': 'Previous data',
 
     // Settings
@@ -491,6 +495,10 @@ class AppLocalizations {
     'shoulderWorkoutTemplate': '肩部運動',
     'shoulderWorkoutTemplateDesc': '彈力帶 - 5 個肩部動作',
     'fiveShoulderExercises': '5 個肩部動作',
+    'beginnerUpperBodyDay': '入門上半身日',
+    'beginnerUpperBodyDayDesc': '胸、肩、背與手臂 — 6 個動作，各 3 組 × 10 下',
+    'beginnerLegsDay': '入門腿部日',
+    'beginnerLegsDayDesc': '下肢入門 — 4 個動作，各 3 組 × 10 下',
     'previousData': '舊資料',
 
     // Settings

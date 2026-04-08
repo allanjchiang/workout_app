@@ -2296,6 +2296,13 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   /// Mutable copy of template exercises so user can reorder during workout.
   late List<TemplateExercise> _orderedExercises;
 
+  /// Keeps weight/reps controls in view after rest, or scrolls to the plan row when target sets are done.
+  final ScrollController _exerciseScrollController = ScrollController();
+  final Map<String, GlobalKey> _planRowKeys = {};
+
+  GlobalKey _globalKeyForPlanRow(String exerciseId) =>
+      _planRowKeys.putIfAbsent(exerciseId, () => GlobalKey());
+
   String get _weightUnit => widget.weightUnit;
 
   static const double _kgToLbs = 2.2046226218;
@@ -2597,8 +2604,56 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     }
     workoutTimer?.cancel();
     restTimer?.cancel();
+    _exerciseScrollController.dispose();
     audioPlayer.dispose();
     super.dispose();
+  }
+
+  /// After rest ends: stay at bottom for the next set if template sets remain; otherwise scroll to this exercise in the plan.
+  void _scheduleScrollAfterRestEnds() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _applyScrollAfterRest();
+    });
+  }
+
+  void _applyScrollAfterRest() {
+    if (!mounted || _orderedExercises.isEmpty) return;
+    final current = _orderedExercises[currentExerciseIndex];
+    final loggedCount =
+        logs.where((l) => l.exerciseId == current.exercise.id).length;
+    // Exactly at template completion: show this exercise in the plan (checkmark).
+    // Fewer sets remaining, or bonus sets beyond target: keep weight/reps at bottom.
+    if (loggedCount == current.sets) {
+      _scrollToPlanRowForExercise(current.exercise.id);
+    } else {
+      _scrollExerciseContentToBottom();
+    }
+  }
+
+  void _scrollExerciseContentToBottom() {
+    if (!_exerciseScrollController.hasClients) return;
+    final position = _exerciseScrollController.position;
+    position.animateTo(
+      position.maxScrollExtent,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _scrollToPlanRowForExercise(String exerciseId) {
+    final key = _planRowKeys[exerciseId];
+    final targetContext = key?.currentContext;
+    if (targetContext != null) {
+      Scrollable.ensureVisible(
+        targetContext,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOutCubic,
+        alignment: 0.1,
+      );
+    } else {
+      _scrollExerciseContentToBottom();
+    }
   }
 
   void _initializeCurrentExercise() {
@@ -2823,6 +2878,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       timer.cancel();
       return;
     }
+    var finishedRest = false;
     setState(() {
       if (restSeconds > 0) {
         restSeconds--;
@@ -2830,10 +2886,14 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         timer.cancel();
         isResting = false;
         _viewingPlanDuringRest = false;
+        finishedRest = true;
         _playBeep();
         _vibrateRestEnd();
       }
     });
+    if (finishedRest) {
+      _scheduleScrollAfterRestEnds();
+    }
   }
 
   void _startRestTimer() {
@@ -2866,6 +2926,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       restSeconds = 0;
       _viewingPlanDuringRest = false;
     });
+    _scheduleScrollAfterRestEnds();
     unawaited(_persistWorkoutDraft());
   }
 
@@ -3625,6 +3686,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return SingleChildScrollView(
+      controller: _exerciseScrollController,
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3886,14 +3948,16 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     return Padding(
                       key: ValueKey(exercise.exercise.id),
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: Semantics(
-                        button: true,
-                        label:
-                            '${exercise.exercise.name}, $displayedSets ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
-                        child: Material(
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                          child: InkWell(
+                      child: KeyedSubtree(
+                        key: _globalKeyForPlanRow(exercise.exercise.id),
+                        child: Semantics(
+                          button: true,
+                          label:
+                              '${exercise.exercise.name}, $displayedSets ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
+                          child: Material(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            child: InkWell(
                             onTap: isAvailable
                                 ? () {
                                     setState(() {
@@ -4010,6 +4074,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                           ),
                         ),
                       ),
+                    ),
                     );
                   },
                 ),

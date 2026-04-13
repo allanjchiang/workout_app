@@ -181,6 +181,14 @@ class AppLocalizations {
     'targetReps': 'Target Reps',
     'chooseIcon': 'Choose Icon:',
     'suggestions': 'Suggestions',
+    'durationBasedExercise': 'Hold by time (not reps)',
+    'durationBasedExerciseDesc':
+        'Log how long you held each set (e.g. plank, balance). Enter time like 0:30 or 1:00.',
+    'targetDuration': 'Target time per set',
+    'holdTime': 'Hold time',
+    'durationHint': 'e.g. 0:30 or 1:00',
+    'invalidDuration': 'Enter a valid time (e.g. 0:30, 1:00, or 90 seconds)',
+    'previousBestDuration': 'Previous best hold',
 
     // Active workout
     'endWorkout': 'End Workout?',
@@ -457,6 +465,14 @@ class AppLocalizations {
     'targetReps': '目標次數',
     'chooseIcon': '選擇圖示：',
     'suggestions': '建議',
+    'durationBasedExercise': '以時間計（非次數）',
+    'durationBasedExerciseDesc':
+        '記錄每組維持多久（如棒式、平衡）。時間可輸入 0:30 或 1:00。',
+    'targetDuration': '每組目標時間',
+    'holdTime': '維持時間',
+    'durationHint': '例如 0:30 或 1:00',
+    'invalidDuration': '請輸入有效時間（如 0:30、1:00 或 90 秒）',
+    'previousBestDuration': '上次最佳維持',
 
     // Active workout
     'endWorkout': '結束運動？',

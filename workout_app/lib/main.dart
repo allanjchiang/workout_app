@@ -200,6 +200,187 @@ class _WorkoutTrackerAppState extends State<WorkoutTrackerApp> {
   }
 }
 
+// ============== DURATION HELPERS (hold / plank / balance exercises) ==============
+
+const int kDefaultTargetDurationSeconds = 60;
+
+String formatDurationMmSs(int totalSeconds) {
+  final s = totalSeconds < 0 ? 0 : totalSeconds;
+  final m = s ~/ 60;
+  final sec = s % 60;
+  return '$m:${sec.toString().padLeft(2, '0')}';
+}
+
+/// Parses "1:00", "0:30", "2:05", or plain seconds like "90". Returns null if invalid.
+int? parseDurationInput(String raw) {
+  final t = raw.trim();
+  if (t.isEmpty) return null;
+  final colon = t.indexOf(':');
+  if (colon >= 0) {
+    final a = t.substring(0, colon).trim();
+    final b = t.substring(colon + 1).trim();
+    final min = int.tryParse(a);
+    final sec = int.tryParse(b);
+    if (min == null || sec == null) return null;
+    if (min < 0 || sec < 0 || sec > 59) return null;
+    return min * 60 + sec;
+  }
+  final only = int.tryParse(t);
+  if (only == null || only < 0) return null;
+  return only;
+}
+
+/// Elderly-friendly m:ss entry (e.g. 0:30, 1:00). Used from active workout and template editor.
+void showDurationEntryDialog({
+  required BuildContext context,
+  required AppLocalizations l10n,
+  required int currentSeconds,
+  required Color accentColor,
+  required ValueChanged<int> onSave,
+}) {
+  final scaffoldMessenger = ScaffoldMessenger.maybeOf(context);
+  final controller = TextEditingController(
+    text: formatDurationMmSs(currentSeconds),
+  );
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (controller.text.isNotEmpty) {
+          controller.selection = TextSelection(
+            baseOffset: 0,
+            extentOffset: controller.text.length,
+          );
+        }
+      });
+      return AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          l10n.get('holdTime'),
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              l10n.get('durationHint'),
+              style: TextStyle(
+                fontSize: 16,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.text,
+              textAlign: TextAlign.center,
+              autofocus: true,
+              style: TextStyle(
+                fontSize: 42,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : accentColor,
+              ),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: isDark
+                    ? accentColor.withValues(alpha: 0.2)
+                    : accentColor.withValues(alpha: 0.1),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: accentColor, width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: accentColor.withValues(alpha: 0.5),
+                    width: 2,
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: accentColor, width: 3),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: Text(
+                    l10n.cancel,
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    final parsed = parseDurationInput(controller.text);
+                    if (parsed != null &&
+                        parsed > 0 &&
+                        parsed <= 24 * 3600) {
+                      onSave(parsed);
+                      Navigator.pop(dialogContext);
+                    } else {
+                      scaffoldMessenger?.showSnackBar(
+                        SnackBar(
+                          content: Text(l10n.get('invalidDuration')),
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accentColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    l10n.get('save'),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    },
+  );
+}
+
 // ============== DATA MODELS ==============
 
 /// Individual exercise definition
@@ -247,18 +428,22 @@ class Exercise {
   );
 }
 
-/// Exercise within a template with target reps/weight
+/// Exercise within a template with target reps/weight, or hold-by-time ([durationBased]).
 class TemplateExercise {
   final Exercise exercise;
   final int targetReps;
   final double targetWeight;
   final int sets;
+  final bool durationBased;
+  final int targetDurationSeconds;
 
   const TemplateExercise({
     required this.exercise,
     this.targetReps = 10,
     this.targetWeight = 0,
     this.sets = 3,
+    this.durationBased = false,
+    this.targetDurationSeconds = kDefaultTargetDurationSeconds,
   });
 
   Map<String, dynamic> toJson() => {
@@ -266,6 +451,8 @@ class TemplateExercise {
     'targetReps': targetReps,
     'targetWeight': targetWeight,
     'sets': sets,
+    'durationBased': durationBased,
+    'targetDurationSeconds': targetDurationSeconds,
   };
 
   factory TemplateExercise.fromJson(Map<String, dynamic> json) =>
@@ -274,6 +461,9 @@ class TemplateExercise {
         targetReps: json['targetReps'] as int? ?? 10,
         targetWeight: (json['targetWeight'] as num?)?.toDouble() ?? 0,
         sets: json['sets'] as int? ?? 3,
+        durationBased: json['durationBased'] as bool? ?? false,
+        targetDurationSeconds:
+            json['targetDurationSeconds'] as int? ?? kDefaultTargetDurationSeconds,
       );
 
   TemplateExercise copyWith({
@@ -281,11 +471,16 @@ class TemplateExercise {
     int? targetReps,
     double? targetWeight,
     int? sets,
+    bool? durationBased,
+    int? targetDurationSeconds,
   }) => TemplateExercise(
     exercise: exercise ?? this.exercise,
     targetReps: targetReps ?? this.targetReps,
     targetWeight: targetWeight ?? this.targetWeight,
     sets: sets ?? this.sets,
+    durationBased: durationBased ?? this.durationBased,
+    targetDurationSeconds:
+        targetDurationSeconds ?? this.targetDurationSeconds,
   );
 }
 
@@ -339,7 +534,7 @@ class WorkoutTemplate {
   );
 }
 
-/// Logged set during a workout
+/// Logged set during a workout. For hold exercises, [durationSeconds] is set and reps/weight are usually 0.
 class ExerciseLog {
   final String exerciseId;
   final String exerciseName;
@@ -347,6 +542,7 @@ class ExerciseLog {
   final int reps;
   final double weight;
   final DateTime timestamp;
+  final int? durationSeconds;
 
   const ExerciseLog({
     required this.exerciseId,
@@ -355,7 +551,11 @@ class ExerciseLog {
     required this.reps,
     required this.weight,
     required this.timestamp,
+    this.durationSeconds,
   });
+
+  bool get isDurationSet =>
+      durationSeconds != null && durationSeconds! > 0;
 
   Map<String, dynamic> toJson() => {
     'exerciseId': exerciseId,
@@ -364,6 +564,7 @@ class ExerciseLog {
     'reps': reps,
     'weight': weight,
     'timestamp': timestamp.toIso8601String(),
+    if (durationSeconds != null) 'durationSeconds': durationSeconds,
   };
 
   factory ExerciseLog.fromJson(Map<String, dynamic> json) => ExerciseLog(
@@ -373,6 +574,7 @@ class ExerciseLog {
     reps: json['reps'] as int,
     weight: (json['weight'] as num).toDouble(),
     timestamp: DateTime.parse(json['timestamp'] as String),
+    durationSeconds: json['durationSeconds'] as int?,
   );
 }
 
@@ -432,6 +634,7 @@ class WorkoutDraft {
   final int currentSet;
   final int currentReps;
   final double currentWeight;
+  final int currentDurationSeconds;
   final List<ExerciseLog> logs;
   final bool isResting;
   final int restSeconds;
@@ -446,6 +649,7 @@ class WorkoutDraft {
     required this.currentSet,
     required this.currentReps,
     required this.currentWeight,
+    required this.currentDurationSeconds,
     required this.logs,
     required this.isResting,
     required this.restSeconds,
@@ -462,6 +666,7 @@ class WorkoutDraft {
         'currentSet': currentSet,
         'currentReps': currentReps,
         'currentWeight': currentWeight,
+        'currentDurationSeconds': currentDurationSeconds,
         'logs': logs.map((l) => l.toJson()).toList(),
         'isResting': isResting,
         'restSeconds': restSeconds,
@@ -484,6 +689,7 @@ class WorkoutDraft {
       currentSet: json['currentSet'] as int,
       currentReps: json['currentReps'] as int,
       currentWeight: (json['currentWeight'] as num).toDouble(),
+      currentDurationSeconds: json['currentDurationSeconds'] as int? ?? 0,
       logs: (json['logs'] as List<dynamic>)
           .map((l) => ExerciseLog.fromJson(l as Map<String, dynamic>))
           .toList(),
@@ -1687,6 +1893,8 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
     int targetReps = 10;
     int sets = 3;
     double targetWeight = 0;
+    bool durationBased = false;
+    int targetDurationSeconds = kDefaultTargetDurationSeconds;
 
     showDialog(
       context: context,
@@ -1786,9 +1994,27 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                   ),
                   maxLines: 2,
                 ),
-                const SizedBox(height: 16),
-                // Target sets and reps
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    l10n.get('durationBasedExercise'),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    l10n.get('durationBasedExerciseDesc'),
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  value: durationBased,
+                  onChanged: (v) => setDialogState(() => durationBased = v),
+                ),
+                const SizedBox(height: 8),
+                // Target sets and reps or target hold time
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Column(
@@ -1826,40 +2052,102 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                       ),
                     ),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            l10n.get('targetReps'),
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              IconButton(
-                                onPressed: () {
-                                  if (targetReps > 1) {
-                                    setDialogState(() => targetReps--);
-                                  }
-                                },
-                                icon: const Icon(Icons.remove_circle_outline),
-                              ),
-                              Text(
-                                '$targetReps',
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
+                      child: durationBased
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  l10n.get('targetDuration'),
+                                  style: const TextStyle(fontSize: 16),
                                 ),
-                              ),
-                              IconButton(
-                                onPressed: () =>
-                                    setDialogState(() => targetReps++),
-                                icon: const Icon(Icons.add_circle_outline),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      onPressed: () => setDialogState(() {
+                                        targetDurationSeconds =
+                                            (targetDurationSeconds - 5)
+                                                .clamp(1, 86400);
+                                      }),
+                                      icon: const Icon(
+                                        Icons.remove_circle_outline,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: InkWell(
+                                        onTap: () =>
+                                            showDurationEntryDialog(
+                                          context: context,
+                                          l10n: l10n,
+                                          currentSeconds:
+                                              targetDurationSeconds,
+                                          accentColor: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                          onSave: (sec) => setDialogState(
+                                            () => targetDurationSeconds = sec,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          formatDurationMmSs(
+                                            targetDurationSeconds,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      onPressed: () => setDialogState(() {
+                                        targetDurationSeconds =
+                                            (targetDurationSeconds + 5)
+                                                .clamp(1, 86400);
+                                      }),
+                                      icon: const Icon(Icons.add_circle_outline),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  l10n.get('targetReps'),
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      onPressed: () {
+                                        if (targetReps > 1) {
+                                          setDialogState(() => targetReps--);
+                                        }
+                                      },
+                                      icon: const Icon(
+                                        Icons.remove_circle_outline,
+                                      ),
+                                    ),
+                                    Text(
+                                      '$targetReps',
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      onPressed: () =>
+                                          setDialogState(() => targetReps++),
+                                      icon: const Icon(Icons.add_circle_outline),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                     ),
                   ],
                 ),
@@ -1949,9 +2237,13 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                   exercises.add(
                     TemplateExercise(
                       exercise: exercise,
-                      targetReps: targetReps,
+                      targetReps: durationBased ? 0 : targetReps,
                       targetWeight: targetWeight,
                       sets: sets,
+                      durationBased: durationBased,
+                      targetDurationSeconds: durationBased
+                          ? targetDurationSeconds.clamp(1, 86400)
+                          : kDefaultTargetDurationSeconds,
                     ),
                   );
                 });
@@ -2229,7 +2521,9 @@ class _ExerciseListItem extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${templateExercise.sets} ${l10n.get('sets')} × ${templateExercise.targetReps} ${l10n.reps}',
+                  templateExercise.durationBased
+                      ? '${templateExercise.sets} ${l10n.get('sets')} × ${formatDurationMmSs(templateExercise.targetDurationSeconds)}'
+                      : '${templateExercise.sets} ${l10n.get('sets')} × ${templateExercise.targetReps} ${l10n.reps}',
                   style: TextStyle(
                     fontSize: 16,
                     color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
@@ -2282,6 +2576,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   int currentSet = 1;
   int currentReps = 0;
   double currentWeight = 0;
+  int currentDurationSeconds = 0;
   List<ExerciseLog> logs = [];
   final AudioPlayer audioPlayer = AudioPlayer();
   Timer? _draftAutosaveTimer;
@@ -2295,8 +2590,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   /// When true, show workout plan during rest (timer keeps running); tap "Back to rest" to return.
   bool _viewingPlanDuringRest = false;
 
-  // Previous best reps for each exercise
+  // Previous best reps (or hold seconds) for each exercise name
   Map<String, int> previousBestReps = {};
+  Map<String, int> previousBestDurationSeconds = {};
 
   /// Mutable copy of template exercises so user can reorder during workout.
   late List<TemplateExercise> _orderedExercises;
@@ -2338,8 +2634,20 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   int? _getLastRepsForExercise(String exerciseName) {
     for (final session in widget.history) {
       for (final log in session.logs.reversed) {
-        if (log.exerciseName == exerciseName) {
+        if (log.exerciseName == exerciseName && !log.isDurationSet) {
           return log.reps;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Last hold duration logged (seconds); null if none.
+  int? _getLastDurationForExercise(String exerciseName) {
+    for (final session in widget.history) {
+      for (final log in session.logs.reversed) {
+        if (log.exerciseName == exerciseName && log.isDurationSet) {
+          return log.durationSeconds;
         }
       }
     }
@@ -2466,11 +2774,13 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                     ),
                                     const SizedBox(height: 8),
                                     ...logs.map((log) {
-                                      final weightPart = log.weight > 0
-                                          ? _isAssistedPullUp(exercise.name)
-                                              ? '${log.reps} ${l10n.reps}, ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('minusWeight')}'
-                                              : '${log.reps} ${l10n.reps} × ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}'
-                                          : '${log.reps} ${l10n.reps}';
+                                      final weightPart = log.isDurationSet
+                                          ? formatDurationMmSs(log.durationSeconds!)
+                                          : log.weight > 0
+                                              ? _isAssistedPullUp(exercise.name)
+                                                  ? '${log.reps} ${l10n.reps}, ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('minusWeight')}'
+                                                  : '${log.reps} ${l10n.reps} × ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}'
+                                              : '${log.reps} ${l10n.reps}';
                                       return Padding(
                                         padding: const EdgeInsets.only(
                                           left: 26,
@@ -2517,6 +2827,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       currentSet = restored.currentSet;
       currentReps = restored.currentReps;
       currentWeight = restored.currentWeight;
+      currentDurationSeconds = restored.currentDurationSeconds;
       logs = List.from(restored.logs);
       isResting = restored.isResting;
       restSeconds = restored.restSeconds;
@@ -2526,12 +2837,12 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         isResting = false;
         _viewingPlanDuringRest = false;
       }
-      _loadPreviousBestReps();
+      _loadPreviousBestsFromHistory();
       _restoreRestTimer();
     } else {
       _orderedExercises = List.from(widget.template.exercises);
       startTime = DateTime.now();
-      _loadPreviousBestReps();
+      _loadPreviousBestsFromHistory();
       _loadDefaultRestSeconds();
       _initializeCurrentExercise();
     }
@@ -2588,13 +2899,18 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     }
   }
 
-  void _loadPreviousBestReps() {
-    // Find the best (highest) reps for each exercise from history (by name so shared across templates)
+  void _loadPreviousBestsFromHistory() {
     for (final session in widget.history) {
       for (final log in session.logs) {
-        final currentBest = previousBestReps[log.exerciseName] ?? 0;
-        if (log.reps > currentBest) {
-          previousBestReps[log.exerciseName] = log.reps;
+        if (log.isDurationSet) {
+          final d = log.durationSeconds!;
+          final cur = previousBestDurationSeconds[log.exerciseName] ?? 0;
+          if (d > cur) previousBestDurationSeconds[log.exerciseName] = d;
+        } else {
+          final currentBest = previousBestReps[log.exerciseName] ?? 0;
+          if (log.reps > currentBest) {
+            previousBestReps[log.exerciseName] = log.reps;
+          }
         }
       }
     }
@@ -2662,12 +2978,20 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   }
 
   void _initializeCurrentExercise() {
-    if (_orderedExercises.isNotEmpty) {
-      final current = _orderedExercises[currentExerciseIndex];
+    if (_orderedExercises.isEmpty) return;
+    final current = _orderedExercises[currentExerciseIndex];
+    if (current.durationBased) {
+      final lastD = _getLastDurationForExercise(current.exercise.name);
+      currentDurationSeconds =
+          lastD ?? current.targetDurationSeconds.clamp(1, 86400);
+      currentReps = 0;
+      currentWeight = 0;
+    } else {
       final lastReps = _getLastRepsForExercise(current.exercise.name);
       currentReps = lastReps ?? current.targetReps;
       final lastWeight = _getLastWeightForExercise(current.exercise.name);
       currentWeight = lastWeight ?? current.targetWeight;
+      currentDurationSeconds = 0;
     }
   }
 
@@ -2692,6 +3016,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         currentSet: currentSet,
         currentReps: currentReps,
         currentWeight: currentWeight,
+        currentDurationSeconds: currentDurationSeconds,
         logs: List.from(logs),
         isResting: isResting,
         restSeconds: restSeconds,
@@ -2860,14 +3185,24 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
 
   void _logSet() {
     final current = _orderedExercises[currentExerciseIndex];
-    final log = ExerciseLog(
-      exerciseId: current.exercise.id,
-      exerciseName: current.exercise.name,
-      setNumber: currentSet,
-      reps: currentReps,
-      weight: currentWeight,
-      timestamp: DateTime.now(),
-    );
+    final log = current.durationBased
+        ? ExerciseLog(
+            exerciseId: current.exercise.id,
+            exerciseName: current.exercise.name,
+            setNumber: currentSet,
+            reps: 0,
+            weight: 0,
+            durationSeconds: currentDurationSeconds,
+            timestamp: DateTime.now(),
+          )
+        : ExerciseLog(
+            exerciseId: current.exercise.id,
+            exerciseName: current.exercise.name,
+            setNumber: currentSet,
+            reps: currentReps,
+            weight: currentWeight,
+            timestamp: DateTime.now(),
+          );
     logs.add(log);
 
     // Always move to next set and start rest (user can add extra sets beyond template target)
@@ -3050,6 +3385,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     int sets = 3;
     int targetReps = 10;
     double targetWeight = 0;
+    bool durationBased = false;
+    int targetDurationSeconds = kDefaultTargetDurationSeconds;
 
     showDialog<void>(
       context: context,
@@ -3194,53 +3531,135 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
-                // Target reps – full-width row
-                Text(
-                  l10n.get('targetReps'),
-                  style: TextStyle(
-                    fontSize: largeFont,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white70 : Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      onPressed: () {
-                        if (targetReps > 1) {
-                          setDialogState(() => targetReps--);
-                        }
-                      },
-                      icon: const Icon(Icons.remove_circle_outline),
-                      iconSize: 36,
-                      style: IconButton.styleFrom(
-                        minimumSize: const Size(minTap, minTap),
-                      ),
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    l10n.get('durationBasedExercise'),
+                    style: TextStyle(
+                      fontSize: largeFont,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        '$targetReps',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87,
+                  ),
+                  subtitle: Text(
+                    l10n.get('durationBasedExerciseDesc'),
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: isDark ? Colors.white54 : Colors.black54,
+                    ),
+                  ),
+                  value: durationBased,
+                  onChanged: (v) => setDialogState(() => durationBased = v),
+                ),
+                if (!durationBased) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.get('targetReps'),
+                    style: TextStyle(
+                      fontSize: largeFont,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: () {
+                          if (targetReps > 1) {
+                            setDialogState(() => targetReps--);
+                          }
+                        },
+                        icon: const Icon(Icons.remove_circle_outline),
+                        iconSize: 36,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(minTap, minTap),
                         ),
                       ),
-                    ),
-                    IconButton(
-                      onPressed: () => setDialogState(() => targetReps++),
-                      icon: const Icon(Icons.add_circle_outline),
-                      iconSize: 36,
-                      style: IconButton.styleFrom(
-                        minimumSize: const Size(minTap, minTap),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          '$targetReps',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
                       ),
+                      IconButton(
+                        onPressed: () => setDialogState(() => targetReps++),
+                        icon: const Icon(Icons.add_circle_outline),
+                        iconSize: 36,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(minTap, minTap),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.get('targetDuration'),
+                    style: TextStyle(
+                      fontSize: largeFont,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: () => setDialogState(() {
+                          targetDurationSeconds =
+                              (targetDurationSeconds - 5).clamp(1, 86400);
+                        }),
+                        icon: const Icon(Icons.remove_circle_outline),
+                        iconSize: 36,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(minTap, minTap),
+                        ),
+                      ),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => showDurationEntryDialog(
+                            context: ctx,
+                            l10n: l10n,
+                            currentSeconds: targetDurationSeconds,
+                            accentColor:
+                                Theme.of(ctx).colorScheme.primary,
+                            onSave: (sec) =>
+                                setDialogState(() => targetDurationSeconds = sec),
+                          ),
+                          child: Text(
+                            formatDurationMmSs(targetDurationSeconds),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => setDialogState(() {
+                          targetDurationSeconds =
+                              (targetDurationSeconds + 5).clamp(1, 86400);
+                        }),
+                        icon: const Icon(Icons.add_circle_outline),
+                        iconSize: 36,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(minTap, minTap),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -3271,9 +3690,13 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                 );
                 final newTe = TemplateExercise(
                   exercise: exercise,
-                  targetReps: targetReps,
+                  targetReps: durationBased ? 0 : targetReps,
                   targetWeight: targetWeight,
                   sets: sets,
+                  durationBased: durationBased,
+                  targetDurationSeconds: durationBased
+                      ? targetDurationSeconds.clamp(1, 86400)
+                      : kDefaultTargetDurationSeconds,
                 );
                 Navigator.pop(ctx);
 
@@ -3796,8 +4219,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     ),
                   ],
                 ),
-                // Show previous best reps if available
-                if (previousBestReps.containsKey(current.exercise.name)) ...[
+                // Show previous best (reps or hold time) if available
+                if (!current.durationBased &&
+                    previousBestReps.containsKey(current.exercise.name)) ...[
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -3823,6 +4247,46 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                         const SizedBox(width: 8),
                         Text(
                           '${l10n.get('previousBest')}: ${previousBestReps[current.exercise.name]} ${l10n.reps}',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isDark
+                                ? Colors.green.shade300
+                                : Colors.green.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (current.durationBased &&
+                    previousBestDurationSeconds
+                        .containsKey(current.exercise.name)) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.green.shade900
+                          : Colors.green.shade100,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.history,
+                          size: 20,
+                          color: isDark
+                              ? Colors.green.shade300
+                              : Colors.green.shade700,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${l10n.get('previousBestDuration')}: ${formatDurationMmSs(previousBestDurationSeconds[current.exercise.name]!)}',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -3958,7 +4422,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                         child: Semantics(
                           button: true,
                           label:
-                              '${l10n.localizeExerciseName(exercise.exercise.name)}, $displayedSets ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
+                              '${l10n.localizeExerciseName(exercise.exercise.name)}, $displayedSets ${l10n.get('sets')} × ${exercise.durationBased ? formatDurationMmSs(exercise.targetDurationSeconds) : '${exercise.targetReps} ${l10n.reps}'}',
                           child: Material(
                             color: Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
@@ -4043,7 +4507,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                           ),
                                         ),
                                         Text(
-                                          '$displayedSets ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
+                                          exercise.durationBased
+                                              ? '$displayedSets ${l10n.get('sets')} × ${formatDurationMmSs(exercise.targetDurationSeconds)}'
+                                              : '$displayedSets ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
                                           style: TextStyle(
                                             fontSize: 14,
                                             color: isDark
@@ -4088,8 +4554,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
             ),
           ),
           const SizedBox(height: 20),
-          // First row: weight, or "Minus weight" for Assisted Pull-Up (elderly-friendly labels)
-          Container(
+          if (!current.durationBased) ...[
+            // First row: weight, or "Minus weight" for Assisted Pull-Up (elderly-friendly labels)
+            Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1A2634) : Colors.white,
@@ -4298,12 +4765,156 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                 ],
               ),
             ),
+          ] else ...[
+            // Hold time (elderly-friendly: large ±5s, presets, tap to type m:ss)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A2634) : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    l10n.get('holdTime'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _LargeRoundButton(
+                        icon: Icons.remove,
+                        color: Colors.red.shade400,
+                        onPressed: () {
+                          setState(() {
+                            currentDurationSeconds =
+                                (currentDurationSeconds - 5).clamp(1, 86400);
+                          });
+                        },
+                      ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => showDurationEntryDialog(
+                            context: context,
+                            l10n: l10n,
+                            currentSeconds: currentDurationSeconds,
+                            accentColor: colorScheme.primary,
+                            onSave: (sec) =>
+                                setState(() => currentDurationSeconds = sec),
+                          ),
+                          child: Column(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? colorScheme.primary
+                                          .withValues(alpha: 0.2)
+                                      : colorScheme.primary
+                                          .withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: colorScheme.primary
+                                        .withValues(alpha: 0.5),
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Text(
+                                  formatDurationMmSs(currentDurationSeconds),
+                                  style: TextStyle(
+                                    fontSize: 42,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark
+                                        ? Colors.white
+                                        : colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                l10n.get('tapToEdit'),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark
+                                      ? Colors.grey.shade500
+                                      : Colors.grey.shade500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      _LargeRoundButton(
+                        icon: Icons.add,
+                        color: Colors.green.shade400,
+                        onPressed: () {
+                          setState(() {
+                            currentDurationSeconds =
+                                (currentDurationSeconds + 5).clamp(1, 86400);
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final sec in [30, 60, 90, 120])
+                        OutlinedButton(
+                          onPressed: () => setState(
+                            () => currentDurationSeconds = sec,
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                          child: Text(
+                            formatDurationMmSs(sec),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           // Log set button
           SizedBox(
             height: 70,
             child: ElevatedButton.icon(
-              onPressed: currentReps > 0 ? _logSet : null,
+              onPressed: (current.durationBased
+                      ? currentDurationSeconds > 0
+                      : currentReps > 0)
+                  ? _logSet
+                  : null,
               icon: const Icon(Icons.check, size: 30),
               label: Text(
                 l10n.get('logSet'),
@@ -4406,44 +5017,59 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
             ...logs
                 .where((l) => l.exerciseId == current.exercise.id)
                 .map(
-                  (log) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.green.shade900.withValues(alpha: 0.4)
-                            : Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
+                  (log) {
+                    final String setDetail;
+                    if (log.isDurationSet) {
+                      setDetail = formatDurationMmSs(log.durationSeconds!);
+                    } else if (_isAssistedPullUp(current.exercise.name) &&
+                        log.weight > 0) {
+                      setDetail =
+                          '${log.reps} ${l10n.reps}, ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('minusWeight')}';
+                    } else {
+                      setDetail =
+                          '${log.reps} ${l10n.reps}${log.weight > 0 ? ' ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}' : ''}';
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
                           color: isDark
-                              ? Colors.green.shade700
-                              : Colors.green.shade300,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle,
+                              ? Colors.green.shade900.withValues(alpha: 0.4)
+                              : Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
                             color: isDark
-                                ? Colors.green.shade400
-                                : Colors.green.shade600,
-                            size: 24,
+                                ? Colors.green.shade700
+                                : Colors.green.shade300,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              '${l10n.localizeExerciseName(current.exercise.name)} ${l10n.get('set')} ${log.setNumber}: ${_isAssistedPullUp(current.exercise.name) && log.weight > 0 ? '${log.reps} ${l10n.reps}, ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('minusWeight')}' : '${log.reps} ${l10n.reps}${log.weight > 0 ? ' ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}' : ''}'}',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              color: isDark
+                                  ? Colors.green.shade400
+                                  : Colors.green.shade600,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                '${l10n.localizeExerciseName(current.exercise.name)} ${l10n.get('set')} ${log.setNumber}: $setDetail',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: isDark
+                                      ? Colors.white
+                                      : Colors.black87,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
           ],
         ],
@@ -4715,11 +5341,17 @@ class _HistoryCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       ...logs.map((log) {
-                        final isAssisted =
-                            _isAssistedPullUp(exerciseName) && log.weight > 0;
-                        final line = isAssisted
-                            ? '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}, ${_formatWeightDisplay(log.weight)} ${weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('minusWeight')}'
-                            : '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}${log.weight > 0 ? ' ${_formatWeightDisplay(log.weight)} ${weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}' : ''}';
+                        final String line;
+                        if (log.isDurationSet) {
+                          line =
+                              '${l10n.get('set')} ${log.setNumber}: ${formatDurationMmSs(log.durationSeconds!)}';
+                        } else {
+                          final isAssisted =
+                              _isAssistedPullUp(exerciseName) && log.weight > 0;
+                          line = isAssisted
+                              ? '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}, ${_formatWeightDisplay(log.weight)} ${weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('minusWeight')}'
+                              : '${l10n.get('set')} ${log.setNumber}: ${log.reps} ${l10n.reps}${log.weight > 0 ? ' ${_formatWeightDisplay(log.weight)} ${weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}' : ''}';
+                        }
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 6),
                           child: Text(
@@ -4929,6 +5561,7 @@ class StatisticsPage extends StatelessWidget {
     final exerciseCounts = <String, int>{};
     for (final session in history) {
       for (final log in session.logs) {
+        if (log.isDurationSet) continue;
         exerciseCounts[log.exerciseName] =
             (exerciseCounts[log.exerciseName] ?? 0) + log.reps;
       }
@@ -5159,8 +5792,12 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
 
       if (logsForExercise.isEmpty) continue;
 
-      // Max reps in session (for reps-over-time chart)
-      final maxReps = logsForExercise.map((l) => l.reps).reduce(math.max);
+      // Max reps or hold seconds in session (for reps-over-time chart)
+      final maxReps = logsForExercise
+          .map(
+            (l) => l.isDurationSet ? l.durationSeconds! : l.reps,
+          )
+          .reduce(math.max);
 
       // Max weight in session and reps from that set
       final logWithMaxWeight = logsForExercise.reduce(

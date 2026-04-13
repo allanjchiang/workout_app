@@ -5125,30 +5125,30 @@ class _ProgressChartSection extends StatefulWidget {
 }
 
 class _ProgressChartSectionState extends State<_ProgressChartSection> {
-  String? selectedExerciseId;
+  String? selectedExerciseName;
   ChartViewMode viewMode = ChartViewMode.weight;
 
-  // Get all unique exercises from history
-  List<MapEntry<String, String>> get uniqueExercises {
-    final exercises = <String, String>{};
+  /// Unique exercise names in history (same name = one entry), matching past-history / stats aggregation.
+  List<String> get uniqueExerciseNames {
+    final names = <String>{};
     for (final session in widget.history) {
       for (final log in session.logs) {
-        exercises[log.exerciseId] = log.exerciseName;
+        names.add(log.exerciseName);
       }
     }
-    return exercises.entries.toList()
-      ..sort((a, b) => a.value.compareTo(b.value));
+    final list = names.toList()..sort();
+    return list;
   }
 
   // Get chart data points for selected exercise (weight + estimated 1RM only)
   List<_ChartDataPoint> get chartData {
-    if (selectedExerciseId == null) return [];
+    if (selectedExerciseName == null) return [];
 
     final dataPoints = <_ChartDataPoint>[];
 
     for (final session in widget.history) {
       final logsForExercise = session.logs
-          .where((log) => log.exerciseId == selectedExerciseId)
+          .where((log) => log.exerciseName == selectedExerciseName)
           .toList();
 
       if (logsForExercise.isEmpty) continue;
@@ -5200,9 +5200,21 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
   @override
   void initState() {
     super.initState();
-    // Auto-select first exercise if available
-    if (uniqueExercises.isNotEmpty) {
-      selectedExerciseId = uniqueExercises.first.key;
+    final names = uniqueExerciseNames;
+    if (names.isNotEmpty) {
+      selectedExerciseName = names.first;
+    }
+  }
+
+  @override
+  void didUpdateWidget(_ProgressChartSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final names = uniqueExerciseNames;
+    if (selectedExerciseName != null &&
+        !names.contains(selectedExerciseName)) {
+      setState(() {
+        selectedExerciseName = names.isNotEmpty ? names.first : null;
+      });
     }
   }
 
@@ -5211,7 +5223,7 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
     final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final exercises = uniqueExercises;
+    final exercises = uniqueExerciseNames;
 
     if (exercises.isEmpty) {
       return const SizedBox.shrink();
@@ -5242,7 +5254,7 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: selectedExerciseId,
+              value: selectedExerciseName,
               isExpanded: true,
               icon: Icon(
                 Icons.arrow_drop_down,
@@ -5254,13 +5266,13 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                 color: isDark ? Colors.white : Colors.black87,
               ),
               dropdownColor: isDark ? const Color(0xFF1A2634) : Colors.white,
-              items: exercises.map((entry) {
+              items: exercises.map((name) {
                 return DropdownMenuItem<String>(
-                  value: entry.key,
+                  value: name,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(
-                      entry.value,
+                      name,
                       style: TextStyle(
                         fontSize: 18,
                         color: isDark ? Colors.white : Colors.black87,
@@ -5271,7 +5283,7 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
               }).toList(),
               onChanged: (value) {
                 setState(() {
-                  selectedExerciseId = value;
+                  selectedExerciseName = value;
                 });
               },
             ),

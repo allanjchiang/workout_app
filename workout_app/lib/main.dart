@@ -435,7 +435,6 @@ class TemplateExercise {
   final double targetWeight;
   final int sets;
   final bool durationBased;
-  final int targetDurationSeconds;
 
   const TemplateExercise({
     required this.exercise,
@@ -443,7 +442,6 @@ class TemplateExercise {
     this.targetWeight = 0,
     this.sets = 3,
     this.durationBased = false,
-    this.targetDurationSeconds = kDefaultTargetDurationSeconds,
   });
 
   Map<String, dynamic> toJson() => {
@@ -452,7 +450,6 @@ class TemplateExercise {
     'targetWeight': targetWeight,
     'sets': sets,
     'durationBased': durationBased,
-    'targetDurationSeconds': targetDurationSeconds,
   };
 
   factory TemplateExercise.fromJson(Map<String, dynamic> json) =>
@@ -462,8 +459,6 @@ class TemplateExercise {
         targetWeight: (json['targetWeight'] as num?)?.toDouble() ?? 0,
         sets: json['sets'] as int? ?? 3,
         durationBased: json['durationBased'] as bool? ?? false,
-        targetDurationSeconds:
-            json['targetDurationSeconds'] as int? ?? kDefaultTargetDurationSeconds,
       );
 
   TemplateExercise copyWith({
@@ -472,15 +467,12 @@ class TemplateExercise {
     double? targetWeight,
     int? sets,
     bool? durationBased,
-    int? targetDurationSeconds,
   }) => TemplateExercise(
     exercise: exercise ?? this.exercise,
     targetReps: targetReps ?? this.targetReps,
     targetWeight: targetWeight ?? this.targetWeight,
     sets: sets ?? this.sets,
     durationBased: durationBased ?? this.durationBased,
-    targetDurationSeconds:
-        targetDurationSeconds ?? this.targetDurationSeconds,
   );
 }
 
@@ -1894,7 +1886,6 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
     int sets = 3;
     double targetWeight = 0;
     bool durationBased = false;
-    int targetDurationSeconds = kDefaultTargetDurationSeconds;
 
     showDialog(
       context: context,
@@ -2012,15 +2003,57 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                   onChanged: (v) => setDialogState(() => durationBased = v),
                 ),
                 const SizedBox(height: 8),
-                // Target sets and reps or target hold time (narrower Sets column so
-                // target time can use larger type; duration − may overlap Sets row)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: Transform.translate(
-                        offset: const Offset(-16, 0),
+                // Sets only for hold-by-time; Sets | target reps for rep-based
+                if (durationBased)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.get('sets'),
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(height: 8),
+                      FittedBox(
+                        alignment: Alignment.centerLeft,
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () {
+                                if (sets > 1) {
+                                  setDialogState(() => sets--);
+                                }
+                              },
+                              icon: const Icon(Icons.remove_circle_outline),
+                            ),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 4),
+                              child: Text(
+                                '$sets',
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => setDialogState(() => sets++),
+                              icon: const Icon(Icons.add_circle_outline),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -2029,151 +2062,100 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                               style: const TextStyle(fontSize: 16),
                             ),
                             const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                IconButton(
-                                  onPressed: () {
-                                    if (sets > 1) {
-                                      setDialogState(() => sets--);
-                                    }
-                                  },
-                                  icon: const Icon(Icons.remove_circle_outline),
-                                ),
-                                Text(
-                                  '$sets',
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
+                            FittedBox(
+                              alignment: Alignment.centerLeft,
+                              fit: BoxFit.scaleDown,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () {
+                                      if (sets > 1) {
+                                        setDialogState(() => sets--);
+                                      }
+                                    },
+                                    icon:
+                                        const Icon(Icons.remove_circle_outline),
                                   ),
-                                ),
-                                IconButton(
-                                  onPressed: () =>
-                                      setDialogState(() => sets++),
-                                  icon: const Icon(Icons.add_circle_outline),
-                                ),
-                              ],
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
+                                    child: Text(
+                                      '$sets',
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () =>
+                                        setDialogState(() => sets++),
+                                    icon: const Icon(Icons.add_circle_outline),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: durationBased
-                          ? Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  l10n.get('targetDuration'),
-                                  style: const TextStyle(fontSize: 16),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Transform.translate(
-                                      offset: const Offset(-36, 0),
-                                      child: IconButton(
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(
-                                          minWidth: 40,
-                                          minHeight: 40,
-                                        ),
-                                        onPressed: () => setDialogState(() {
-                                          targetDurationSeconds =
-                                              (targetDurationSeconds - 5)
-                                                  .clamp(1, 86400);
-                                        }),
-                                        icon: const Icon(
-                                          Icons.remove_circle_outline,
-                                        ),
-                                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.get('targetReps'),
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                            const SizedBox(height: 8),
+                            FittedBox(
+                              alignment: Alignment.centerLeft,
+                              fit: BoxFit.scaleDown,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () {
+                                      if (targetReps > 1) {
+                                        setDialogState(() => targetReps--);
+                                      }
+                                    },
+                                    icon: const Icon(
+                                      Icons.remove_circle_outline,
                                     ),
-                                    Expanded(
-                                      child: InkWell(
-                                        onTap: () =>
-                                            showDurationEntryDialog(
-                                          context: context,
-                                          l10n: l10n,
-                                          currentSeconds:
-                                              targetDurationSeconds,
-                                          accentColor: Theme.of(context)
-                                              .colorScheme
-                                              .primary,
-                                          onSave: (sec) => setDialogState(
-                                            () => targetDurationSeconds = sec,
-                                          ),
-                                        ),
-                                        child: Center(
-                                          child: FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            alignment: Alignment.center,
-                                            child: Text(
-                                              formatDurationMmSs(
-                                                targetDurationSeconds,
-                                              ),
-                                              maxLines: 1,
-                                              softWrap: false,
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                fontSize: 30,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
                                     ),
-                                    IconButton(
-                                      onPressed: () => setDialogState(() {
-                                        targetDurationSeconds =
-                                            (targetDurationSeconds + 5)
-                                                .clamp(1, 86400);
-                                      }),
-                                      icon: const Icon(Icons.add_circle_outline),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  l10n.get('targetReps'),
-                                  style: const TextStyle(fontSize: 16),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      onPressed: () {
-                                        if (targetReps > 1) {
-                                          setDialogState(() => targetReps--);
-                                        }
-                                      },
-                                      icon: const Icon(
-                                        Icons.remove_circle_outline,
-                                      ),
-                                    ),
-                                    Text(
+                                    child: Text(
                                       '$targetReps',
                                       style: const TextStyle(
                                         fontSize: 24,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                    IconButton(
-                                      onPressed: () =>
-                                          setDialogState(() => targetReps++),
-                                      icon: const Icon(Icons.add_circle_outline),
+                                  ),
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () =>
+                                        setDialogState(() => targetReps++),
+                                    icon: const Icon(
+                                      Icons.add_circle_outline,
                                     ),
-                                  ],
-                                ),
-                              ],
+                                  ),
+                                ],
+                              ),
                             ),
-                    ),
-                  ],
-                ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 const SizedBox(height: 16),
                 // Icon picker
                 Text(
@@ -2264,9 +2246,6 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                       targetWeight: targetWeight,
                       sets: sets,
                       durationBased: durationBased,
-                      targetDurationSeconds: durationBased
-                          ? targetDurationSeconds.clamp(1, 86400)
-                          : kDefaultTargetDurationSeconds,
                     ),
                   );
                 });
@@ -2545,7 +2524,7 @@ class _ExerciseListItem extends StatelessWidget {
                 ),
                 Text(
                   templateExercise.durationBased
-                      ? '${templateExercise.sets} ${l10n.get('sets')} × ${formatDurationMmSs(templateExercise.targetDurationSeconds)}'
+                      ? '${templateExercise.sets} ${l10n.get('sets')}'
                       : '${templateExercise.sets} ${l10n.get('sets')} × ${templateExercise.targetReps} ${l10n.reps}',
                   style: TextStyle(
                     fontSize: 16,
@@ -3006,7 +2985,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     if (current.durationBased) {
       final lastD = _getLastDurationForExercise(current.exercise.name);
       currentDurationSeconds =
-          lastD ?? current.targetDurationSeconds.clamp(1, 86400);
+          lastD ?? kDefaultTargetDurationSeconds;
       currentReps = 0;
       currentWeight = 0;
     } else {
@@ -3409,7 +3388,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     int targetReps = 10;
     double targetWeight = 0;
     bool durationBased = false;
-    int targetDurationSeconds = kDefaultTargetDurationSeconds;
 
     showDialog<void>(
       context: context,
@@ -3622,77 +3600,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       ),
                     ],
                   ),
-                ] else ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.get('targetDuration'),
-                    style: TextStyle(
-                      fontSize: largeFont,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white70 : Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Transform.translate(
-                        offset: const Offset(-6, 0),
-                        child: IconButton(
-                          onPressed: () => setDialogState(() {
-                            targetDurationSeconds =
-                                (targetDurationSeconds - 5).clamp(1, 86400);
-                          }),
-                          icon: const Icon(Icons.remove_circle_outline),
-                          iconSize: 36,
-                          style: IconButton.styleFrom(
-                            minimumSize: const Size(minTap, minTap),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: InkWell(
-                          onTap: () => showDurationEntryDialog(
-                            context: ctx,
-                            l10n: l10n,
-                            currentSeconds: targetDurationSeconds,
-                            accentColor:
-                                Theme.of(ctx).colorScheme.primary,
-                            onSave: (sec) =>
-                                setDialogState(() => targetDurationSeconds = sec),
-                          ),
-                          child: Center(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.center,
-                              child: Text(
-                                formatDurationMmSs(targetDurationSeconds),
-                                maxLines: 1,
-                                softWrap: false,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark ? Colors.white : Colors.black87,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => setDialogState(() {
-                          targetDurationSeconds =
-                              (targetDurationSeconds + 5).clamp(1, 86400);
-                        }),
-                        icon: const Icon(Icons.add_circle_outline),
-                        iconSize: 36,
-                        style: IconButton.styleFrom(
-                          minimumSize: const Size(minTap, minTap),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ],
             ),
@@ -3728,9 +3635,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   targetWeight: targetWeight,
                   sets: sets,
                   durationBased: durationBased,
-                  targetDurationSeconds: durationBased
-                      ? targetDurationSeconds.clamp(1, 86400)
-                      : kDefaultTargetDurationSeconds,
                 );
                 Navigator.pop(ctx);
 
@@ -4456,7 +4360,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                         child: Semantics(
                           button: true,
                           label:
-                              '${l10n.localizeExerciseName(exercise.exercise.name)}, $displayedSets ${l10n.get('sets')} × ${exercise.durationBased ? formatDurationMmSs(exercise.targetDurationSeconds) : '${exercise.targetReps} ${l10n.reps}'}',
+                              '${l10n.localizeExerciseName(exercise.exercise.name)}, $displayedSets ${l10n.get('sets')}${exercise.durationBased ? '' : ' × ${exercise.targetReps} ${l10n.reps}'}',
                           child: Material(
                             color: Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
@@ -4542,7 +4446,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                         ),
                                         Text(
                                           exercise.durationBased
-                                              ? '$displayedSets ${l10n.get('sets')} × ${formatDurationMmSs(exercise.targetDurationSeconds)}'
+                                              ? '$displayedSets ${l10n.get('sets')}'
                                               : '$displayedSets ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
                                           style: TextStyle(
                                             fontSize: 14,

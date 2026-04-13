@@ -109,6 +109,27 @@ class AppLocalizations {
     return _exerciseNameEnToZhHant[storedName] ?? storedName;
   }
 
+  /// English workout template titles (as stored) → zh-Hant for display when locale is Chinese.
+  static const Map<String, String> _workoutTemplateNameEnToZhHant = {
+    // Bundled defaults (saved with English app locale)
+    'Beginner Upper Body Day': '入門上半身日',
+    'Beginner Legs Day': '入門腿部日',
+    'Shoulder Workout (Previous data)': '肩部運動（舊資料）',
+    // Common / user templates
+    'Upper Body (Home) [Dumbbells]': '上半身（居家）啞鈴',
+    'Upper body (Home) Dumbbells': '上半身（居家）啞鈴',
+    'Leg Day': '腿部日',
+    'Upper Body @ Gym': '上半身（健身房）',
+    'Rehab': '復健',
+    'Full Body @ Gym': '全身（健身房）',
+    'Full Body @ Taiwan Gym': '全身（台灣健身房）',
+  };
+
+  String localizeWorkoutTemplateName(String storedName) {
+    if (!_isZhLocale) return storedName;
+    return _workoutTemplateNameEnToZhHant[storedName] ?? storedName;
+  }
+
   // English strings
   static const Map<String, String> _enStrings = {
     // App title

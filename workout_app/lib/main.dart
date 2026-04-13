@@ -1037,7 +1037,10 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     final timeStr = DateFormat('MMM d, y • h:mm a').format(draft.startTime);
     final body = l10n
         .get('draftResumeBody')
-        .replaceAll('{name}', draft.template.name)
+        .replaceAll(
+          '{name}',
+          l10n.localizeWorkoutTemplateName(draft.template.name),
+        )
         .replaceAll('{time}', timeStr);
     final action = await showDialog<String>(
       context: context,
@@ -1295,7 +1298,7 @@ class TemplatesPage extends StatelessWidget {
           style: const TextStyle(fontSize: 22),
         ),
         content: Text(
-          '${l10n.get('deleteWorkoutConfirm')} "${template.name}"?',
+          '${l10n.get('deleteWorkoutConfirm')} "${l10n.localizeWorkoutTemplateName(template.name)}"?',
           style: const TextStyle(fontSize: 18),
         ),
         actions: [
@@ -1517,7 +1520,7 @@ class _TemplateCard extends StatelessWidget {
     return Semantics(
       button: true,
       label:
-          '${template.name}, ${template.exercises.length} ${l10n.get('exercises')}',
+          '${l10n.localizeWorkoutTemplateName(template.name)}, ${template.exercises.length} ${l10n.get('exercises')}',
       child: Material(
         color: isDark ? const Color(0xFF1A2634) : Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -1552,7 +1555,7 @@ class _TemplateCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            template.name,
+                            l10n.localizeWorkoutTemplateName(template.name),
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
@@ -3409,7 +3412,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       child: Scaffold(
         appBar: AppBar(
           title: Text(
-            widget.template.name,
+            l10n.localizeWorkoutTemplateName(widget.template.name),
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           leading: IconButton(
@@ -4621,7 +4624,7 @@ class _HistoryCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      session.templateName,
+                      l10n.localizeWorkoutTemplateName(session.templateName),
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,

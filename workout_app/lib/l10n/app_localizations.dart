@@ -9,8 +9,11 @@ class AppLocalizations {
   /// English catalog / default exercise names → Traditional Chinese labels.
   /// Keys must match stored names in templates and logs ([kCommonExerciseNames] in main.dart) plus defaults like Shoulder Press.
   static const Map<String, String> _exerciseNameEnToZhHant = {
+    'Abductor': '大腿外展',
+    'Adductor': '大腿內收',
     'Ankle Eversion': '踝外翻',
     'Assisted Pull-Up': '輔助引體向上',
+    'Balance': '平衡訓練',
     'Balancing on One Leg': '單腳平衡',
     'Bench Press': '槓鈴臥推',
     'Bent-Over Row': '俯身划船',
@@ -29,6 +32,7 @@ class AppLocalizations {
     'Dumbbell Fly': '啞鈴飛鳥',
     'Face Pull': '臉拉',
     'Farmer\'s Carry': '農夫走路',
+    'Farmer\'s Carries': '農夫走路',
     'Front Raise': '前平舉',
     'Goblet Squat': '高腳杯深蹲',
     'Hack Squat': '哈克深蹲',
@@ -60,6 +64,7 @@ class AppLocalizations {
     'Side Plank': '側棒式',
     'Single-Arm Row': '單臂划船',
     'Skullcrusher': '碎顱式',
+    'Skullcrusher (Single Arm)': '碎顱式（單臂）',
     'Squat': '深蹲',
     'T-Bar Row': 'T槓划船',
     'Tibialis Posterior': '脛後肌訓練',

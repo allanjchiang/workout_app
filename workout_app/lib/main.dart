@@ -545,6 +545,8 @@ const List<String> kExerciseIconKeys = [
 
 /// Common gym exercise names for elderly-friendly autocomplete when adding exercises.
 const List<String> kCommonExerciseNames = [
+  'Abductor',
+  'Adductor',
   'Ankle Eversion',
   'Assisted Pull-Up',
   'Balancing on One Leg',

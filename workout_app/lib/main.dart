@@ -2063,14 +2063,17 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
-                                    IconButton(
-                                      onPressed: () => setDialogState(() {
-                                        targetDurationSeconds =
-                                            (targetDurationSeconds - 5)
-                                                .clamp(1, 86400);
-                                      }),
-                                      icon: const Icon(
-                                        Icons.remove_circle_outline,
+                                    Transform.translate(
+                                      offset: const Offset(-6, 0),
+                                      child: IconButton(
+                                        onPressed: () => setDialogState(() {
+                                          targetDurationSeconds =
+                                              (targetDurationSeconds - 5)
+                                                  .clamp(1, 86400);
+                                        }),
+                                        icon: const Icon(
+                                          Icons.remove_circle_outline,
+                                        ),
                                       ),
                                     ),
                                     Expanded(
@@ -2088,14 +2091,22 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                                             () => targetDurationSeconds = sec,
                                           ),
                                         ),
-                                        child: Text(
-                                          formatDurationMmSs(
-                                            targetDurationSeconds,
-                                          ),
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            fontSize: 22,
-                                            fontWeight: FontWeight.bold,
+                                        child: Center(
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              formatDurationMmSs(
+                                                targetDurationSeconds,
+                                              ),
+                                              maxLines: 1,
+                                              softWrap: false,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -3613,15 +3624,18 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      IconButton(
-                        onPressed: () => setDialogState(() {
-                          targetDurationSeconds =
-                              (targetDurationSeconds - 5).clamp(1, 86400);
-                        }),
-                        icon: const Icon(Icons.remove_circle_outline),
-                        iconSize: 36,
-                        style: IconButton.styleFrom(
-                          minimumSize: const Size(minTap, minTap),
+                      Transform.translate(
+                        offset: const Offset(-6, 0),
+                        child: IconButton(
+                          onPressed: () => setDialogState(() {
+                            targetDurationSeconds =
+                                (targetDurationSeconds - 5).clamp(1, 86400);
+                          }),
+                          icon: const Icon(Icons.remove_circle_outline),
+                          iconSize: 36,
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(minTap, minTap),
+                          ),
                         ),
                       ),
                       Expanded(
@@ -3635,13 +3649,21 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                             onSave: (sec) =>
                                 setDialogState(() => targetDurationSeconds = sec),
                           ),
-                          child: Text(
-                            formatDurationMmSs(targetDurationSeconds),
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : Colors.black87,
+                          child: Center(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.center,
+                              child: Text(
+                                formatDurationMmSs(targetDurationSeconds),
+                                maxLines: 1,
+                                softWrap: false,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -4797,15 +4819,18 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      _LargeRoundButton(
-                        icon: Icons.remove,
-                        color: Colors.red.shade400,
-                        onPressed: () {
-                          setState(() {
-                            currentDurationSeconds =
-                                (currentDurationSeconds - 5).clamp(1, 86400);
-                          });
-                        },
+                      Transform.translate(
+                        offset: const Offset(-8, 0),
+                        child: _LargeRoundButton(
+                          icon: Icons.remove,
+                          color: Colors.red.shade400,
+                          onPressed: () {
+                            setState(() {
+                              currentDurationSeconds =
+                                  (currentDurationSeconds - 5).clamp(1, 86400);
+                            });
+                          },
+                        ),
                       ),
                       Expanded(
                         child: GestureDetector(
@@ -4821,7 +4846,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
+                                  horizontal: 16,
                                   vertical: 12,
                                 ),
                                 decoration: BoxDecoration(
@@ -4837,14 +4862,24 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                     width: 2,
                                   ),
                                 ),
-                                child: Text(
-                                  formatDurationMmSs(currentDurationSeconds),
-                                  style: TextStyle(
-                                    fontSize: 42,
-                                    fontWeight: FontWeight.bold,
-                                    color: isDark
-                                        ? Colors.white
-                                        : colorScheme.primary,
+                                child: Center(
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      formatDurationMmSs(
+                                        currentDurationSeconds,
+                                      ),
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      style: TextStyle(
+                                        fontSize: 42,
+                                        fontWeight: FontWeight.bold,
+                                        color: isDark
+                                            ? Colors.white
+                                            : colorScheme.primary,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -4893,6 +4928,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                           ),
                           child: Text(
                             formatDurationMmSs(sec),
+                            maxLines: 1,
+                            softWrap: false,
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w600,

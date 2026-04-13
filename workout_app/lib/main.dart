@@ -1753,7 +1753,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                                   ),
                                   alignment: Alignment.centerLeft,
                                   child: Text(
-                                    name,
+                                    l10n.localizeExerciseName(name),
                                     style: TextStyle(
                                       fontSize: 20,
                                       fontWeight: FontWeight.w500,
@@ -2216,7 +2216,7 @@ class _ExerciseListItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  exercise.name,
+                  l10n.localizeExerciseName(exercise.name),
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -2397,7 +2397,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Text(
-                      '${l10n.get('pastHistory')} – ${exercise.name}',
+                      '${l10n.get('pastHistory')} – ${l10n.localizeExerciseName(exercise.name)}',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -3125,7 +3125,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                   ),
                                   alignment: Alignment.centerLeft,
                                   child: Text(
-                                    name,
+                                    l10n.localizeExerciseName(name),
                                     style: TextStyle(
                                       fontSize: 20,
                                       fontWeight: FontWeight.w500,
@@ -3756,7 +3756,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   children: [
                     Flexible(
                       child: Text(
-                        current.exercise.name,
+                        l10n.localizeExerciseName(current.exercise.name),
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
@@ -3953,7 +3953,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                         child: Semantics(
                           button: true,
                           label:
-                              '${exercise.exercise.name}, $displayedSets ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
+                              '${l10n.localizeExerciseName(exercise.exercise.name)}, $displayedSets ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
                           child: Material(
                             color: Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
@@ -4027,7 +4027,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          exercise.exercise.name,
+                                          l10n.localizeExerciseName(
+                                              exercise.exercise.name),
                                           style: TextStyle(
                                             fontSize: 18,
                                             fontWeight: FontWeight.bold,
@@ -4427,7 +4428,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              '${current.exercise.name} ${l10n.get('set')} ${log.setNumber}: ${_isAssistedPullUp(current.exercise.name) && log.weight > 0 ? '${log.reps} ${l10n.reps}, ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('minusWeight')}' : '${log.reps} ${l10n.reps}${log.weight > 0 ? ' ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}' : ''}'}',
+                              '${l10n.localizeExerciseName(current.exercise.name)} ${l10n.get('set')} ${log.setNumber}: ${_isAssistedPullUp(current.exercise.name) && log.weight > 0 ? '${log.reps} ${l10n.reps}, ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('minusWeight')}' : '${log.reps} ${l10n.reps}${log.weight > 0 ? ' ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}' : ''}'}',
                               style: TextStyle(
                                 fontSize: 18,
                                 color: isDark ? Colors.white : Colors.black87,
@@ -4700,7 +4701,7 @@ class _HistoryCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        exerciseName,
+                        l10n.localizeExerciseName(exerciseName),
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -5071,7 +5072,7 @@ class StatisticsPage extends StatelessWidget {
                                     const SizedBox(width: 16),
                                     Expanded(
                                       child: Text(
-                                        entry.key,
+                                        l10n.localizeExerciseName(entry.key),
                                         style: TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
@@ -5272,7 +5273,7 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(
-                      name,
+                      l10n.localizeExerciseName(name),
                       style: TextStyle(
                         fontSize: 18,
                         color: isDark ? Colors.white : Colors.black87,

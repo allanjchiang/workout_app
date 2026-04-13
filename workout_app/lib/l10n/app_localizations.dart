@@ -6,6 +6,73 @@ class AppLocalizations {
 
   AppLocalizations(this.locale);
 
+  /// English catalog / default exercise names → Traditional Chinese labels.
+  /// Keys must match stored names in templates and logs ([kCommonExerciseNames] in main.dart) plus defaults like Shoulder Press.
+  static const Map<String, String> _exerciseNameEnToZhHant = {
+    'Ankle Eversion': '踝外翻',
+    'Assisted Pull-Up': '輔助引體向上',
+    'Balancing on One Leg': '單腳平衡',
+    'Bench Press': '槓鈴臥推',
+    'Bent-Over Row': '俯身划船',
+    'Bicep Curl': '二頭彎舉',
+    'Bicycle Crunch': '空中腳踏車捲腹',
+    'Bird Dog': '鳥狗式',
+    'Calf Raise': '小腿提踵',
+    'Cable Fly': '滑輪飛鳥',
+    'Chest Fly': '胸飛鳥',
+    'Chin-Up': '反手引體向上',
+    'Chest Press': '胸推',
+    'Clamshell': '蛤蜊式',
+    'Crunch': '捲腹',
+    'Dead Bug': '死蟲式',
+    'Deadlift': '硬舉',
+    'Dumbbell Fly': '啞鈴飛鳥',
+    'Face Pull': '臉拉',
+    'Farmer\'s Carry': '農夫走路',
+    'Front Raise': '前平舉',
+    'Goblet Squat': '高腳杯深蹲',
+    'Hack Squat': '哈克深蹲',
+    'Hammer Curl': '錘式彎舉',
+    'High Row': '高位划船',
+    'Hip Thrust': '臀推',
+    'Incline Bench Press': '上斜臥推',
+    'Lat Pulldown': '滑輪下拉',
+    'Lateral Raise': '側平舉',
+    'Leg Curl': '腿彎舉',
+    'Leg Extension': '腿伸展',
+    'Leg Press': '腿推',
+    'Leg Raise': '抬腿',
+    'Lunge': '弓步',
+    'Lying Leg Curl': '俯臥腿彎舉',
+    'Overhead Press': '過頭推舉',
+    'Overhead Tricep Extension': '過頭三頭伸展',
+    'Pec Deck': '蝴蝶機夾胸',
+    'Plank': '棒式',
+    'Preacher Curl': '牧師椅彎舉',
+    'Pull-Up': '引體向上',
+    'Push-Up': '伏地挺身',
+    'Rear Delt Fly': '後三角飛鳥',
+    'Reverse Fly': '反向飛鳥',
+    'Row': '划船',
+    'Romanian Deadlift': '羅馬尼亞硬舉',
+    'Seated Calf Raise': '坐姿小腿提踵',
+    'Seated Row': '坐姿划船',
+    'Side Plank': '側棒式',
+    'Single-Arm Row': '單臂划船',
+    'Skullcrusher': '碎顱式',
+    'Squat': '深蹲',
+    'T-Bar Row': 'T槓划船',
+    'Tibialis Posterior': '脛後肌訓練',
+    'Toe Curl': '捲趾',
+    'Toe Raise': '抬趾',
+    'Tricep Dip': '三頭撐體',
+    'Tricep Pushdown': '三頭下壓',
+    'Upright Row': '直立划船',
+    'Walking Lunge': '行走弓步',
+    'Shoulder Press': '肩推',
+    'Shrugs': '聳肩',
+  };
+
   static AppLocalizations? of(BuildContext context) {
     return Localizations.of<AppLocalizations>(context, AppLocalizations);
   }
@@ -32,6 +99,15 @@ class AppLocalizations {
   }
 
   String get(String key) => _localizedStrings[key] ?? key;
+
+  bool get _isZhLocale =>
+      locale.scriptCode == 'Hant' || locale.languageCode == 'zh';
+
+  /// Display label for a stored exercise name (templates, logs). Known English names map to zh-Hant when locale is Chinese; other strings are unchanged.
+  String localizeExerciseName(String storedName) {
+    if (!_isZhLocale) return storedName;
+    return _exerciseNameEnToZhHant[storedName] ?? storedName;
+  }
 
   // English strings
   static const Map<String, String> _enStrings = {

@@ -122,6 +122,7 @@ class AppLocalizations {
     'Upper Body @ Gym': '上半身（健身房）',
     'Rehab': '復健',
     'Full Body @ Gym': '全身（健身房）',
+    'Full Body @ Gym (Soft)': '全身（健身房・輕量）',
     'Full Body @ Taiwan Gym': '全身（台灣健身房）',
   };
 

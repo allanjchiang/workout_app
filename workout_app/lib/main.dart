@@ -211,6 +211,40 @@ String formatDurationMmSs(int totalSeconds) {
   return '$m:${sec.toString().padLeft(2, '0')}';
 }
 
+/// Template editor / add-exercise dialog: 0 = use workout default ([null]),
+/// 1 = no rest (0 s), 2 = custom (clamped 30–600 s).
+int? restAfterSetFromTemplateDialog(int restMode, int customSeconds) {
+  switch (restMode) {
+    case 0:
+      return null;
+    case 1:
+      return 0;
+    default:
+      return customSeconds.clamp(30, 600);
+  }
+}
+
+String _restHintForTemplateExercise(
+  AppLocalizations l10n,
+  TemplateExercise te,
+  int workoutDefaultRestSeconds,
+) {
+  final r = te.restAfterSetSeconds;
+  if (r == null) {
+    return l10n.get('restHintDefault').replaceAll(
+          '{time}',
+          formatDurationMmSs(workoutDefaultRestSeconds),
+        );
+  }
+  if (r == 0) {
+    return l10n.get('restHintNone');
+  }
+  return l10n.get('restHintCustom').replaceAll(
+        '{time}',
+        formatDurationMmSs(r),
+      );
+}
+
 /// Parses "1:00", "0:30", "2:05", or plain seconds like "90". Returns null if invalid.
 int? parseDurationInput(String raw) {
   final t = raw.trim();
@@ -435,6 +469,8 @@ class TemplateExercise {
   final double targetWeight;
   final int sets;
   final bool durationBased;
+  /// null = use workout default rest; 0 = skip rest between sets; else seconds (e.g. stretches).
+  final int? restAfterSetSeconds;
 
   const TemplateExercise({
     required this.exercise,
@@ -442,6 +478,7 @@ class TemplateExercise {
     this.targetWeight = 0,
     this.sets = 3,
     this.durationBased = false,
+    this.restAfterSetSeconds,
   });
 
   Map<String, dynamic> toJson() => {
@@ -450,6 +487,7 @@ class TemplateExercise {
     'targetWeight': targetWeight,
     'sets': sets,
     'durationBased': durationBased,
+    if (restAfterSetSeconds != null) 'restAfterSetSeconds': restAfterSetSeconds,
   };
 
   factory TemplateExercise.fromJson(Map<String, dynamic> json) =>
@@ -459,6 +497,7 @@ class TemplateExercise {
         targetWeight: (json['targetWeight'] as num?)?.toDouble() ?? 0,
         sets: json['sets'] as int? ?? 3,
         durationBased: json['durationBased'] as bool? ?? false,
+        restAfterSetSeconds: json['restAfterSetSeconds'] as int?,
       );
 
   TemplateExercise copyWith({
@@ -467,12 +506,17 @@ class TemplateExercise {
     double? targetWeight,
     int? sets,
     bool? durationBased,
+    int? restAfterSetSeconds,
+    bool clearRestAfterSetSeconds = false,
   }) => TemplateExercise(
     exercise: exercise ?? this.exercise,
     targetReps: targetReps ?? this.targetReps,
     targetWeight: targetWeight ?? this.targetWeight,
     sets: sets ?? this.sets,
     durationBased: durationBased ?? this.durationBased,
+    restAfterSetSeconds: clearRestAfterSetSeconds
+        ? null
+        : (restAfterSetSeconds ?? this.restAfterSetSeconds),
   );
 }
 
@@ -1857,6 +1901,8 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
   late TextEditingController _nameController;
   late TextEditingController _descController;
   List<TemplateExercise> exercises = [];
+  /// Mirrors Settings → default rest; used to label "use workout default" in add/edit exercise.
+  int _workoutDefaultRestSeconds = 60;
 
   @override
   void initState() {
@@ -1868,6 +1914,14 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
     if (widget.template != null) {
       exercises = List.from(widget.template!.exercises);
     }
+    unawaited(_loadWorkoutDefaultRest());
+  }
+
+  Future<void> _loadWorkoutDefaultRest() async {
+    final prefs = await SharedPreferences.getInstance();
+    final v = prefs.getInt('default_rest_seconds') ?? 60;
+    if (!mounted) return;
+    setState(() => _workoutDefaultRestSeconds = v.clamp(30, 600));
   }
 
   @override
@@ -1877,22 +1931,126 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
     super.dispose();
   }
 
-  void _addExercise() {
-    final l10n = AppLocalizations.of(context)!;
-    final nameController = TextEditingController();
-    final descController = TextEditingController();
-    int selectedIconIndex = 0;
-    int targetReps = 10;
-    int sets = 3;
-    double targetWeight = 0;
-    bool durationBased = false;
+  void _addExercise() => _openExerciseDialog();
 
-    showDialog(
+  void _editExercise(int index) => _openExerciseDialog(replaceIndex: index);
+
+  void _openExerciseDialog({int? replaceIndex}) {
+    final l10n = AppLocalizations.of(context)!;
+    final scaffoldMessengerContext = context;
+    final initial =
+        replaceIndex != null ? exercises[replaceIndex] : null;
+
+    final nameController = TextEditingController(
+      text: initial?.exercise.name ?? '',
+    );
+    final descController = TextEditingController(
+      text: initial?.exercise.description ?? '',
+    );
+    var selectedIconIndex = 0;
+    if (initial != null) {
+      final ix = kExerciseIconKeys.indexOf(initial.exercise.iconKey);
+      if (ix >= 0) selectedIconIndex = ix;
+    }
+
+    var targetReps = initial?.targetReps ?? 10;
+    var sets = initial?.sets ?? 3;
+    var targetWeight = initial?.targetWeight ?? 0;
+    var durationBased = initial?.durationBased ?? false;
+
+    var restMode = 0;
+    var customRestSec = 60;
+    final rInit = initial?.restAfterSetSeconds;
+    if (rInit == null) {
+      restMode = 0;
+      customRestSec = 60;
+    } else if (rInit == 0) {
+      restMode = 1;
+      customRestSec = 60;
+    } else {
+      restMode = 2;
+      customRestSec = rInit.clamp(30, 600);
+    }
+
+    showDialog<void>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final primary = Theme.of(context).colorScheme.primary;
+
+          Widget restTile({
+            required bool selected,
+            required String title,
+            required String? subtitle,
+            required VoidCallback onTap,
+          }) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Material(
+                color: selected
+                    ? primary.withValues(alpha: isDark ? 0.28 : 0.14)
+                    : (isDark
+                        ? const Color(0xFF232F3E)
+                        : Colors.grey.shade100),
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          selected ? Icons.check_circle : Icons.circle_outlined,
+                          size: 26,
+                          color: selected ? primary : Colors.grey,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (subtitle != null && subtitle.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    subtitle,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: isDark
+                                          ? Colors.grey.shade400
+                                          : Colors.grey.shade700,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          return AlertDialog(
           title: Text(
-            l10n.get('addExercise'),
+            replaceIndex == null
+                ? l10n.get('addExercise')
+                : l10n.get('editExercise'),
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           content: SingleChildScrollView(
@@ -2157,6 +2315,88 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                     ],
                   ),
                 const SizedBox(height: 16),
+                Text(
+                  l10n.get('restBetweenSetsTitle'),
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  l10n.get('restBetweenSetsStretchHint'),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                restTile(
+                  selected: restMode == 0,
+                  title: l10n.get('restOptionDefault'),
+                  subtitle: l10n
+                      .get('restOptionDefaultSub')
+                      .replaceAll(
+                        '{time}',
+                        formatDurationMmSs(_workoutDefaultRestSeconds),
+                      ),
+                  onTap: () => setDialogState(() => restMode = 0),
+                ),
+                restTile(
+                  selected: restMode == 1,
+                  title: l10n.get('restOptionNoRest'),
+                  subtitle: l10n.get('restOptionNoRestSub'),
+                  onTap: () => setDialogState(() => restMode = 1),
+                ),
+                restTile(
+                  selected: restMode == 2,
+                  title: l10n.get('restOptionCustom'),
+                  subtitle: l10n.get('restOptionCustomSub'),
+                  onTap: () => setDialogState(() => restMode = 2),
+                ),
+                if (restMode == 2) ...[
+                  const SizedBox(height: 8),
+                  FittedBox(
+                    alignment: Alignment.centerLeft,
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          onPressed: customRestSec <= 30
+                              ? null
+                              : () => setDialogState(
+                                    () => customRestSec =
+                                        (customRestSec - 30).clamp(30, 600),
+                                  ),
+                          icon: const Icon(Icons.remove_circle_outline),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Text(
+                            formatDurationMmSs(customRestSec),
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          onPressed: customRestSec >= 600
+                              ? null
+                              : () => setDialogState(
+                                    () => customRestSec =
+                                        (customRestSec + 30).clamp(30, 600),
+                                  ),
+                          icon: const Icon(Icons.add_circle_outline),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
                 // Icon picker
                 Text(
                   l10n.get('chooseIcon'),
@@ -2216,13 +2456,13 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: Text(l10n.cancel, style: const TextStyle(fontSize: 18)),
             ),
             ElevatedButton(
               onPressed: () {
                 if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(scaffoldMessengerContext).showSnackBar(
                     SnackBar(
                       content: Text(l10n.get('enterExerciseName')),
                       backgroundColor: Colors.orange,
@@ -2231,37 +2471,44 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                   return;
                 }
                 final exercise = Exercise(
-                  id: 'ex_${DateTime.now().millisecondsSinceEpoch}',
+                  id: initial?.exercise.id ??
+                      'ex_${DateTime.now().millisecondsSinceEpoch}',
                   name: nameController.text.trim(),
                   description: descController.text.trim().isEmpty
                       ? null
                       : descController.text.trim(),
                   iconKey: kExerciseIconKeys[selectedIconIndex],
                 );
+                final te = TemplateExercise(
+                  exercise: exercise,
+                  targetReps: durationBased ? 0 : targetReps,
+                  targetWeight: targetWeight,
+                  sets: sets,
+                  durationBased: durationBased,
+                  restAfterSetSeconds:
+                      restAfterSetFromTemplateDialog(restMode, customRestSec),
+                );
                 setState(() {
-                  exercises.add(
-                    TemplateExercise(
-                      exercise: exercise,
-                      targetReps: durationBased ? 0 : targetReps,
-                      targetWeight: targetWeight,
-                      sets: sets,
-                      durationBased: durationBased,
-                    ),
-                  );
+                  if (replaceIndex != null) {
+                    exercises[replaceIndex] = te;
+                  } else {
+                    exercises.add(te);
+                  }
                 });
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
               ),
               child: Text(
-                l10n.get('add'),
+                replaceIndex == null ? l10n.get('add') : l10n.get('save'),
                 style: const TextStyle(fontSize: 18),
               ),
             ),
           ],
-        ),
+        );
+        },
       ),
     );
   }
@@ -2422,6 +2669,8 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _ExerciseListItem(
                       templateExercise: templateExercise,
+                      workoutDefaultRestSeconds: _workoutDefaultRestSeconds,
+                      onEdit: () => _editExercise(index),
                       onDelete: () {
                         setState(() => exercises.removeAt(index));
                       },
@@ -2473,11 +2722,16 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
 class _ExerciseListItem extends StatelessWidget {
   final TemplateExercise templateExercise;
   final VoidCallback onDelete;
+  final VoidCallback? onEdit;
   final Widget? leading;
+  /// Workout default from Settings (for rest hint when [TemplateExercise.restAfterSetSeconds] is null).
+  final int workoutDefaultRestSeconds;
 
   const _ExerciseListItem({
     required this.templateExercise,
     required this.onDelete,
+    required this.workoutDefaultRestSeconds,
+    this.onEdit,
     this.leading,
   });
 
@@ -2531,9 +2785,27 @@ class _ExerciseListItem extends StatelessWidget {
                     color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                   ),
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  _restHintForTemplateExercise(
+                    l10n,
+                    templateExercise,
+                    workoutDefaultRestSeconds,
+                  ),
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: isDark ? Colors.grey.shade500 : Colors.grey.shade700,
+                  ),
+                ),
               ],
             ),
           ),
+          if (onEdit != null)
+            IconButton(
+              onPressed: onEdit,
+              icon: Icon(Icons.edit_outlined, color: colorScheme.primary, size: 28),
+              tooltip: l10n.get('editExercise'),
+            ),
           IconButton(
             onPressed: onDelete,
             icon: Icon(Icons.delete, color: Colors.red.shade600, size: 28),
@@ -3239,9 +3511,21 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   }
 
   void _startRestTimer() {
+    if (_orderedExercises.isEmpty) return;
+    final current = _orderedExercises[currentExerciseIndex];
+    final override = current.restAfterSetSeconds;
+    final effective = (override ?? _defaultRestSeconds).clamp(0, 600);
+    if (effective <= 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scheduleScrollAfterRestEnds();
+      });
+      unawaited(_persistWorkoutDraft());
+      return;
+    }
     setState(() {
       isResting = true;
-      restSeconds = _defaultRestSeconds;
+      restSeconds = effective;
     });
     restTimer?.cancel();
     restTimer = Timer.periodic(const Duration(seconds: 1), _onRestTimerTick);
@@ -3388,11 +3672,85 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     int targetReps = 10;
     double targetWeight = 0;
     bool durationBased = false;
+    var restMode = 0;
+    var customRestSec = 60;
+    final scaffoldMessengerContext = context;
 
     showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
+        builder: (ctx, setDialogState) {
+          final primary = Theme.of(ctx).colorScheme.primary;
+
+          Widget restTileEl({
+            required bool selected,
+            required String title,
+            required String? subtitle,
+            required VoidCallback onTap,
+          }) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Material(
+                color: selected
+                    ? primary.withValues(alpha: isDark ? 0.28 : 0.14)
+                    : (isDark
+                        ? const Color(0xFF232F3E)
+                        : Colors.grey.shade100),
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 16,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          selected ? Icons.check_circle : Icons.circle_outlined,
+                          size: 32,
+                          color: selected ? primary : Colors.grey,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: TextStyle(
+                                  fontSize: largeFont,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                              if (subtitle != null && subtitle.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Text(
+                                    subtitle,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: isDark
+                                          ? Colors.grey.shade400
+                                          : Colors.grey.shade700,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          return AlertDialog(
           title: Text(
             l10n.get('addExerciseToWorkout'),
             style: TextStyle(
@@ -3601,6 +3959,90 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     ],
                   ),
                 ],
+                const SizedBox(height: 16),
+                Text(
+                  l10n.get('restBetweenSetsTitle'),
+                  style: TextStyle(
+                    fontSize: largeFont,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white70 : Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  l10n.get('restBetweenSetsStretchHint'),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: isDark ? Colors.white54 : Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                restTileEl(
+                  selected: restMode == 0,
+                  title: l10n.get('restOptionDefault'),
+                  subtitle: l10n.get('restOptionDefaultSub').replaceAll(
+                        '{time}',
+                        formatDurationMmSs(_defaultRestSeconds),
+                      ),
+                  onTap: () => setDialogState(() => restMode = 0),
+                ),
+                restTileEl(
+                  selected: restMode == 1,
+                  title: l10n.get('restOptionNoRest'),
+                  subtitle: l10n.get('restOptionNoRestSub'),
+                  onTap: () => setDialogState(() => restMode = 1),
+                ),
+                restTileEl(
+                  selected: restMode == 2,
+                  title: l10n.get('restOptionCustom'),
+                  subtitle: l10n.get('restOptionCustomSub'),
+                  onTap: () => setDialogState(() => restMode = 2),
+                ),
+                if (restMode == 2) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: customRestSec <= 30
+                            ? null
+                            : () => setDialogState(
+                                  () => customRestSec =
+                                      (customRestSec - 30).clamp(30, 600),
+                                ),
+                        icon: const Icon(Icons.remove_circle_outline),
+                        iconSize: 36,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(minTap, minTap),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          formatDurationMmSs(customRestSec),
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: customRestSec >= 600
+                            ? null
+                            : () => setDialogState(
+                                  () => customRestSec =
+                                      (customRestSec + 30).clamp(30, 600),
+                                ),
+                        icon: const Icon(Icons.add_circle_outline),
+                        iconSize: 36,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(minTap, minTap),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -3615,7 +4057,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
             ElevatedButton(
               onPressed: () {
                 if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(scaffoldMessengerContext).showSnackBar(
                     SnackBar(
                       content: Text(l10n.get('enterExerciseName')),
                       backgroundColor: Colors.orange,
@@ -3635,6 +4077,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   targetWeight: targetWeight,
                   sets: sets,
                   durationBased: durationBased,
+                  restAfterSetSeconds:
+                      restAfterSetFromTemplateDialog(restMode, customRestSec),
                 );
                 Navigator.pop(ctx);
 
@@ -3652,7 +4096,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
               ),
             ),
           ],
-        ),
+        );
+        },
       ),
     );
   }

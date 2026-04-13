@@ -188,6 +188,18 @@ class AppLocalizations {
     'durationHint': 'e.g. 0:30 or 1:00',
     'invalidDuration': 'Enter a valid time (e.g. 0:30, 1:00, or 90 seconds)',
     'previousBestDuration': 'Previous best hold',
+    'restBetweenSetsTitle': 'Rest between sets',
+    'restBetweenSetsStretchHint':
+        'Stretches and mobility moves often need little or no rest. Pick what feels right.',
+    'restOptionDefault': 'Use workout default',
+    'restOptionDefaultSub': 'Same as Rest timer in Settings ({time})',
+    'restOptionNoRest': 'No rest',
+    'restOptionNoRestSub': 'Go to the next set right away (good for stretches)',
+    'restOptionCustom': 'Custom rest time',
+    'restOptionCustomSub': 'Set how long to rest after each set (tap − / +)',
+    'restHintDefault': 'Rest: same as settings ({time})',
+    'restHintNone': 'Rest: none — next set right away',
+    'restHintCustom': 'Rest: {time} after each set',
 
     // Active workout
     'endWorkout': 'End Workout?',
@@ -471,6 +483,18 @@ class AppLocalizations {
     'durationHint': '例如 0:30 或 1:00',
     'invalidDuration': '請輸入有效時間（如 0:30、1:00 或 90 秒）',
     'previousBestDuration': '上次最佳維持',
+    'restBetweenSetsTitle': '組間休息',
+    'restBetweenSetsStretchHint':
+        '伸展與活動度動作常不需要長休息，可依身體感受選擇。',
+    'restOptionDefault': '使用預設休息時間',
+    'restOptionDefaultSub': '與「設定」中的休息計時相同（{time}）',
+    'restOptionNoRest': '不休息',
+    'restOptionNoRestSub': '做完一組後直接下一組（適合伸展）',
+    'restOptionCustom': '自訂休息時間',
+    'restOptionCustomSub': '每組之間休息多久（按 −／＋調整）',
+    'restHintDefault': '休息：與設定相同（{time}）',
+    'restHintNone': '休息：無 — 直接下一組',
+    'restHintCustom': '休息：每組之間 {time}',
 
     // Active workout
     'endWorkout': '結束運動？',

@@ -2012,46 +2012,53 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                   onChanged: (v) => setDialogState(() => durationBased = v),
                 ),
                 const SizedBox(height: 8),
-                // Target sets and reps or target hold time
+                // Target sets and reps or target hold time (narrower Sets column so
+                // target time can use larger type; duration − may overlap Sets row)
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            l10n.get('sets'),
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              IconButton(
-                                onPressed: () {
-                                  if (sets > 1) {
-                                    setDialogState(() => sets--);
-                                  }
-                                },
-                                icon: const Icon(Icons.remove_circle_outline),
-                              ),
-                              Text(
-                                '$sets',
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
+                      flex: 2,
+                      child: Transform.translate(
+                        offset: const Offset(-16, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.get('sets'),
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                IconButton(
+                                  onPressed: () {
+                                    if (sets > 1) {
+                                      setDialogState(() => sets--);
+                                    }
+                                  },
+                                  icon: const Icon(Icons.remove_circle_outline),
                                 ),
-                              ),
-                              IconButton(
-                                onPressed: () => setDialogState(() => sets++),
-                                icon: const Icon(Icons.add_circle_outline),
-                              ),
-                            ],
-                          ),
-                        ],
+                                Text(
+                                  '$sets',
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () =>
+                                      setDialogState(() => sets++),
+                                  icon: const Icon(Icons.add_circle_outline),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     Expanded(
+                      flex: 3,
                       child: durationBased
                           ? Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2064,8 +2071,13 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                                 Row(
                                   children: [
                                     Transform.translate(
-                                      offset: const Offset(-6, 0),
+                                      offset: const Offset(-36, 0),
                                       child: IconButton(
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 40,
+                                          minHeight: 40,
+                                        ),
                                         onPressed: () => setDialogState(() {
                                           targetDurationSeconds =
                                               (targetDurationSeconds - 5)
@@ -2103,7 +2115,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                                               softWrap: false,
                                               textAlign: TextAlign.center,
                                               style: const TextStyle(
-                                                fontSize: 22,
+                                                fontSize: 30,
                                                 fontWeight: FontWeight.bold,
                                               ),
                                             ),

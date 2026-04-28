@@ -212,7 +212,7 @@ String formatDurationMmSs(int totalSeconds) {
 }
 
 /// Template editor / add-exercise dialog: 0 = use workout default ([null]),
-/// 1 = no rest (0 s), 2 = custom (clamped 30–600 s).
+/// 1 = no rest (0 s), 2 = custom (clamped 0–600 s).
 int? restAfterSetFromTemplateDialog(int restMode, int customSeconds) {
   switch (restMode) {
     case 0:
@@ -220,7 +220,7 @@ int? restAfterSetFromTemplateDialog(int restMode, int customSeconds) {
     case 1:
       return 0;
     default:
-      return customSeconds.clamp(30, 600);
+      return customSeconds.clamp(0, 600);
   }
 }
 
@@ -1983,7 +1983,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
       customRestSec = 60;
     } else {
       restMode = 2;
-      customRestSec = rInit.clamp(30, 600);
+      customRestSec = rInit.clamp(0, 600);
     }
 
     showDialog<void>(
@@ -3895,7 +3895,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       customRestSec = 60;
     } else {
       restMode = 2;
-      customRestSec = rInit.clamp(30, 600);
+      customRestSec = rInit.clamp(0, 600);
     }
 
     // Rest presets (seconds) editable here.
@@ -4160,11 +4160,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         IconButton(
-                          onPressed: customRestSec <= 30
+                          onPressed: customRestSec <= 0
                               ? null
                               : () => setDialogState(
                                     () => customRestSec =
-                                        (customRestSec - 30).clamp(30, 600),
+                                        (customRestSec - 5).clamp(0, 600),
                                   ),
                           icon: const Icon(Icons.remove_circle_outline),
                           iconSize: 36,
@@ -4196,7 +4196,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                               ? null
                               : () => setDialogState(
                                     () => customRestSec =
-                                        (customRestSec + 30).clamp(30, 600),
+                                        (customRestSec + 5).clamp(0, 600),
                                   ),
                           icon: const Icon(Icons.add_circle_outline),
                           iconSize: 36,
@@ -4264,7 +4264,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   final int? restAfterSetSeconds = switch (restMode) {
                     0 => null,
                     1 => 0,
-                    _ => customRestSec.clamp(30, 600),
+                    _ => customRestSec.clamp(0, 600),
                   };
                   setState(() {
                     _orderedExercises[currentExerciseIndex] = current.copyWith(

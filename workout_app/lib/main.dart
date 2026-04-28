@@ -3442,6 +3442,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
 
     _playBeep();
     _vibrateRestEnd();
+    _scheduleScrollAfterRestEnds();
 
     if (reachedTarget) {
       _stopDurationSession(clearRest: true);
@@ -3897,7 +3898,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       customRestSec = rInit.clamp(30, 600);
     }
 
-    // Rest presets (seconds) editable here; used on rest screen.
+    // Rest presets (seconds) editable here.
     var presetSeconds = List<int>.from(_restPresetSeconds);
 
     await showDialog<void>(
@@ -4168,14 +4169,25 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                           icon: const Icon(Icons.remove_circle_outline),
                           iconSize: 36,
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            formatDurationMmSs(customRestSec),
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : Colors.black87,
+                        GestureDetector(
+                          onTap: () => showDurationEntryDialog(
+                            context: ctx,
+                            l10n: l10n,
+                            currentSeconds: customRestSec,
+                            accentColor: primary,
+                            onSave: (sec) => setDialogState(
+                              () => customRestSec = sec.clamp(0, 600),
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              formatDurationMmSs(customRestSec),
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
                             ),
                           ),
                         ),
@@ -4218,8 +4230,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     runSpacing: 8,
                     children: List.generate(presetSeconds.length, (i) {
                       final sec = presetSeconds[i];
-                      return OutlinedButton(
-                        onPressed: () => showDurationEntryDialog(
+                      return GestureDetector(
+                        onLongPress: () => showDurationEntryDialog(
                           context: ctx,
                           l10n: l10n,
                           currentSeconds: sec,
@@ -4228,7 +4240,13 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                             () => presetSeconds[i] = newSec.clamp(1, 600),
                           ),
                         ),
-                        child: Text(formatDurationMmSs(sec)),
+                        child: OutlinedButton(
+                          onPressed: () => setDialogState(() {
+                            restMode = 2;
+                            customRestSec = sec.clamp(0, 600);
+                          }),
+                          child: Text(formatDurationMmSs(sec)),
+                        ),
                       );
                     }),
                   ),
@@ -5170,31 +5188,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   color: restSeconds <= 10 ? Colors.red : Colors.blue,
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                for (final sec in _restPresetSeconds)
-                  OutlinedButton(
-                    onPressed: () => setState(() => restSeconds = sec),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: Text(
-                      formatDurationMmSs(sec),
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-              ],
             ),
             const SizedBox(height: 40),
             // +30 / −30 sec row

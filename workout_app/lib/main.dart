@@ -2846,8 +2846,7 @@ class _ExerciseListItem extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (leading != null) leading!,
-          if (leading != null) const SizedBox(width: 8),
+          if (leading != null) ...[leading!, const SizedBox(width: 8)],
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -2956,6 +2955,13 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   int _defaultRestSeconds = 60;
   /// When true, show workout plan during rest (timer keeps running); tap "Back to rest" to return.
   bool _viewingPlanDuringRest = false;
+
+  // Duration-based interval session (work ↔ rest ↔ auto-log)
+  Timer? _durationWorkTimer;
+  bool _durationSessionRunning = false;
+  bool _durationSessionInWork = true;
+  int _workSecondsRemaining = 0;
+  List<int> _restPresetSeconds = [5, 10, 15, 30, 60];
 
   // Previous best reps (or hold seconds) for each exercise name
   Map<String, int> previousBestReps = {};
@@ -3291,10 +3297,183 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       unawaited(_persistWorkoutDraft());
     }
     workoutTimer?.cancel();
+    _durationWorkTimer?.cancel();
     restTimer?.cancel();
     _exerciseScrollController.dispose();
     audioPlayer.dispose();
     super.dispose();
+  }
+
+  void _stopDurationSession({bool clearRest = false}) {
+    _durationWorkTimer?.cancel();
+    _durationWorkTimer = null;
+    _durationSessionRunning = false;
+    _durationSessionInWork = true;
+    _workSecondsRemaining = 0;
+    if (clearRest) {
+      restTimer?.cancel();
+      isResting = false;
+      restSeconds = 0;
+      _viewingPlanDuringRest = false;
+    }
+  }
+
+  int _effectiveRestSecondsForCurrentDurationExercise() {
+    if (_orderedExercises.isEmpty) return _defaultRestSeconds.clamp(0, 600);
+    final current = _orderedExercises[currentExerciseIndex];
+    final override = current.restAfterSetSeconds;
+    return (override ?? _defaultRestSeconds).clamp(0, 600);
+  }
+
+  void _startDurationSession() {
+    if (_orderedExercises.isEmpty) return;
+    final current = _orderedExercises[currentExerciseIndex];
+    if (!current.durationBased) return;
+    _stopDurationSession(clearRest: true);
+    final workSeconds =
+        (current.targetDurationSeconds ?? currentDurationSeconds).clamp(1, 86400);
+    setState(() {
+      _durationSessionRunning = true;
+      _durationSessionInWork = true;
+      _workSecondsRemaining = workSeconds;
+      isResting = false;
+      restSeconds = 0;
+      _viewingPlanDuringRest = false;
+    });
+    _durationWorkTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      _onDurationWorkTick,
+    );
+    unawaited(_persistWorkoutDraft());
+  }
+
+  void _pauseDurationSession() {
+    _durationWorkTimer?.cancel();
+    restTimer?.cancel();
+    setState(() {
+      _durationSessionRunning = false;
+    });
+    unawaited(_persistWorkoutDraft());
+  }
+
+  void _resumeDurationSession() {
+    if (_orderedExercises.isEmpty) return;
+    final current = _orderedExercises[currentExerciseIndex];
+    if (!current.durationBased) return;
+    if (_durationSessionRunning) return;
+    setState(() => _durationSessionRunning = true);
+    if (_durationSessionInWork) {
+      _durationWorkTimer?.cancel();
+      _durationWorkTimer = Timer.periodic(
+        const Duration(seconds: 1),
+        _onDurationWorkTick,
+      );
+    } else {
+      _restoreRestTimer();
+    }
+    unawaited(_persistWorkoutDraft());
+  }
+
+  void _onDurationWorkTick(Timer timer) {
+    if (!mounted) {
+      timer.cancel();
+      return;
+    }
+    setState(() {
+      if (_workSecondsRemaining > 0) {
+        _workSecondsRemaining--;
+      } else {
+        timer.cancel();
+      }
+    });
+    if (_workSecondsRemaining <= 0) {
+      _beginDurationRestPhase();
+    }
+  }
+
+  void _beginDurationRestPhase() {
+    if (!mounted) return;
+    final rest = _effectiveRestSecondsForCurrentDurationExercise();
+    setState(() {
+      _durationSessionInWork = false;
+      isResting = rest > 0;
+      restSeconds = rest;
+      _viewingPlanDuringRest = false;
+    });
+    _durationWorkTimer?.cancel();
+    _durationWorkTimer = null;
+    if (rest <= 0) {
+      _onDurationRestFinished();
+      return;
+    }
+    restTimer?.cancel();
+    restTimer = Timer.periodic(const Duration(seconds: 1), _onRestTimerTick);
+    unawaited(_persistWorkoutDraft());
+  }
+
+  void _onDurationRestFinished() {
+    if (_orderedExercises.isEmpty) return;
+    final current = _orderedExercises[currentExerciseIndex];
+    if (!current.durationBased) return;
+
+    final workDuration = (current.targetDurationSeconds ?? currentDurationSeconds)
+        .clamp(1, 86400);
+    final log = ExerciseLog(
+      exerciseId: current.exercise.id,
+      exerciseName: current.exercise.name,
+      setNumber: currentSet,
+      reps: 0,
+      weight: 0,
+      durationSeconds: workDuration,
+      timestamp: DateTime.now(),
+    );
+    logs.add(log);
+
+    final loggedCount =
+        logs.where((l) => l.exerciseId == current.exercise.id).length;
+    final reachedTarget = loggedCount >= current.sets;
+
+    setState(() {
+      currentSet = loggedCount + 1;
+      isResting = false;
+      restSeconds = 0;
+      _viewingPlanDuringRest = false;
+    });
+
+    _playBeep();
+    _vibrateRestEnd();
+
+    if (reachedTarget) {
+      _stopDurationSession(clearRest: true);
+      if (currentExerciseIndex < _orderedExercises.length - 1) {
+        setState(() {
+          currentExerciseIndex++;
+          final next = _orderedExercises[currentExerciseIndex];
+          final loggedForExercise =
+              logs.where((l) => l.exerciseId == next.exercise.id).length;
+          currentSet = loggedForExercise + 1;
+          _initializeCurrentExercise();
+        });
+        _scrollExerciseContentToBottom();
+      }
+      unawaited(_persistWorkoutDraft());
+      return;
+    }
+
+    final nextWorkSeconds =
+        (current.targetDurationSeconds ?? currentDurationSeconds).clamp(1, 86400);
+    setState(() {
+      _durationSessionInWork = true;
+      _workSecondsRemaining = nextWorkSeconds;
+    });
+    if (_durationSessionRunning) {
+      _durationWorkTimer?.cancel();
+      _durationWorkTimer = Timer.periodic(
+        const Duration(seconds: 1),
+        _onDurationWorkTick,
+      );
+    }
+    unawaited(_persistWorkoutDraft());
   }
 
   /// After rest ends: stay at bottom for the next set if template sets remain; otherwise scroll to this exercise in the plan.
@@ -3595,12 +3774,20 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         isResting = false;
         _viewingPlanDuringRest = false;
         finishedRest = true;
-        _playBeep();
-        _vibrateRestEnd();
+        if (_durationSessionRunning && !_durationSessionInWork) {
+          // Duration session controls logging & transitions.
+        } else {
+          _playBeep();
+          _vibrateRestEnd();
+        }
       }
     });
     if (finishedRest) {
-      _scheduleScrollAfterRestEnds();
+      if (_durationSessionRunning && !_durationSessionInWork) {
+        _onDurationRestFinished();
+      } else {
+        _scheduleScrollAfterRestEnds();
+      }
     }
   }
 
@@ -3646,7 +3833,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       restSeconds = 0;
       _viewingPlanDuringRest = false;
     });
-    _scheduleScrollAfterRestEnds();
+    if (_durationSessionRunning && !_durationSessionInWork) {
+      _onDurationRestFinished();
+    } else {
+      _scheduleScrollAfterRestEnds();
+    }
     unawaited(_persistWorkoutDraft());
   }
 
@@ -3705,6 +3896,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       restMode = 2;
       customRestSec = rInit.clamp(30, 600);
     }
+
+    // Rest presets (seconds) editable here; used on rest screen.
+    var presetSeconds = List<int>.from(_restPresetSeconds);
 
     await showDialog<void>(
       context: context,
@@ -3998,6 +4192,46 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       ],
                     ),
                   ],
+                  const SizedBox(height: 18),
+                  Text(
+                    l10n.get('rest'),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.get('tapToEdit'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white54 : Colors.black54,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: List.generate(presetSeconds.length, (i) {
+                      final sec = presetSeconds[i];
+                      return OutlinedButton(
+                        onPressed: () => showDurationEntryDialog(
+                          context: ctx,
+                          l10n: l10n,
+                          currentSeconds: sec,
+                          accentColor: primary,
+                          onSave: (newSec) => setDialogState(
+                            () => presetSeconds[i] = newSec.clamp(1, 600),
+                          ),
+                        ),
+                        child: Text(formatDurationMmSs(sec)),
+                      );
+                    }),
+                  ),
                 ],
               ),
             ),
@@ -4022,6 +4256,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       clearRestAfterSetSeconds: restMode == 0,
                     );
                     currentDurationSeconds = targetDurationSeconds;
+                    _restPresetSeconds = List<int>.from(presetSeconds);
                   });
                   unawaited(_persistWorkoutDraft());
                   Navigator.pop(ctx);
@@ -4851,12 +5086,21 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                 color: restSeconds <= 10 ? Colors.red : colorScheme.primary,
               ),
               const SizedBox(width: 12),
-              Text(
-                _formatDuration(restSeconds),
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: restSeconds <= 10 ? Colors.red : colorScheme.primary,
+              GestureDetector(
+                onTap: () => showDurationEntryDialog(
+                  context: context,
+                  l10n: l10n,
+                  currentSeconds: restSeconds,
+                  accentColor: colorScheme.primary,
+                  onSave: (sec) => setState(() => restSeconds = sec.clamp(0, 600)),
+                ),
+                child: Text(
+                  _formatDuration(restSeconds),
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: restSeconds <= 10 ? Colors.red : colorScheme.primary,
+                  ),
                 ),
               ),
               const Spacer(),
@@ -4910,13 +5154,47 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
               ),
             ),
             const SizedBox(height: 28),
-            Text(
-              _formatDuration(restSeconds),
-              style: TextStyle(
-                fontSize: timerFontSize,
-                fontWeight: FontWeight.bold,
-                color: restSeconds <= 10 ? Colors.red : Colors.blue,
+            GestureDetector(
+              onTap: () => showDurationEntryDialog(
+                context: context,
+                l10n: l10n,
+                currentSeconds: restSeconds,
+                accentColor: Colors.blue,
+                onSave: (sec) => setState(() => restSeconds = sec.clamp(0, 600)),
               ),
+              child: Text(
+                _formatDuration(restSeconds),
+                style: TextStyle(
+                  fontSize: timerFontSize,
+                  fontWeight: FontWeight.bold,
+                  color: restSeconds <= 10 ? Colors.red : Colors.blue,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final sec in _restPresetSeconds)
+                  OutlinedButton(
+                    onPressed: () => setState(() => restSeconds = sec),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: Text(
+                      formatDurationMmSs(sec),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 40),
             // +30 / −30 sec row
@@ -5378,6 +5656,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                       currentExerciseIndex = index;
                                       final exercise =
                                           _orderedExercises[index];
+                                      _stopDurationSession(clearRest: true);
                                       final loggedForExercise = logs
                                           .where((l) =>
                                               l.exerciseId ==
@@ -5732,7 +6011,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     children: [
                       Expanded(
                         child: Text(
-                          l10n.get('holdTime'),
+                          _durationSessionRunning && _durationSessionInWork
+                              ? l10n.get('holdTime')
+                              : l10n.get('holdTime'),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 18,
@@ -5766,24 +6047,41 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                         child: _LargeRoundButton(
                           icon: Icons.remove,
                           color: Colors.red.shade400,
-                          onPressed: () {
-                            setState(() {
-                              currentDurationSeconds =
-                                  (currentDurationSeconds - 5).clamp(1, 86400);
-                            });
-                          },
+                          onPressed: _durationSessionRunning
+                              ? null
+                              : () {
+                                  setState(() {
+                                    currentDurationSeconds =
+                                        (currentDurationSeconds - 5).clamp(1, 86400);
+                                    final cur = _orderedExercises[currentExerciseIndex];
+                                    _orderedExercises[currentExerciseIndex] = cur.copyWith(
+                                      targetDurationSeconds: currentDurationSeconds,
+                                    );
+                                  });
+                                  unawaited(_persistWorkoutDraft());
+                                },
                         ),
                       ),
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => showDurationEntryDialog(
-                            context: context,
-                            l10n: l10n,
-                            currentSeconds: currentDurationSeconds,
-                            accentColor: colorScheme.primary,
-                            onSave: (sec) =>
-                                setState(() => currentDurationSeconds = sec),
-                          ),
+                          onTap: _durationSessionRunning
+                              ? null
+                              : () => showDurationEntryDialog(
+                                    context: context,
+                                    l10n: l10n,
+                                    currentSeconds: currentDurationSeconds,
+                                    accentColor: colorScheme.primary,
+                                    onSave: (sec) {
+                                      setState(() {
+                                        currentDurationSeconds = sec;
+                                        final cur = _orderedExercises[currentExerciseIndex];
+                                        _orderedExercises[currentExerciseIndex] = cur.copyWith(
+                                          targetDurationSeconds: currentDurationSeconds,
+                                        );
+                                      });
+                                      unawaited(_persistWorkoutDraft());
+                                    },
+                                  ),
                           child: Column(
                             children: [
                               Container(
@@ -5810,7 +6108,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                     alignment: Alignment.center,
                                     child: Text(
                                       formatDurationMmSs(
-                                        currentDurationSeconds,
+                                        _durationSessionRunning && _durationSessionInWork
+                                            ? _workSecondsRemaining
+                                            : currentDurationSeconds,
                                       ),
                                       maxLines: 1,
                                       softWrap: false,
@@ -5827,7 +6127,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                l10n.get('tapToEdit'),
+                                _durationSessionRunning
+                                    ? l10n.get('tapToEdit')
+                                    : l10n.get('tapToEdit'),
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: isDark
@@ -5842,12 +6144,19 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       _LargeRoundButton(
                         icon: Icons.add,
                         color: Colors.green.shade400,
-                        onPressed: () {
-                          setState(() {
-                            currentDurationSeconds =
-                                (currentDurationSeconds + 5).clamp(1, 86400);
-                          });
-                        },
+                        onPressed: _durationSessionRunning
+                            ? null
+                            : () {
+                                setState(() {
+                                  currentDurationSeconds =
+                                      (currentDurationSeconds + 5).clamp(1, 86400);
+                                  final cur = _orderedExercises[currentExerciseIndex];
+                                  _orderedExercises[currentExerciseIndex] = cur.copyWith(
+                                    targetDurationSeconds: currentDurationSeconds,
+                                  );
+                                });
+                                unawaited(_persistWorkoutDraft());
+                              },
                       ),
                     ],
                   ),
@@ -5859,9 +6168,18 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     children: [
                       for (final sec in [30, 60, 90, 120])
                         OutlinedButton(
-                          onPressed: () => setState(
-                            () => currentDurationSeconds = sec,
-                          ),
+                          onPressed: _durationSessionRunning
+                              ? null
+                              : () {
+                                  setState(() {
+                                    currentDurationSeconds = sec;
+                                    final cur = _orderedExercises[currentExerciseIndex];
+                                    _orderedExercises[currentExerciseIndex] = cur.copyWith(
+                                      targetDurationSeconds: currentDurationSeconds,
+                                    );
+                                  });
+                                  unawaited(_persistWorkoutDraft());
+                                },
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
@@ -5885,33 +6203,84 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
             ),
           ],
           const SizedBox(height: 16),
-          // Log set button
+          // Primary action button
           SizedBox(
             height: 70,
-            child: ElevatedButton.icon(
-              onPressed: (current.durationBased
-                      ? currentDurationSeconds > 0
-                      : currentReps > 0)
-                  ? _logSet
-                  : null,
-              icon: const Icon(Icons.check, size: 30),
-              label: Text(
-                l10n.get('logSet'),
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.grey.shade300,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+            child: current.durationBased
+                ? ElevatedButton.icon(
+                    onPressed: currentDurationSeconds > 0
+                        ? () {
+                            if (_durationSessionRunning) {
+                              _pauseDurationSession();
+                            } else if (_workSecondsRemaining > 0 || restSeconds > 0) {
+                              _resumeDurationSession();
+                            } else {
+                              _startDurationSession();
+                            }
+                          }
+                        : null,
+                    icon: Icon(
+                      _durationSessionRunning ? Icons.pause : Icons.play_arrow,
+                      size: 30,
+                    ),
+                    label: Text(
+                      _durationSessionRunning
+                          ? l10n.get('pause')
+                          : l10n.get('startWorkout'),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.shade300,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  )
+                : ElevatedButton.icon(
+                    onPressed: currentReps > 0 ? _logSet : null,
+                    icon: const Icon(Icons.check, size: 30),
+                    label: Text(
+                      l10n.get('logSet'),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.shade300,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+          ),
+          if (current.durationBased && (_durationSessionRunning || _workSecondsRemaining > 0 || restSeconds > 0))
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: SizedBox(
+                height: 56,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _stopDurationSession(clearRest: true);
+                    });
+                    unawaited(_persistWorkoutDraft());
+                  },
+                  icon: const Icon(Icons.stop_circle_outlined, size: 26),
+                  label: Text(
+                    l10n.get('endNow'),
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ),
-          ),
           const SizedBox(height: 12),
           // Next exercise – move on when done (or after extra sets); elderly-friendly
           if (currentExerciseIndex < _orderedExercises.length - 1)
@@ -5922,6 +6291,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                 child: OutlinedButton.icon(
                   onPressed: () {
                     setState(() {
+                      _stopDurationSession(clearRest: true);
                       currentExerciseIndex++;
                       final exercise =
                           _orderedExercises[currentExerciseIndex];
@@ -7460,7 +7830,7 @@ class _StatCard extends StatelessWidget {
 class _LargeRoundButton extends StatelessWidget {
   final IconData icon;
   final Color color;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   const _LargeRoundButton({
     required this.icon,

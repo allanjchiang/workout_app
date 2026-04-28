@@ -469,6 +469,9 @@ class TemplateExercise {
   final double targetWeight;
   final int sets;
   final bool durationBased;
+  /// Work duration for hold-by-time / duration-based exercises (seconds).
+  /// If null, the active workout will fall back to history or a default.
+  final int? targetDurationSeconds;
   /// null = use workout default rest; 0 = skip rest between sets; else seconds (e.g. stretches).
   final int? restAfterSetSeconds;
 
@@ -478,6 +481,7 @@ class TemplateExercise {
     this.targetWeight = 0,
     this.sets = 3,
     this.durationBased = false,
+    this.targetDurationSeconds,
     this.restAfterSetSeconds,
   });
 
@@ -487,6 +491,7 @@ class TemplateExercise {
     'targetWeight': targetWeight,
     'sets': sets,
     'durationBased': durationBased,
+    if (targetDurationSeconds != null) 'targetDurationSeconds': targetDurationSeconds,
     if (restAfterSetSeconds != null) 'restAfterSetSeconds': restAfterSetSeconds,
   };
 
@@ -497,6 +502,7 @@ class TemplateExercise {
         targetWeight: (json['targetWeight'] as num?)?.toDouble() ?? 0,
         sets: json['sets'] as int? ?? 3,
         durationBased: json['durationBased'] as bool? ?? false,
+        targetDurationSeconds: json['targetDurationSeconds'] as int?,
         restAfterSetSeconds: json['restAfterSetSeconds'] as int?,
       );
 
@@ -506,14 +512,19 @@ class TemplateExercise {
     double? targetWeight,
     int? sets,
     bool? durationBased,
+    int? targetDurationSeconds,
     int? restAfterSetSeconds,
     bool clearRestAfterSetSeconds = false,
+    bool clearTargetDurationSeconds = false,
   }) => TemplateExercise(
     exercise: exercise ?? this.exercise,
     targetReps: targetReps ?? this.targetReps,
     targetWeight: targetWeight ?? this.targetWeight,
     sets: sets ?? this.sets,
     durationBased: durationBased ?? this.durationBased,
+    targetDurationSeconds: clearTargetDurationSeconds
+        ? null
+        : (targetDurationSeconds ?? this.targetDurationSeconds),
     restAfterSetSeconds: clearRestAfterSetSeconds
         ? null
         : (restAfterSetSeconds ?? this.restAfterSetSeconds),
@@ -1957,6 +1968,9 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
     var sets = initial?.sets ?? 3;
     var targetWeight = initial?.targetWeight ?? 0;
     var durationBased = initial?.durationBased ?? false;
+    var targetDurationSeconds =
+        (initial?.targetDurationSeconds ?? kDefaultTargetDurationSeconds)
+            .clamp(1, 86400);
 
     var restMode = 0;
     var customRestSec = 60;
@@ -2204,6 +2218,83 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                             ),
                           ],
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        l10n.get('holdTime'),
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => setDialogState(
+                              () => targetDurationSeconds =
+                                  (targetDurationSeconds - 5).clamp(1, 86400),
+                            ),
+                            icon: const Icon(Icons.remove_circle_outline),
+                          ),
+                          GestureDetector(
+                            onTap: () => showDurationEntryDialog(
+                              context: context,
+                              l10n: l10n,
+                              currentSeconds: targetDurationSeconds,
+                              accentColor: primary,
+                              onSave: (sec) => setDialogState(
+                                () => targetDurationSeconds = sec.clamp(1, 86400),
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: primary.withValues(alpha: isDark ? 0.22 : 0.12),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: primary.withValues(alpha: 0.45),
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Text(
+                                  formatDurationMmSs(targetDurationSeconds),
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => setDialogState(
+                              () => targetDurationSeconds =
+                                  (targetDurationSeconds + 5).clamp(1, 86400),
+                            ),
+                            icon: const Icon(Icons.add_circle_outline),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final sec in [30, 45, 60, 90, 120])
+                            OutlinedButton(
+                              onPressed: () => setDialogState(
+                                () => targetDurationSeconds = sec,
+                              ),
+                              child: Text(formatDurationMmSs(sec)),
+                            ),
+                        ],
                       ),
                     ],
                   )
@@ -2485,6 +2576,8 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                   targetWeight: targetWeight,
                   sets: sets,
                   durationBased: durationBased,
+                  targetDurationSeconds:
+                      durationBased ? targetDurationSeconds : null,
                   restAfterSetSeconds:
                       restAfterSetFromTemplateDialog(restMode, customRestSec),
                 );
@@ -3256,8 +3349,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     final current = _orderedExercises[currentExerciseIndex];
     if (current.durationBased) {
       final lastD = _getLastDurationForExercise(current.exercise.name);
-      currentDurationSeconds =
-          lastD ?? kDefaultTargetDurationSeconds;
+      final target = current.targetDurationSeconds;
+      currentDurationSeconds = (target ?? lastD ?? kDefaultTargetDurationSeconds)
+          .clamp(1, 86400);
       currentReps = 0;
       currentWeight = 0;
     } else {
@@ -3580,6 +3674,371 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     }
   }
 
+  Future<void> _showDurationExerciseSettingsDialog() async {
+    if (_orderedExercises.isEmpty) return;
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primary = Theme.of(context).colorScheme.primary;
+    final current = _orderedExercises[currentExerciseIndex];
+    if (!current.durationBased) return;
+
+    final loggedCount =
+        logs.where((l) => l.exerciseId == current.exercise.id).length;
+
+    var sets = current.sets;
+    final currentStateDuration =
+        currentDurationSeconds > 0 ? currentDurationSeconds : null;
+    var targetDurationSeconds =
+        (current.targetDurationSeconds ?? currentStateDuration ?? kDefaultTargetDurationSeconds)
+            .clamp(1, 86400);
+
+    var restMode = 0;
+    var customRestSec = 60;
+    final rInit = current.restAfterSetSeconds;
+    if (rInit == null) {
+      restMode = 0;
+      customRestSec = 60;
+    } else if (rInit == 0) {
+      restMode = 1;
+      customRestSec = 60;
+    } else {
+      restMode = 2;
+      customRestSec = rInit.clamp(30, 600);
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Widget restTileEl({
+            required bool selected,
+            required String title,
+            required String? subtitle,
+            required VoidCallback onTap,
+          }) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Material(
+                color: selected
+                    ? primary.withValues(alpha: isDark ? 0.28 : 0.14)
+                    : (isDark
+                        ? const Color(0xFF232F3E)
+                        : Colors.grey.shade100),
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 16,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          selected ? Icons.check_circle : Icons.circle_outlined,
+                          size: 32,
+                          color: selected ? primary : Colors.grey,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                              if (subtitle != null && subtitle.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Text(
+                                    subtitle,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: isDark
+                                          ? Colors.grey.shade400
+                                          : Colors.grey.shade700,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          return AlertDialog(
+            backgroundColor: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text(
+              l10n.get('settings'),
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    l10n.localizeExerciseName(current.exercise.name),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    l10n.get('holdTime'),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: () => setDialogState(
+                          () => targetDurationSeconds =
+                              (targetDurationSeconds - 5).clamp(1, 86400),
+                        ),
+                        icon: const Icon(Icons.remove_circle_outline),
+                        iconSize: 36,
+                      ),
+                      GestureDetector(
+                        onTap: () => showDurationEntryDialog(
+                          context: ctx,
+                          l10n: l10n,
+                          currentSeconds: targetDurationSeconds,
+                          accentColor: primary,
+                          onSave: (sec) => setDialogState(
+                            () => targetDurationSeconds = sec.clamp(1, 86400),
+                          ),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: primary.withValues(alpha: isDark ? 0.22 : 0.12),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: primary.withValues(alpha: 0.45),
+                              width: 2,
+                            ),
+                          ),
+                          child: Text(
+                            formatDurationMmSs(targetDurationSeconds),
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => setDialogState(
+                          () => targetDurationSeconds =
+                              (targetDurationSeconds + 5).clamp(1, 86400),
+                        ),
+                        icon: const Icon(Icons.add_circle_outline),
+                        iconSize: 36,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final sec in [30, 45, 60, 90, 120])
+                        OutlinedButton(
+                          onPressed: () => setDialogState(
+                            () => targetDurationSeconds = sec,
+                          ),
+                          child: Text(formatDurationMmSs(sec)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    l10n.get('sets'),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: () {
+                          if (sets > 1) {
+                            setDialogState(() => sets--);
+                          }
+                        },
+                        icon: const Icon(Icons.remove_circle_outline),
+                        iconSize: 36,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          '$sets',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => setDialogState(() => sets++),
+                        icon: const Icon(Icons.add_circle_outline),
+                        iconSize: 36,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    l10n.get('restBetweenSetsTitle'),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  restTileEl(
+                    selected: restMode == 0,
+                    title: l10n.get('restOptionDefault'),
+                    subtitle: l10n.get('restOptionDefaultSub').replaceAll(
+                          '{time}',
+                          formatDurationMmSs(_defaultRestSeconds),
+                        ),
+                    onTap: () => setDialogState(() => restMode = 0),
+                  ),
+                  restTileEl(
+                    selected: restMode == 1,
+                    title: l10n.get('restOptionNoRest'),
+                    subtitle: l10n.get('restOptionNoRestSub'),
+                    onTap: () => setDialogState(() => restMode = 1),
+                  ),
+                  restTileEl(
+                    selected: restMode == 2,
+                    title: l10n.get('restOptionCustom'),
+                    subtitle: l10n.get('restOptionCustomSub'),
+                    onTap: () => setDialogState(() => restMode = 2),
+                  ),
+                  if (restMode == 2) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          onPressed: customRestSec <= 30
+                              ? null
+                              : () => setDialogState(
+                                    () => customRestSec =
+                                        (customRestSec - 30).clamp(30, 600),
+                                  ),
+                          icon: const Icon(Icons.remove_circle_outline),
+                          iconSize: 36,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            formatDurationMmSs(customRestSec),
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: customRestSec >= 600
+                              ? null
+                              : () => setDialogState(
+                                    () => customRestSec =
+                                        (customRestSec + 30).clamp(30, 600),
+                                  ),
+                          icon: const Icon(Icons.add_circle_outline),
+                          iconSize: 36,
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(l10n.cancel, style: const TextStyle(fontSize: 20)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final safeSets = math.max(sets, math.max(1, loggedCount));
+                  final int? restAfterSetSeconds = switch (restMode) {
+                    0 => null,
+                    1 => 0,
+                    _ => customRestSec.clamp(30, 600),
+                  };
+                  setState(() {
+                    _orderedExercises[currentExerciseIndex] = current.copyWith(
+                      sets: safeSets,
+                      targetDurationSeconds: targetDurationSeconds,
+                      restAfterSetSeconds: restAfterSetSeconds,
+                      clearRestAfterSetSeconds: restMode == 0,
+                    );
+                    currentDurationSeconds = targetDurationSeconds;
+                  });
+                  unawaited(_persistWorkoutDraft());
+                  Navigator.pop(ctx);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(l10n.get('save'), style: const TextStyle(fontSize: 20)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Future<void> _finishWorkout() async {
     _suppressDraftSave = true;
     _draftAutosaveTimer?.cancel();
@@ -3672,6 +4131,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     int targetReps = 10;
     double targetWeight = 0;
     bool durationBased = false;
+    int targetDurationSeconds = kDefaultTargetDurationSeconds;
     var restMode = 0;
     var customRestSec = 60;
     final scaffoldMessengerContext = context;
@@ -3911,6 +4371,106 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   value: durationBased,
                   onChanged: (v) => setDialogState(() => durationBased = v),
                 ),
+                if (durationBased) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.get('holdTime'),
+                    style: TextStyle(
+                      fontSize: largeFont,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: () => setDialogState(
+                          () => targetDurationSeconds =
+                              (targetDurationSeconds - 5).clamp(1, 86400),
+                        ),
+                        icon: const Icon(Icons.remove_circle_outline),
+                        iconSize: 36,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(minTap, minTap),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => showDurationEntryDialog(
+                          context: ctx,
+                          l10n: l10n,
+                          currentSeconds: targetDurationSeconds,
+                          accentColor: primary,
+                          onSave: (sec) => setDialogState(
+                            () => targetDurationSeconds = sec.clamp(1, 86400),
+                          ),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: primary.withValues(alpha: isDark ? 0.22 : 0.12),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: primary.withValues(alpha: 0.45),
+                              width: 2,
+                            ),
+                          ),
+                          child: Text(
+                            formatDurationMmSs(targetDurationSeconds),
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => setDialogState(
+                          () => targetDurationSeconds =
+                              (targetDurationSeconds + 5).clamp(1, 86400),
+                        ),
+                        icon: const Icon(Icons.add_circle_outline),
+                        iconSize: 36,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(minTap, minTap),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final sec in [30, 45, 60, 90])
+                        OutlinedButton(
+                          onPressed: () => setDialogState(
+                            () => targetDurationSeconds = sec,
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                          child: Text(
+                            formatDurationMmSs(sec),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
                 if (!durationBased) ...[
                   const SizedBox(height: 12),
                   Text(
@@ -4077,6 +4637,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   targetWeight: targetWeight,
                   sets: sets,
                   durationBased: durationBased,
+                  targetDurationSeconds:
+                      durationBased ? targetDurationSeconds : null,
                   restAfterSetSeconds:
                       restAfterSetFromTemplateDialog(restMode, customRestSec),
                 );
@@ -5166,16 +5728,35 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    l10n.get('holdTime'),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? Colors.grey.shade400
-                          : Colors.grey.shade600,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          l10n.get('holdTime'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: l10n.get('settings'),
+                        onPressed: isResting ? null : _showDurationExerciseSettingsDialog,
+                        icon: Icon(
+                          Icons.settings,
+                          size: 26,
+                          color: isResting
+                              ? (isDark
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade400)
+                              : colorScheme.primary,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Row(

@@ -3481,7 +3481,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
 
     _playBeep();
     _vibrateRestEnd();
-    _scheduleScrollAfterRestEnds();
 
     if (reachedTarget) {
       _stopDurationSession(clearRest: true);
@@ -3495,11 +3494,21 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
           currentSet = loggedForExercise + 1;
           _initializeCurrentExercise();
         });
-        _scrollExerciseContentToBottom();
+        // Don't use _scheduleScrollAfterRestEnds here: _applyScrollAfterRest would
+        // run with the new [currentExerciseIndex] and scroll to the bottom (0 logs).
+        final nextId = _orderedExercises[currentExerciseIndex].exercise.id;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _scrollToPlanRowForExercise(nextId);
+        });
+      } else {
+        _scheduleScrollAfterRestEnds();
       }
       unawaited(_persistWorkoutDraft());
       return;
     }
+
+    _scheduleScrollAfterRestEnds();
 
     final nextWorkSeconds =
         (current.targetDurationSeconds ?? currentDurationSeconds).clamp(

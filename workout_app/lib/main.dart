@@ -283,6 +283,19 @@ void showDurationEntryDialog({
     text: formatDurationMmSs(currentSeconds),
   );
   final isDark = Theme.of(context).brightness == Brightness.dark;
+  var isFormattingDurationInput = false;
+
+  String formatDurationInputLive(String raw) {
+    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return '';
+    if (digits.length <= 2) {
+      final sec = int.parse(digits).clamp(0, 99);
+      return '0:${sec.toString().padLeft(2, '0')}';
+    }
+    final minPart = digits.substring(0, digits.length - 2);
+    final secPart = digits.substring(digits.length - 2);
+    return '${int.parse(minPart)}:$secPart';
+  }
 
   showDialog<void>(
     context: context,
@@ -321,9 +334,22 @@ void showDurationEntryDialog({
             const SizedBox(height: 16),
             TextField(
               controller: controller,
-              keyboardType: TextInputType.text,
+              keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
               autofocus: true,
+              onChanged: (value) {
+                if (isFormattingDurationInput) return;
+                final formatted = formatDurationInputLive(value);
+                if (formatted == value) return;
+                isFormattingDurationInput = true;
+                controller.value = TextEditingValue(
+                  text: formatted,
+                  selection: TextSelection.collapsed(
+                    offset: formatted.length,
+                  ),
+                );
+                isFormattingDurationInput = false;
+              },
               style: TextStyle(
                 fontSize: 42,
                 fontWeight: FontWeight.bold,

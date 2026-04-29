@@ -1238,6 +1238,15 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     _saveTemplates();
   }
 
+  void _reorderTemplates(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) newIndex--;
+      final moved = templates.removeAt(oldIndex);
+      templates.insert(newIndex, moved);
+    });
+    _saveTemplates();
+  }
+
   void _addSession(WorkoutSession session) {
     setState(() {
       history.insert(0, session);
@@ -1395,6 +1404,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         onUpdateTemplate: _updateTemplate,
         onDeleteTemplate: _deleteTemplate,
         onStartWorkout: _onStartWorkout,
+        onReorderTemplates: _reorderTemplates,
       ),
       HistoryPage(
         history: history,
@@ -1464,6 +1474,7 @@ class TemplatesPage extends StatelessWidget {
   final Function(WorkoutTemplate) onUpdateTemplate;
   final Function(String) onDeleteTemplate;
   final Function(WorkoutTemplate) onStartWorkout;
+  final void Function(int oldIndex, int newIndex) onReorderTemplates;
 
   const TemplatesPage({
     super.key,
@@ -1472,6 +1483,7 @@ class TemplatesPage extends StatelessWidget {
     required this.onUpdateTemplate,
     required this.onDeleteTemplate,
     required this.onStartWorkout,
+    required this.onReorderTemplates,
   });
 
   @override
@@ -1548,21 +1560,63 @@ class TemplatesPage extends StatelessWidget {
   }
 
   Widget _buildTemplateList(BuildContext context, AppLocalizations l10n) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: templates.length,
-      itemBuilder: (context, index) {
-        final template = templates[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: _TemplateCard(
-            template: template,
-            onTap: () => onStartWorkout(template),
-            onEdit: () => _showEditTemplateDialog(context, l10n, template),
-            onDelete: () => _confirmDelete(context, l10n, template),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Row(
+            children: [
+              Icon(
+                Icons.drag_indicator,
+                size: 20,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  l10n.get('longPressToReorder'),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                  ),
+                ),
+              ),
+            ],
           ),
-        );
-      },
+        ),
+        Expanded(
+          child: ReorderableListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: templates.length,
+            onReorder: onReorderTemplates,
+            itemBuilder: (context, index) {
+              final template = templates[index];
+              return Padding(
+                key: ValueKey(template.id),
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _TemplateCard(
+                  template: template,
+                  onTap: () => onStartWorkout(template),
+                  onEdit: () => _showEditTemplateDialog(context, l10n, template),
+                  onDelete: () => _confirmDelete(context, l10n, template),
+                  trailingAction: ReorderableDragStartListener(
+                    index: index,
+                    child: Icon(
+                      Icons.drag_indicator,
+                      size: 28,
+                      color: isDark
+                          ? Colors.grey.shade300
+                          : Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -1807,12 +1861,14 @@ class _TemplateCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final Widget? trailingAction;
 
   const _TemplateCard({
     required this.template,
     required this.onTap,
     required this.onEdit,
     required this.onDelete,
+    this.trailingAction,
   });
 
   @override
@@ -1897,6 +1953,8 @@ class _TemplateCard extends StatelessWidget {
                       ),
                       tooltip: l10n.get('delete'),
                     ),
+                    // ignore: use_null_aware_elements
+                    if (trailingAction case final action?) action,
                   ],
                 ),
                 if (template.description != null &&

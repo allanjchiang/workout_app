@@ -3496,13 +3496,23 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       timer.cancel();
       return;
     }
+    int? holdCountdownBeepAt;
     setState(() {
+      final before = _workSecondsRemaining;
       if (_workSecondsRemaining > 0) {
+        if (_durationSessionRunning &&
+            _durationSessionInWork &&
+            (before == 2 || before == 1)) {
+          holdCountdownBeepAt = before;
+        }
         _workSecondsRemaining--;
       } else {
         timer.cancel();
       }
     });
+    if (holdCountdownBeepAt != null) {
+      unawaited(_playHoldCountdownBeep(holdCountdownBeepAt!));
+    }
     if (_workSecondsRemaining <= 0) {
       _beginDurationRestPhase();
     }
@@ -4018,6 +4028,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   static const String _kBeepWorkEnd = 'audio/work_end_beep.wav';
   static const String _kBeepRest2 = 'audio/rest_2_beep.wav';
   static const String _kBeepRest1 = 'audio/rest_1_beep.wav';
+  /// Hold / work interval: last 2s and 1s (synthesized WAVs in assets/audio).
+  static const String _kBeepHold2 = 'audio/work_2_beep.wav';
+  static const String _kBeepHold1 = 'audio/work_1_beep.wav';
 
   Future<void> _playWorkEndBeep() async {
     // Different beep when work ends → rest begins.
@@ -4033,6 +4046,20 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     final String asset = switch (secondsRemaining) {
       2 => _kBeepRest2,
       1 => _kBeepRest1,
+      _ => _kBeepNormal,
+    };
+    try {
+      await _playBeep(asset: asset);
+    } catch (_) {
+      await _playBeep(asset: _kBeepNormal);
+    }
+  }
+
+  /// During duration holds: distinct beeps at 2s and 1s remaining (see assets/audio/work_*_beep.wav).
+  Future<void> _playHoldCountdownBeep(int secondsRemaining) async {
+    final String asset = switch (secondsRemaining) {
+      2 => _kBeepHold2,
+      1 => _kBeepHold1,
       _ => _kBeepNormal,
     };
     try {

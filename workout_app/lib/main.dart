@@ -2997,6 +2997,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
 
   /// Keeps weight/reps controls in view after rest, or scrolls to the plan row when target sets are done.
   final ScrollController _exerciseScrollController = ScrollController();
+  final GlobalKey _repsSetsSectionKey = GlobalKey();
   final Map<String, GlobalKey> _planRowKeys = {};
 
   GlobalKey _globalKeyForPlanRow(String exerciseId) =>
@@ -3565,6 +3566,22 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     } else {
       _scrollExerciseContentToBottom();
     }
+  }
+
+  /// After jumping to an exercise via the plan list, bring weight/reps (or hold) controls into view.
+  void _scrollRepsSetsSectionIntoView() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final targetContext = _repsSetsSectionKey.currentContext;
+      if (targetContext != null && _exerciseScrollController.hasClients) {
+        Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOutCubic,
+          alignment: 0.05,
+        );
+      }
+    });
   }
 
   void _initializeCurrentExercise() {
@@ -5772,6 +5789,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                         currentSet = loggedForExercise + 1;
                                         _initializeCurrentExercise();
                                       });
+                                      _scrollRepsSetsSectionIntoView();
                                     }
                                   : null,
                               borderRadius: BorderRadius.circular(12),
@@ -5887,9 +5905,15 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
             ),
           ),
           const SizedBox(height: 20),
-          if (!current.durationBased) ...[
-            // First row: weight, or "Minus weight" for Assisted Pull-Up (elderly-friendly labels)
-            Container(
+          KeyedSubtree(
+            key: _repsSetsSectionKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!current.durationBased) ...[
+                  // First row: weight, or "Minus weight" for Assisted Pull-Up (elderly-friendly labels)
+                  Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1A2634) : Colors.white,
@@ -6338,7 +6362,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                 ],
               ),
             ),
-          ],
+              ],
+            ],
+          ),
+        ),
           const SizedBox(height: 16),
           // Primary action button
           SizedBox(

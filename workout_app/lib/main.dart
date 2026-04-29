@@ -4572,18 +4572,20 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     1 => 0,
                     _ => customRestSec.clamp(0, 600),
                   };
+                  final updatedExercise = current.copyWith(
+                    sets: safeSets,
+                    targetDurationSeconds: targetDurationSeconds,
+                    restAfterSetSeconds: restAfterSetSeconds,
+                    clearRestAfterSetSeconds: restMode == 0,
+                    warmupSeconds: warmupSeconds > 0 ? warmupSeconds : null,
+                    clearWarmupSeconds: warmupSeconds == 0,
+                  );
                   setState(() {
-                    _orderedExercises[currentExerciseIndex] = current.copyWith(
-                      sets: safeSets,
-                      targetDurationSeconds: targetDurationSeconds,
-                      restAfterSetSeconds: restAfterSetSeconds,
-                      clearRestAfterSetSeconds: restMode == 0,
-                      warmupSeconds: warmupSeconds > 0 ? warmupSeconds : null,
-                      clearWarmupSeconds: warmupSeconds == 0,
-                    );
+                    _orderedExercises[currentExerciseIndex] = updatedExercise;
                     currentDurationSeconds = targetDurationSeconds;
                     _restPresetSeconds = List<int>.from(presetSeconds);
                   });
+                  _persistExerciseToTemplate(updatedExercise);
                   unawaited(_persistWorkoutDraft());
                   Navigator.pop(ctx);
                 },
@@ -5327,6 +5329,21 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         ),
       ),
     );
+  }
+
+  /// Persist exercise interval-setting changes from this workout back to
+  /// template storage so the next workout starts with these values.
+  void _persistExerciseToTemplate(TemplateExercise updatedExercise) {
+    final onUpdate = widget.onUpdateTemplate;
+    if (onUpdate == null) return;
+    final updatedTemplateExercises = widget.template.exercises
+        .map(
+          (te) => te.exercise.id == updatedExercise.exercise.id
+              ? updatedExercise
+              : te,
+        )
+        .toList();
+    onUpdate(widget.template.copyWith(exercises: updatedTemplateExercises));
   }
 
   String _formatDuration(int seconds) {

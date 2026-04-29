@@ -239,7 +239,12 @@ String _restHintForTemplateExercise(
   return l10n.get('restHintCustom').replaceAll('{time}', formatDurationMmSs(r));
 }
 
-/// Parses "1:00", "0:30", "2:05", or plain seconds like "90". Returns null if invalid.
+/// Parses:
+/// - "m:ss" / "mm:ss" (e.g. "1:00", "0:30", "2:05")
+/// - plain digits:
+///   - 1-2 digits => seconds (e.g. "30" => 30s)
+///   - 3+ digits => mmss (e.g. "130" => 1:30, "1000" => 10:00)
+/// Returns null if invalid.
 int? parseDurationInput(String raw) {
   final t = raw.trim();
   if (t.isEmpty) return null;
@@ -253,9 +258,16 @@ int? parseDurationInput(String raw) {
     if (min < 0 || sec < 0 || sec > 59) return null;
     return min * 60 + sec;
   }
-  final only = int.tryParse(t);
+  final digits = t.replaceAll(RegExp(r'\s+'), '');
+  final only = int.tryParse(digits);
   if (only == null || only < 0) return null;
-  return only;
+  if (digits.length <= 2) {
+    return only;
+  }
+  final min = only ~/ 100;
+  final sec = only % 100;
+  if (sec > 59) return null;
+  return min * 60 + sec;
 }
 
 /// Elderly-friendly m:ss entry (e.g. 0:30, 1:00). Used from active workout and template editor.

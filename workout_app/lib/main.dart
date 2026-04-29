@@ -4586,6 +4586,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     _restPresetSeconds = List<int>.from(presetSeconds);
                   });
                   _persistExerciseToTemplate(updatedExercise);
+                  unawaited(
+                    _persistExerciseToTemplateStorage(updatedExercise),
+                  );
                   unawaited(_persistWorkoutDraft());
                   Navigator.pop(ctx);
                 },
@@ -5344,6 +5347,43 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         )
         .toList();
     onUpdate(widget.template.copyWith(exercises: updatedTemplateExercises));
+  }
+
+  Future<void> _persistExerciseToTemplateStorage(
+    TemplateExercise updatedExercise,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('workout_templates');
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      final storedTemplates = decoded
+          .map((e) => WorkoutTemplate.fromJson(e as Map<String, dynamic>))
+          .toList();
+      final templateIndex = storedTemplates.indexWhere(
+        (t) => t.id == widget.template.id,
+      );
+      if (templateIndex == -1) return;
+
+      final storedTemplate = storedTemplates[templateIndex];
+      final patchedExercises = storedTemplate.exercises
+          .map(
+            (te) => te.exercise.id == updatedExercise.exercise.id
+                ? updatedExercise
+                : te,
+          )
+          .toList();
+
+      storedTemplates[templateIndex] = storedTemplate.copyWith(
+        exercises: patchedExercises,
+      );
+      await prefs.setString(
+        'workout_templates',
+        jsonEncode(storedTemplates.map((t) => t.toJson()).toList()),
+      );
+    } catch (_) {
+      // Ignore persistence errors; in-memory callback update still applies.
+    }
   }
 
   String _formatDuration(int seconds) {

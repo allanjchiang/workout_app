@@ -189,6 +189,12 @@ class AppLocalizations {
     'invalidDuration': 'Enter a valid time (e.g. 0:30, 1:00, or 90 seconds)',
     'previousBestDuration': 'Previous best hold',
     'restBetweenSetsTitle': 'Rest between sets',
+    'warmup': 'Warm-up',
+    'warmupOff': 'Off',
+    'warmupBeforeHold': 'Warm-up before hold',
+    'warmupBeforeHoldSubtitle':
+        'Counts down before the first timed hold starts — time to settle in.',
+    'warmupSubtitle': 'Hold starts when this reaches zero',
     'restBetweenSetsStretchHint':
         'Stretches and mobility moves often need little or no rest. Pick what feels right.',
     'restOptionDefault': 'Use workout default',
@@ -484,6 +490,12 @@ class AppLocalizations {
     'invalidDuration': '請輸入有效時間（如 0:30、1:00 或 90 秒）',
     'previousBestDuration': '上次最佳維持',
     'restBetweenSetsTitle': '組間休息',
+    'warmup': '暖身',
+    'warmupOff': '關閉',
+    'warmupBeforeHold': '維持前暖身',
+    'warmupBeforeHoldSubtitle':
+        '第一次計時開始前會先倒數暖身時間，可先站穩準備。',
+    'warmupSubtitle': '倒數為零後開始計時維持',
     'restBetweenSetsStretchHint':
         '伸展與活動度動作常不需要長休息，可依身體感受選擇。',
     'restOptionDefault': '使用預設休息時間',

@@ -466,6 +466,9 @@ class TemplateExercise {
   /// null = use workout default rest; 0 = skip rest between sets; else seconds (e.g. stretches).
   final int? restAfterSetSeconds;
 
+  /// Countdown (seconds) before the first hold starts when user taps Start (interval timer). null/0 = none.
+  final int? warmupSeconds;
+
   const TemplateExercise({
     required this.exercise,
     this.targetReps = 10,
@@ -474,6 +477,7 @@ class TemplateExercise {
     this.durationBased = false,
     this.targetDurationSeconds,
     this.restAfterSetSeconds,
+    this.warmupSeconds,
   });
 
   Map<String, dynamic> toJson() => {
@@ -485,6 +489,8 @@ class TemplateExercise {
     if (targetDurationSeconds != null)
       'targetDurationSeconds': targetDurationSeconds,
     if (restAfterSetSeconds != null) 'restAfterSetSeconds': restAfterSetSeconds,
+    if (warmupSeconds != null && warmupSeconds! > 0)
+      'warmupSeconds': warmupSeconds,
   };
 
   factory TemplateExercise.fromJson(Map<String, dynamic> json) =>
@@ -496,6 +502,7 @@ class TemplateExercise {
         durationBased: json['durationBased'] as bool? ?? false,
         targetDurationSeconds: json['targetDurationSeconds'] as int?,
         restAfterSetSeconds: json['restAfterSetSeconds'] as int?,
+        warmupSeconds: json['warmupSeconds'] as int?,
       );
 
   TemplateExercise copyWith({
@@ -506,8 +513,10 @@ class TemplateExercise {
     bool? durationBased,
     int? targetDurationSeconds,
     int? restAfterSetSeconds,
+    int? warmupSeconds,
     bool clearRestAfterSetSeconds = false,
     bool clearTargetDurationSeconds = false,
+    bool clearWarmupSeconds = false,
   }) => TemplateExercise(
     exercise: exercise ?? this.exercise,
     targetReps: targetReps ?? this.targetReps,
@@ -520,6 +529,9 @@ class TemplateExercise {
     restAfterSetSeconds: clearRestAfterSetSeconds
         ? null
         : (restAfterSetSeconds ?? this.restAfterSetSeconds),
+    warmupSeconds: clearWarmupSeconds
+        ? null
+        : (warmupSeconds ?? this.warmupSeconds),
   );
 }
 
@@ -2983,8 +2995,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
 
   // Duration-based interval session (work ↔ rest ↔ auto-log)
   Timer? _durationWorkTimer;
+  Timer? _warmupTimer;
   bool _durationSessionRunning = false;
   bool _durationSessionInWork = true;
+  /// Countdown seconds before hold starts (interval "Start workout" only).
+  int _warmupSecondsRemaining = 0;
   int _workSecondsRemaining = 0;
   List<int> _restPresetSeconds = [5, 10, 15, 30, 60];
 
@@ -3329,6 +3344,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     }
     workoutTimer?.cancel();
     _durationWorkTimer?.cancel();
+    _warmupTimer?.cancel();
     restTimer?.cancel();
     _exerciseScrollController.dispose();
     audioPlayer.dispose();
@@ -3338,8 +3354,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   void _stopDurationSession({bool clearRest = false}) {
     _durationWorkTimer?.cancel();
     _durationWorkTimer = null;
+    _warmupTimer?.cancel();
+    _warmupTimer = null;
     _durationSessionRunning = false;
     _durationSessionInWork = true;
+    _warmupSecondsRemaining = 0;
     _workSecondsRemaining = 0;
     if (clearRest) {
       restTimer?.cancel();
@@ -3366,23 +3385,81 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
           1,
           86400,
         );
+    final warmup = (current.warmupSeconds ?? 0).clamp(0, 600);
+    if (warmup > 0) {
+      setState(() {
+        _durationSessionRunning = true;
+        _durationSessionInWork = false;
+        _warmupSecondsRemaining = warmup;
+        _workSecondsRemaining = workSeconds;
+        isResting = false;
+        restSeconds = 0;
+        _viewingPlanDuringRest = false;
+      });
+      _warmupTimer = Timer.periodic(
+        const Duration(seconds: 1),
+        _onWarmupTick,
+      );
+    } else {
+      setState(() {
+        _durationSessionRunning = true;
+        _durationSessionInWork = true;
+        _warmupSecondsRemaining = 0;
+        _workSecondsRemaining = workSeconds;
+        isResting = false;
+        restSeconds = 0;
+        _viewingPlanDuringRest = false;
+      });
+      _durationWorkTimer = Timer.periodic(
+        const Duration(seconds: 1),
+        _onDurationWorkTick,
+      );
+    }
+    unawaited(_persistWorkoutDraft());
+  }
+
+  void _beginWorkAfterWarmup() {
+    if (!mounted) return;
+    if (_orderedExercises.isEmpty) return;
+    final current = _orderedExercises[currentExerciseIndex];
+    if (!current.durationBased) return;
+    final workSeconds =
+        (current.targetDurationSeconds ?? currentDurationSeconds).clamp(
+          1,
+          86400,
+        );
     setState(() {
-      _durationSessionRunning = true;
+      _warmupSecondsRemaining = 0;
       _durationSessionInWork = true;
       _workSecondsRemaining = workSeconds;
-      isResting = false;
-      restSeconds = 0;
-      _viewingPlanDuringRest = false;
     });
+    _durationWorkTimer?.cancel();
     _durationWorkTimer = Timer.periodic(
       const Duration(seconds: 1),
       _onDurationWorkTick,
     );
+    unawaited(_playBeep());
     unawaited(_persistWorkoutDraft());
+  }
+
+  void _onWarmupTick(Timer timer) {
+    if (!mounted) {
+      timer.cancel();
+      return;
+    }
+    setState(() {
+      _warmupSecondsRemaining--;
+    });
+    if (_warmupSecondsRemaining <= 0) {
+      timer.cancel();
+      _warmupTimer = null;
+      _beginWorkAfterWarmup();
+    }
   }
 
   void _pauseDurationSession() {
     _durationWorkTimer?.cancel();
+    _warmupTimer?.cancel();
     restTimer?.cancel();
     setState(() {
       _durationSessionRunning = false;
@@ -3396,7 +3473,13 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     if (!current.durationBased) return;
     if (_durationSessionRunning) return;
     setState(() => _durationSessionRunning = true);
-    if (_durationSessionInWork) {
+    if (_warmupSecondsRemaining > 0 && !isResting) {
+      _warmupTimer?.cancel();
+      _warmupTimer = Timer.periodic(
+        const Duration(seconds: 1),
+        _onWarmupTick,
+      );
+    } else if (_durationSessionInWork) {
       _durationWorkTimer?.cancel();
       _durationWorkTimer = Timer.periodic(
         const Duration(seconds: 1),
@@ -3993,6 +4076,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                 kDefaultTargetDurationSeconds)
             .clamp(1, 86400);
 
+    var warmupSeconds =
+        ((current.warmupSeconds ?? 0).clamp(0, 600));
+
     var restMode = 0;
     var customRestSec = 60;
     final rInit = current.restAfterSetSeconds;
@@ -4191,6 +4277,89 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   ),
                   const SizedBox(height: 18),
                   Text(
+                    l10n.get('warmupBeforeHold'),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.get('warmupBeforeHoldSubtitle'),
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.35,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: () => setDialogState(
+                          () => warmupSeconds =
+                              (warmupSeconds - 5).clamp(0, 600),
+                        ),
+                        icon: const Icon(Icons.remove_circle_outline),
+                        iconSize: 36,
+                      ),
+                      GestureDetector(
+                        onTap: () => showDurationEntryDialog(
+                          context: ctx,
+                          l10n: l10n,
+                          currentSeconds: warmupSeconds,
+                          accentColor: primary,
+                          onSave: (sec) => setDialogState(
+                            () => warmupSeconds = sec.clamp(0, 600),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            warmupSeconds <= 0
+                                ? l10n.get('warmupOff')
+                                : formatDurationMmSs(warmupSeconds),
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => setDialogState(
+                          () => warmupSeconds =
+                              (warmupSeconds + 5).clamp(0, 600),
+                        ),
+                        icon: const Icon(Icons.add_circle_outline),
+                        iconSize: 36,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final sec in [0, 10, 15, 20, 30, 45])
+                        OutlinedButton(
+                          onPressed: () =>
+                              setDialogState(() => warmupSeconds = sec),
+                          child: Text(
+                            sec == 0 ? l10n.get('warmupOff') : '${sec}s',
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
                     l10n.get('sets'),
                     style: TextStyle(
                       fontSize: 20,
@@ -4382,6 +4551,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       targetDurationSeconds: targetDurationSeconds,
                       restAfterSetSeconds: restAfterSetSeconds,
                       clearRestAfterSetSeconds: restMode == 0,
+                      warmupSeconds: warmupSeconds > 0 ? warmupSeconds : null,
+                      clearWarmupSeconds: warmupSeconds == 0,
                     );
                     currentDurationSeconds = targetDurationSeconds;
                     _restPresetSeconds = List<int>.from(presetSeconds);
@@ -5466,6 +5637,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
 
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final inDurationWarmup =
+        current.durationBased && _warmupSecondsRemaining > 0 && !isResting;
 
     return SingleChildScrollView(
       controller: _exerciseScrollController,
@@ -6157,28 +6330,32 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     children: [
                       Expanded(
                         child: Text(
-                          _durationSessionRunning && _durationSessionInWork
-                              ? l10n.get('holdTime')
+                          inDurationWarmup
+                              ? l10n.get('warmup')
                               : l10n.get('holdTime'),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
-                            color: isDark
-                                ? Colors.grey.shade400
-                                : Colors.grey.shade600,
+                            color: inDurationWarmup
+                                ? (isDark
+                                      ? Colors.amber.shade200
+                                      : Colors.amber.shade900)
+                                : (isDark
+                                      ? Colors.grey.shade400
+                                      : Colors.grey.shade600),
                           ),
                         ),
                       ),
                       IconButton(
                         tooltip: l10n.get('settings'),
-                        onPressed: isResting
+                        onPressed: isResting || inDurationWarmup
                             ? null
                             : _showDurationExerciseSettingsDialog,
-                        icon: Icon(
+                        icon:                         Icon(
                           Icons.settings,
                           size: 26,
-                          color: isResting
+                          color: (isResting || inDurationWarmup)
                               ? (isDark
                                     ? Colors.grey.shade600
                                     : Colors.grey.shade400)
@@ -6247,18 +6424,28 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                   vertical: 12,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: isDark
-                                      ? colorScheme.primary.withValues(
-                                          alpha: 0.2,
-                                        )
-                                      : colorScheme.primary.withValues(
-                                          alpha: 0.1,
-                                        ),
+                                  color: inDurationWarmup
+                                      ? (isDark
+                                            ? Colors.amber.withValues(
+                                                alpha: 0.16,
+                                              )
+                                            : Colors.amber.withValues(
+                                                alpha: 0.1,
+                                              ))
+                                      : (isDark
+                                            ? colorScheme.primary.withValues(
+                                                alpha: 0.2,
+                                              )
+                                            : colorScheme.primary.withValues(
+                                                alpha: 0.1,
+                                              )),
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
-                                    color: colorScheme.primary.withValues(
-                                      alpha: 0.5,
-                                    ),
+                                    color: inDurationWarmup
+                                        ? Colors.amber.withValues(alpha: 0.65)
+                                        : colorScheme.primary.withValues(
+                                            alpha: 0.5,
+                                          ),
                                     width: 2,
                                   ),
                                 ),
@@ -6268,19 +6455,25 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                     alignment: Alignment.center,
                                     child: Text(
                                       formatDurationMmSs(
-                                        _durationSessionRunning &&
-                                                _durationSessionInWork
-                                            ? _workSecondsRemaining
-                                            : currentDurationSeconds,
+                                        inDurationWarmup
+                                            ? _warmupSecondsRemaining
+                                            : (_durationSessionRunning &&
+                                                      _durationSessionInWork
+                                                  ? _workSecondsRemaining
+                                                  : currentDurationSeconds),
                                       ),
                                       maxLines: 1,
                                       softWrap: false,
                                       style: TextStyle(
                                         fontSize: 42,
                                         fontWeight: FontWeight.bold,
-                                        color: isDark
-                                            ? Colors.white
-                                            : colorScheme.primary,
+                                        color: inDurationWarmup
+                                            ? (isDark
+                                                  ? Colors.amber.shade100
+                                                  : Colors.amber.shade900)
+                                            : (isDark
+                                                  ? Colors.white
+                                                  : colorScheme.primary),
                                       ),
                                     ),
                                   ),
@@ -6288,8 +6481,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                _durationSessionRunning
-                                    ? l10n.get('tapToEdit')
+                                inDurationWarmup
+                                    ? l10n.get('warmupSubtitle')
                                     : l10n.get('tapToEdit'),
                                 style: TextStyle(
                                   fontSize: 12,
@@ -6386,7 +6579,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                             if (_durationSessionRunning) {
                               _pauseDurationSession();
                             } else if (_workSecondsRemaining > 0 ||
-                                restSeconds > 0) {
+                                restSeconds > 0 ||
+                                _warmupSecondsRemaining > 0) {
                               _resumeDurationSession();
                             } else {
                               _startDurationSession();
@@ -6438,7 +6632,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
           if (current.durationBased &&
               (_durationSessionRunning ||
                   _workSecondsRemaining > 0 ||
-                  restSeconds > 0))
+                  restSeconds > 0 ||
+                  _warmupSecondsRemaining > 0))
             Padding(
               padding: const EdgeInsets.only(top: 10),
               child: SizedBox(

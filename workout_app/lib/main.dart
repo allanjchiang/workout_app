@@ -4197,31 +4197,30 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   static const String _kBeepNormal = 'audio/timer_beep.wav';
   static const String _kBeepWorkEnd = 'audio/work_end_beep.wav';
   static const String _kBeepRest1 = 'audio/rest_1_beep.wav';
-  static const String _kBeepWork2 = 'audio/work_2_beep.wav';
   static const String _kBeepWork1 = 'audio/work_1_beep.wav';
 
-  /// Hold finished: one longer tone (not the double rest/warm-up end pattern).
+  /// Hold finished (0s): the two timer ticks that used to play at 3s and 2s
+  /// ([_kBeepNormal] full, then same at lower gain).
   Future<void> _playWorkEndBeep() async {
     try {
-      await _playBeep(asset: _kBeepWorkEnd);
+      await _playBeep(asset: _kBeepNormal);
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      await _playBeep(asset: _kBeepNormal, volumeScale: 0.62);
     } catch (_) {
       try {
-        await _playBeep(asset: _kBeepWork2);
+        await _playBeep(asset: _kBeepWorkEnd);
       } catch (_) {
-        await _playBeep(asset: _kBeepNormal);
+        await _playBeep(asset: _kBeepWork1);
       }
     }
   }
 
-  /// Rest and warm-up: ticks when the timer shows 3, 2, 1. Tier 2 uses the same
-  /// gentle tick as tier 3 at lower volume so it is not piercing.
+  /// Rest / warm-up: same 1s chime at 3s, 2s, and 1s.
   Future<void> _playRestCountdownBeep(int secondsRemaining) async {
     try {
       switch (secondsRemaining) {
         case 3:
-          await _playBeep(asset: _kBeepNormal);
         case 2:
-          await _playBeep(asset: _kBeepNormal, volumeScale: 0.62);
         case 1:
           await _playBeep(asset: _kBeepRest1);
         default:
@@ -4232,14 +4231,12 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     }
   }
 
-  /// Hold phase: same 3 / 2 / 1 mapping as rest ticks; tier 1 uses work chime.
+  /// Hold countdown: same 1s work chime at 3s, 2s, and 1s.
   Future<void> _playWorkCountdownBeep(int secondsRemaining) async {
     try {
       switch (secondsRemaining) {
         case 3:
-          await _playBeep(asset: _kBeepNormal);
         case 2:
-          await _playBeep(asset: _kBeepNormal, volumeScale: 0.62);
         case 1:
           await _playBeep(asset: _kBeepWork1);
         default:

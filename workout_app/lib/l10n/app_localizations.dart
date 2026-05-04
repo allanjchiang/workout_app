@@ -195,6 +195,7 @@ class AppLocalizations {
     'warmupBeforeHoldSubtitle':
         'Counts down before the first timed hold starts — time to settle in.',
     'warmupSubtitle': 'Hold starts when this reaches zero',
+    'holdTimeRemaining': 'Time left — stay strong',
     'restBetweenSetsStretchHint':
         'Stretches and mobility moves often need little or no rest. Pick what feels right.',
     'restOptionDefault': 'Use workout default',
@@ -496,6 +497,7 @@ class AppLocalizations {
     'warmupBeforeHoldSubtitle':
         '第一次計時開始前會先倒數暖身時間，可先站穩準備。',
     'warmupSubtitle': '倒數為零後開始計時維持',
+    'holdTimeRemaining': '剩餘時間 — 再堅持一下',
     'restBetweenSetsStretchHint':
         '伸展與活動度動作常不需要長休息，可依身體感受選擇。',
     'restOptionDefault': '使用預設休息時間',

@@ -3510,8 +3510,12 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         const Duration(seconds: 1),
         _onDurationWorkTick,
       );
+      _scrollRepsSetsSectionIntoView(alignment: 0.02);
     }
     unawaited(_persistWorkoutDraft());
+    if (warmup > 0) {
+      _scrollRepsSetsSectionIntoView(alignment: 0.02);
+    }
   }
 
   void _beginWorkAfterWarmup() {
@@ -3536,6 +3540,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     );
     unawaited(_playBeep());
     unawaited(_persistWorkoutDraft());
+    _scrollRepsSetsSectionIntoView(alignment: 0.02);
   }
 
   void _onWarmupTick(Timer timer) {
@@ -3716,6 +3721,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       );
     }
     unawaited(_persistWorkoutDraft());
+    _scrollRepsSetsSectionIntoView(alignment: 0.02);
   }
 
   /// After rest ends: stay at bottom for the next set if template sets remain; otherwise scroll to this exercise in the plan.
@@ -3767,7 +3773,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   }
 
   /// After jumping to an exercise via the plan list, bring weight/reps (or hold) controls into view.
-  void _scrollRepsSetsSectionIntoView() {
+  /// [alignment] is passed to [Scrollable.ensureVisible] (0 = top of viewport, 0.5 = center).
+  void _scrollRepsSetsSectionIntoView({double alignment = 0.05}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final targetContext = _repsSetsSectionKey.currentContext;
@@ -3776,7 +3783,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
           targetContext,
           duration: const Duration(milliseconds: 450),
           curve: Curves.easeOutCubic,
-          alignment: 0.05,
+          alignment: alignment,
         );
       }
     });
@@ -5819,6 +5826,13 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final inDurationWarmup =
         current.durationBased && _warmupSecondsRemaining > 0 && !isResting;
+    final inActiveWorkHold = current.durationBased &&
+        !inDurationWarmup &&
+        _durationSessionInWork &&
+        _workSecondsRemaining > 0;
+    final mqSize = MediaQuery.sizeOf(context);
+    final activeHoldFontSize =
+        (mqSize.shortestSide * 0.21).clamp(76.0, 132.0);
 
     return SingleChildScrollView(
       controller: _exerciseScrollController,
@@ -6490,16 +6504,29 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
             ),
           ] else ...[
             // Hold time (elderly-friendly: large ±5s, presets, tap to type m:ss)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 320),
+              curve: Curves.easeOutCubic,
+              padding: EdgeInsets.symmetric(
+                horizontal: inActiveWorkHold ? 12 : 16,
+                vertical: inActiveWorkHold ? 22 : 16,
+              ),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1A2634) : Colors.white,
                 borderRadius: BorderRadius.circular(20),
+                border: inActiveWorkHold
+                    ? Border.all(
+                        color: colorScheme.primary.withValues(alpha: 0.55),
+                        width: 3,
+                      )
+                    : null,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
+                    color: inActiveWorkHold
+                        ? colorScheme.primary.withValues(alpha: 0.12)
+                        : Colors.black.withValues(alpha: 0.05),
+                    blurRadius: inActiveWorkHold ? 18 : 10,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
@@ -6515,12 +6542,14 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                               : l10n.get('holdTime'),
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
+                            fontSize: inActiveWorkHold ? 22 : 18,
+                            fontWeight: FontWeight.w700,
                             color: inDurationWarmup
                                 ? (isDark
                                       ? Colors.amber.shade200
                                       : Colors.amber.shade900)
+                                : inActiveWorkHold
+                                ? colorScheme.primary
                                 : (isDark
                                       ? Colors.grey.shade400
                                       : Colors.grey.shade600),
@@ -6598,10 +6627,12 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                 ),
                           child: Column(
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 320),
+                                curve: Curves.easeOutCubic,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: inActiveWorkHold ? 8 : 16,
+                                  vertical: inActiveWorkHold ? 18 : 12,
                                 ),
                                 decoration: BoxDecoration(
                                   color: inDurationWarmup
@@ -6611,6 +6642,14 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                               )
                                             : Colors.amber.withValues(
                                                 alpha: 0.1,
+                                              ))
+                                      : inActiveWorkHold
+                                      ? (isDark
+                                            ? colorScheme.primary.withValues(
+                                                alpha: 0.28,
+                                              )
+                                            : colorScheme.primary.withValues(
+                                                alpha: 0.14,
                                               ))
                                       : (isDark
                                             ? colorScheme.primary.withValues(
@@ -6623,52 +6662,90 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                   border: Border.all(
                                     color: inDurationWarmup
                                         ? Colors.amber.withValues(alpha: 0.65)
+                                        : inActiveWorkHold &&
+                                              _workSecondsRemaining <= 3
+                                        ? Colors.deepOrange.withValues(
+                                            alpha: 0.85,
+                                          )
                                         : colorScheme.primary.withValues(
                                             alpha: 0.5,
                                           ),
-                                    width: 2,
+                                    width: inActiveWorkHold ? 3 : 2,
                                   ),
                                 ),
                                 child: Center(
                                   child: FittedBox(
                                     fit: BoxFit.scaleDown,
                                     alignment: Alignment.center,
-                                    child: Text(
-                                      formatDurationMmSs(
-                                        inDurationWarmup
-                                            ? _warmupSecondsRemaining
-                                            : (_durationSessionRunning &&
-                                                      _durationSessionInWork
-                                                  ? _workSecondsRemaining
-                                                  : currentDurationSeconds),
+                                    child: AnimatedDefaultTextStyle(
+                                      duration: const Duration(
+                                        milliseconds: 280,
                                       ),
-                                      maxLines: 1,
-                                      softWrap: false,
+                                      curve: Curves.easeOutCubic,
                                       style: TextStyle(
-                                        fontSize: 42,
-                                        fontWeight: FontWeight.bold,
+                                        fontSize: inActiveWorkHold
+                                            ? activeHoldFontSize
+                                            : 42,
+                                        fontWeight: FontWeight.w800,
+                                        height: 1.05,
+                                        letterSpacing:
+                                            inActiveWorkHold ? 1.5 : 0,
+                                        fontFeatures: const [
+                                          FontFeature.tabularFigures(),
+                                        ],
                                         color: inDurationWarmup
                                             ? (isDark
                                                   ? Colors.amber.shade100
                                                   : Colors.amber.shade900)
+                                            : inActiveWorkHold &&
+                                                  _workSecondsRemaining <= 3
+                                            ? (isDark
+                                                  ? Colors.deepOrange.shade200
+                                                  : Colors.deepOrange.shade800)
                                             : (isDark
                                                   ? Colors.white
                                                   : colorScheme.primary),
+                                      ),
+                                      child: Text(
+                                        formatDurationMmSs(
+                                          inDurationWarmup
+                                              ? _warmupSecondsRemaining
+                                              : (_durationSessionInWork &&
+                                                        _workSecondsRemaining > 0
+                                                    ? _workSecondsRemaining
+                                                    : currentDurationSeconds),
+                                        ),
+                                        maxLines: 1,
+                                        softWrap: false,
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              SizedBox(height: inActiveWorkHold ? 10 : 4),
                               Text(
                                 inDurationWarmup
                                     ? l10n.get('warmupSubtitle')
+                                    : inActiveWorkHold
+                                    ? l10n.get('holdTimeRemaining')
                                     : l10n.get('tapToEdit'),
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontSize: 12,
-                                  color: isDark
-                                      ? Colors.grey.shade500
-                                      : Colors.grey.shade500,
+                                  fontSize: inActiveWorkHold ? 15 : 12,
+                                  fontWeight: inActiveWorkHold
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                  color: inDurationWarmup
+                                      ? (isDark
+                                            ? Colors.amber.shade300
+                                            : Colors.amber.shade800)
+                                      : inActiveWorkHold
+                                      ? (isDark
+                                            ? Colors.grey.shade300
+                                            : Colors.grey.shade700)
+                                      : (isDark
+                                            ? Colors.grey.shade500
+                                            : Colors.grey.shade500),
                                 ),
                               ),
                             ],

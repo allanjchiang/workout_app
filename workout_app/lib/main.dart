@@ -3092,6 +3092,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   /// When true, show workout plan during rest (timer keeps running); tap "Back to rest" to return.
   bool _viewingPlanDuringRest = false;
 
+  /// Strength workouts: rest countdown paused while [isResting] (duration rest uses [_durationSessionRunning]).
+  bool _restCountdownPaused = false;
+
   // Duration-based interval session (work ↔ rest ↔ auto-log)
   Timer? _durationWorkTimer;
   Timer? _warmupTimer;
@@ -3464,6 +3467,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       isResting = false;
       restSeconds = 0;
       _viewingPlanDuringRest = false;
+      _restCountdownPaused = false;
     }
   }
 
@@ -3610,7 +3614,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     final current = _orderedExercises[currentExerciseIndex];
     if (!current.durationBased) return;
     if (_durationSessionRunning) return;
-    setState(() => _durationSessionRunning = true);
+    setState(() {
+      _durationSessionRunning = true;
+      _restCountdownPaused = false;
+    });
     if (_warmupSecondsRemaining > 0 && !isResting) {
       _warmupTimer?.cancel();
       _warmupTimer = Timer.periodic(
@@ -4134,6 +4141,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     setState(() {
       isResting = true;
       restSeconds = effective;
+      _restCountdownPaused = false;
     });
     restTimer?.cancel();
     restTimer = Timer.periodic(const Duration(seconds: 1), _onRestTimerTick);
@@ -4144,8 +4152,23 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
 
   void _restoreRestTimer() {
     restTimer?.cancel();
-    if (!isResting || restSeconds <= 0) return;
+    if (!isResting || restSeconds <= 0 || _restCountdownPaused) return;
     restTimer = Timer.periodic(const Duration(seconds: 1), _onRestTimerTick);
+  }
+
+  void _pauseRestCountdown() {
+    if (!isResting || restSeconds <= 0) return;
+    restTimer?.cancel();
+    restTimer = null;
+    setState(() => _restCountdownPaused = true);
+    unawaited(_persistWorkoutDraft());
+  }
+
+  void _resumeRestCountdown() {
+    if (!isResting || restSeconds <= 0 || !_restCountdownPaused) return;
+    setState(() => _restCountdownPaused = false);
+    restTimer = Timer.periodic(const Duration(seconds: 1), _onRestTimerTick);
+    unawaited(_persistWorkoutDraft());
   }
 
   void _addRestSeconds(int delta) {
@@ -4162,6 +4185,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       isResting = false;
       restSeconds = 0;
       _viewingPlanDuringRest = false;
+      _restCountdownPaused = false;
     });
     if (_durationSessionRunning && !_durationSessionInWork) {
       _onDurationRestFinished();
@@ -5769,6 +5793,12 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         !_durationSessionInWork &&
         isResting;
     final setsN = _durationPlannedSetsRemaining(current);
+    final restCountdownActive =
+        isResting && restSeconds > 0 && restTimer != null;
+    final restCountdownPausedUi = isResting &&
+        restSeconds > 0 &&
+        ((current.durationBased && !_durationSessionRunning) ||
+            (!current.durationBased && _restCountdownPaused));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -5807,7 +5837,56 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       ],
                     ],
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 16),
+                  if (restCountdownActive || restCountdownPausedUi)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: SizedBox(
+                        width: 260,
+                        height: minTapHeight,
+                        child: OutlinedButton.icon(
+                          onPressed: restCountdownActive
+                              ? () {
+                                  if (current.durationBased) {
+                                    _pauseDurationSession();
+                                  } else {
+                                    _pauseRestCountdown();
+                                  }
+                                }
+                              : () {
+                                  if (current.durationBased) {
+                                    _resumeDurationSession();
+                                  } else {
+                                    _resumeRestCountdown();
+                                  }
+                                },
+                          icon: Icon(
+                            restCountdownActive ? Icons.pause : Icons.play_arrow,
+                            size: 28,
+                          ),
+                          label: Text(
+                            restCountdownActive
+                                ? l10n.get('pauseRestTimer')
+                                : l10n.get('resumeRestTimer'),
+                            style: const TextStyle(
+                              fontSize: buttonFontSize,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.blue.shade800,
+                            side: BorderSide(
+                              color: Colors.blue.shade600,
+                              width: 2,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 20),
                   GestureDetector(
                     onTap: () => showDurationEntryDialog(
                       context: context,
@@ -5978,8 +6057,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         _durationSessionInWork &&
         _workSecondsRemaining > 0;
     final mqSize = MediaQuery.sizeOf(context);
-    final activeHoldFontSize =
-        (mqSize.shortestSide * 0.21).clamp(76.0, 132.0);
+    final activeHoldFontSize = inActiveWorkHold
+        ? (mqSize.shortestSide * 0.29).clamp(104.0, 172.0)
+        : (mqSize.shortestSide * 0.21).clamp(76.0, 132.0);
 
     return SingleChildScrollView(
       controller: _exerciseScrollController,
@@ -6683,54 +6763,26 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   Row(
                     children: [
                       Expanded(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                inDurationWarmup
-                                    ? l10n.get('warmup')
-                                    : l10n.get('holdTime'),
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: inActiveWorkHold ? 22 : 18,
-                                  fontWeight: FontWeight.w700,
-                                  color: inDurationWarmup
-                                      ? (isDark
-                                            ? Colors.amber.shade200
-                                            : Colors.amber.shade900)
-                                      : inActiveWorkHold
-                                      ? colorScheme.primary
-                                      : (isDark
-                                            ? Colors.grey.shade400
-                                            : Colors.grey.shade600),
-                                ),
-                              ),
-                            ),
-                            if (!inDurationWarmup &&
-                                current.durationBased &&
-                                (_durationSessionRunning ||
-                                    _workSecondsRemaining > 0)) ...[
-                              const SizedBox(width: 10),
-                              Text(
-                                '${_durationPlannedSetsRemaining(current)}',
-                                style: TextStyle(
-                                  fontSize: inActiveWorkHold ? 26 : 22,
-                                  fontWeight: FontWeight.w800,
-                                  color: inActiveWorkHold
-                                      ? colorScheme.primary
-                                      : (isDark
-                                            ? Colors.grey.shade300
-                                            : Colors.grey.shade700),
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures(),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ],
+                        child: Text(
+                          inDurationWarmup
+                              ? l10n.get('warmup')
+                              : l10n.get('holdTime'),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: inActiveWorkHold ? 22 : 18,
+                            fontWeight: FontWeight.w700,
+                            color: inDurationWarmup
+                                ? (isDark
+                                      ? Colors.amber.shade200
+                                      : Colors.amber.shade900)
+                                : inActiveWorkHold
+                                ? colorScheme.primary
+                                : (isDark
+                                      ? Colors.grey.shade400
+                                      : Colors.grey.shade600),
+                          ),
                         ),
                       ),
                       IconButton(
@@ -6751,249 +6803,181 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Transform.translate(
-                        offset: const Offset(-8, 0),
-                        child: _LargeRoundButton(
-                          icon: Icons.remove,
-                          color: Colors.red.shade400,
-                          onPressed: _durationSessionRunning
-                              ? null
-                              : () {
-                                  setState(() {
-                                    currentDurationSeconds =
-                                        (currentDurationSeconds - 5).clamp(
-                                          1,
-                                          86400,
-                                        );
-                                    final cur =
-                                        _orderedExercises[currentExerciseIndex];
-                                    _orderedExercises[currentExerciseIndex] =
-                                        cur.copyWith(
-                                          targetDurationSeconds:
-                                              currentDurationSeconds,
-                                        );
-                                  });
-                                  unawaited(_persistWorkoutDraft());
-                                },
-                        ),
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: _durationSessionRunning
-                              ? null
-                              : () => showDurationEntryDialog(
-                                  context: context,
-                                  l10n: l10n,
-                                  currentSeconds: currentDurationSeconds,
-                                  accentColor: colorScheme.primary,
-                                  onSave: (sec) {
-                                    setState(() {
-                                      currentDurationSeconds = sec;
-                                      final cur =
-                                          _orderedExercises[currentExerciseIndex];
-                                      _orderedExercises[currentExerciseIndex] =
-                                          cur.copyWith(
-                                            targetDurationSeconds:
-                                                currentDurationSeconds,
-                                          );
-                                    });
-                                    unawaited(_persistWorkoutDraft());
-                                  },
-                                ),
-                          child: Column(
-                            children: [
-                              AnimatedContainer(
-                                duration: const Duration(milliseconds: 320),
-                                curve: Curves.easeOutCubic,
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: inActiveWorkHold ? 8 : 16,
-                                  vertical: inActiveWorkHold ? 18 : 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: inDurationWarmup
-                                      ? (isDark
-                                            ? Colors.amber.withValues(
-                                                alpha: 0.16,
-                                              )
-                                            : Colors.amber.withValues(
-                                                alpha: 0.1,
-                                              ))
-                                      : inActiveWorkHold
-                                      ? (isDark
-                                            ? colorScheme.primary.withValues(
-                                                alpha: 0.28,
-                                              )
-                                            : colorScheme.primary.withValues(
-                                                alpha: 0.14,
-                                              ))
-                                      : (isDark
-                                            ? colorScheme.primary.withValues(
-                                                alpha: 0.2,
-                                              )
-                                            : colorScheme.primary.withValues(
-                                                alpha: 0.1,
-                                              )),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: inDurationWarmup
-                                        ? Colors.amber.withValues(alpha: 0.65)
-                                        : inActiveWorkHold &&
-                                              _workSecondsRemaining <= 3
-                                        ? Colors.deepOrange.withValues(
-                                            alpha: 0.85,
-                                          )
-                                        : colorScheme.primary.withValues(
-                                            alpha: 0.5,
-                                          ),
-                                    width: inActiveWorkHold ? 3 : 2,
-                                  ),
-                                ),
-                                child: Center(
-                                  child: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    alignment: Alignment.center,
-                                    child: AnimatedDefaultTextStyle(
-                                      duration: const Duration(
-                                        milliseconds: 280,
-                                      ),
-                                      curve: Curves.easeOutCubic,
-                                      style: TextStyle(
-                                        fontSize: inActiveWorkHold
-                                            ? activeHoldFontSize
-                                            : 42,
-                                        fontWeight: FontWeight.w800,
-                                        height: 1.05,
-                                        letterSpacing:
-                                            inActiveWorkHold ? 1.5 : 0,
-                                        fontFeatures: const [
-                                          FontFeature.tabularFigures(),
-                                        ],
-                                        color: inDurationWarmup
-                                            ? (isDark
-                                                  ? Colors.amber.shade100
-                                                  : Colors.amber.shade900)
-                                            : inActiveWorkHold &&
-                                                  _workSecondsRemaining <= 3
-                                            ? (isDark
-                                                  ? Colors.deepOrange.shade200
-                                                  : Colors.deepOrange.shade800)
-                                            : (isDark
-                                                  ? Colors.white
-                                                  : colorScheme.primary),
-                                      ),
-                                      child: Text(
-                                        formatDurationMmSs(
-                                          inDurationWarmup
-                                              ? _warmupSecondsRemaining
-                                              : (_durationSessionInWork &&
-                                                        _workSecondsRemaining > 0
-                                                    ? _workSecondsRemaining
-                                                    : currentDurationSeconds),
-                                        ),
-                                        maxLines: 1,
-                                        softWrap: false,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(height: inActiveWorkHold ? 10 : 4),
-                              Text(
-                                inDurationWarmup
-                                    ? l10n.get('warmupSubtitle')
-                                    : inActiveWorkHold
-                                    ? l10n.get('holdTimeRemaining')
-                                    : l10n.get('tapToEdit'),
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: inActiveWorkHold ? 15 : 12,
-                                  fontWeight: inActiveWorkHold
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
-                                  color: inDurationWarmup
-                                      ? (isDark
-                                            ? Colors.amber.shade300
-                                            : Colors.amber.shade800)
-                                      : inActiveWorkHold
-                                      ? (isDark
-                                            ? Colors.grey.shade300
-                                            : Colors.grey.shade700)
-                                      : (isDark
-                                            ? Colors.grey.shade500
-                                            : Colors.grey.shade500),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      _LargeRoundButton(
-                        icon: Icons.add,
-                        color: Colors.green.shade400,
-                        onPressed: _durationSessionRunning
-                            ? null
-                            : () {
+                  GestureDetector(
+                    onTap: _durationSessionRunning
+                        ? null
+                        : () => showDurationEntryDialog(
+                              context: context,
+                              l10n: l10n,
+                              currentSeconds: currentDurationSeconds,
+                              accentColor: colorScheme.primary,
+                              onSave: (sec) {
                                 setState(() {
-                                  currentDurationSeconds =
-                                      (currentDurationSeconds + 5).clamp(
-                                        1,
-                                        86400,
-                                      );
+                                  currentDurationSeconds = sec;
                                   final cur =
                                       _orderedExercises[currentExerciseIndex];
-                                  _orderedExercises[currentExerciseIndex] = cur
-                                      .copyWith(
+                                  _orderedExercises[currentExerciseIndex] =
+                                      cur.copyWith(
                                         targetDurationSeconds:
                                             currentDurationSeconds,
                                       );
                                 });
                                 unawaited(_persistWorkoutDraft());
                               },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final sec in [30, 60, 90, 120])
-                        OutlinedButton(
-                          onPressed: _durationSessionRunning
-                              ? null
-                              : () {
-                                  setState(() {
-                                    currentDurationSeconds = sec;
-                                    final cur =
-                                        _orderedExercises[currentExerciseIndex];
-                                    _orderedExercises[currentExerciseIndex] =
-                                        cur.copyWith(
-                                          targetDurationSeconds:
-                                              currentDurationSeconds,
-                                        );
-                                  });
-                                  unawaited(_persistWorkoutDraft());
-                                },
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
+                            ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 320),
+                          curve: Curves.easeOutCubic,
+                          width: double.infinity,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: inActiveWorkHold ? 4 : 16,
+                            vertical: inActiveWorkHold ? 22 : 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: inDurationWarmup
+                                ? (isDark
+                                      ? Colors.amber.withValues(alpha: 0.16)
+                                      : Colors.amber.withValues(alpha: 0.1))
+                                : inActiveWorkHold
+                                ? (isDark
+                                      ? colorScheme.primary.withValues(
+                                          alpha: 0.28,
+                                        )
+                                      : colorScheme.primary.withValues(
+                                          alpha: 0.14,
+                                        ))
+                                : (isDark
+                                      ? colorScheme.primary.withValues(
+                                          alpha: 0.2,
+                                        )
+                                      : colorScheme.primary.withValues(
+                                          alpha: 0.1,
+                                        )),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: inDurationWarmup
+                                  ? Colors.amber.withValues(alpha: 0.65)
+                                  : inActiveWorkHold &&
+                                        _workSecondsRemaining <= 3
+                                  ? Colors.deepOrange.withValues(alpha: 0.85)
+                                  : colorScheme.primary.withValues(
+                                      alpha: 0.5,
+                                    ),
+                              width: inActiveWorkHold ? 3 : 2,
                             ),
                           ),
-                          child: Text(
-                            formatDurationMmSs(sec),
-                            maxLines: 1,
-                            softWrap: false,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
+                          child: Center(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.center,
+                              child: AnimatedDefaultTextStyle(
+                                duration: const Duration(milliseconds: 280),
+                                curve: Curves.easeOutCubic,
+                                style: TextStyle(
+                                  fontSize: inActiveWorkHold
+                                      ? activeHoldFontSize
+                                      : 42,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.05,
+                                  letterSpacing: inActiveWorkHold ? 1.5 : 0,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                  color: inDurationWarmup
+                                      ? (isDark
+                                            ? Colors.amber.shade100
+                                            : Colors.amber.shade900)
+                                      : inActiveWorkHold &&
+                                            _workSecondsRemaining <= 3
+                                      ? (isDark
+                                            ? Colors.deepOrange.shade200
+                                            : Colors.deepOrange.shade800)
+                                      : (isDark
+                                            ? Colors.white
+                                            : colorScheme.primary),
+                                ),
+                                child: Text(
+                                  formatDurationMmSs(
+                                    inDurationWarmup
+                                        ? _warmupSecondsRemaining
+                                        : (_durationSessionInWork &&
+                                                  _workSecondsRemaining > 0
+                                              ? _workSecondsRemaining
+                                              : currentDurationSeconds),
+                                  ),
+                                  maxLines: 1,
+                                  softWrap: false,
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                    ],
+                        SizedBox(height: inActiveWorkHold ? 10 : 4),
+                        Text(
+                          inDurationWarmup
+                              ? l10n.get('warmupSubtitle')
+                              : inActiveWorkHold
+                              ? l10n.get('holdTimeRemaining')
+                              : l10n.get('tapToEdit'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: inActiveWorkHold ? 15 : 12,
+                            fontWeight: inActiveWorkHold
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                            color: inDurationWarmup
+                                ? (isDark
+                                      ? Colors.amber.shade300
+                                      : Colors.amber.shade800)
+                                : inActiveWorkHold
+                                ? (isDark
+                                      ? Colors.grey.shade300
+                                      : Colors.grey.shade700)
+                                : (isDark
+                                      ? Colors.grey.shade500
+                                      : Colors.grey.shade500),
+                          ),
+                        ),
+                        if (inActiveWorkHold &&
+                            !inDurationWarmup &&
+                            current.durationBased)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
+                              children: [
+                                Text(
+                                  '${_durationPlannedSetsRemaining(current)}',
+                                  style: TextStyle(
+                                    fontSize: (mqSize.shortestSide * 0.11)
+                                        .clamp(42.0, 58.0),
+                                    fontWeight: FontWeight.w800,
+                                    height: 1.05,
+                                    color: Colors.white,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  l10n.get('setsRemainingLabel'),
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white.withValues(alpha: 0.92),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -7028,7 +7012,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     label: Text(
                       _durationSessionRunning
                           ? l10n.get('pause')
-                          : l10n.get('startWorkout'),
+                          : (_workSecondsRemaining > 0 ||
+                                    restSeconds > 0 ||
+                                    _warmupSecondsRemaining > 0
+                                ? l10n.get('resumeWorkout')
+                                : l10n.get('startWorkout')),
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,

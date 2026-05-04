@@ -5648,64 +5648,198 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
           child: isResting
               ? (_viewingPlanDuringRest
                     ? _buildPlanViewDuringRest(l10n, current)
-                    : _buildRestScreen(l10n))
+                    : _buildRestScreen(l10n, current))
               : _buildExerciseScreen(l10n, current),
         ),
       ),
     );
   }
 
+  /// Planned timed sets still to finish (hold not yet logged during rest).
+  int _durationPlannedSetsRemaining(TemplateExercise current) {
+    if (!current.durationBased) return 0;
+    final logged =
+        logs.where((l) => l.exerciseId == current.exercise.id).length;
+    if (!_durationSessionInWork && isResting) {
+      return (current.sets - logged - 1).clamp(0, 9999);
+    }
+    return (current.sets - logged).clamp(0, 9999);
+  }
+
+  Widget _buildDurationSetsRemainingHero(
+    AppLocalizations l10n,
+    TemplateExercise current, {
+    bool compact = false,
+  }) {
+    final n = _durationPlannedSetsRemaining(current);
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mq = MediaQuery.sizeOf(context);
+    final big = compact
+        ? (mq.width * 0.15).clamp(34.0, 50.0)
+        : (mq.shortestSide * 0.2).clamp(68.0, 112.0);
+    final subStyle = TextStyle(
+      fontSize: compact ? 13 : 16,
+      fontWeight: FontWeight.w600,
+      color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+    );
+    final suffix = n == 1
+        ? l10n.get('setsRemainingSuffixOne')
+        : l10n.get('setsRemainingSuffix');
+    return Semantics(
+      container: true,
+      label: '$n $suffix',
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(
+          vertical: compact ? 8 : 14,
+          horizontal: compact ? 12 : 16,
+        ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [
+                    colorScheme.primary.withValues(alpha: 0.38),
+                    colorScheme.primary.withValues(alpha: 0.16),
+                  ]
+                : [
+                    colorScheme.primary.withValues(alpha: 0.16),
+                    colorScheme.primary.withValues(alpha: 0.05),
+                  ],
+          ),
+          borderRadius: BorderRadius.circular(compact ? 14 : 18),
+          border: Border.all(
+            color: colorScheme.primary.withValues(alpha: 0.4),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.layers_outlined,
+              size: compact ? 20 : 26,
+              color: colorScheme.primary,
+            ),
+            SizedBox(height: compact ? 2 : 6),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '$n',
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: big,
+                  fontWeight: FontWeight.w800,
+                  height: 1.05,
+                  color: isDark ? Colors.white : colorScheme.primary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+            SizedBox(height: compact ? 0 : 2),
+            Text(
+              suffix,
+              style: subStyle,
+              textAlign: TextAlign.center,
+            ),
+            if (!compact)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  l10n
+                      .get('setsRemainingOfTotal')
+                      .replaceAll('{total}', '${current.sets}'),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark
+                        ? Colors.grey.shade400
+                        : Colors.grey.shade600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// Compact bar shown at top when viewing workout plan during rest; timer keeps running.
-  Widget _buildRestBar(AppLocalizations l10n) {
+  Widget _buildRestBar(AppLocalizations l10n, TemplateExercise current) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorScheme = Theme.of(context).colorScheme;
+    final showSetsHero = current.durationBased &&
+        !_durationSessionInWork &&
+        isResting;
     return Material(
       elevation: 2,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         color: isDark ? const Color(0xFF1A2634) : Colors.white,
         child: SafeArea(
           bottom: false,
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.timer,
-                size: 28,
-                color: restSeconds <= 10 ? Colors.red : colorScheme.primary,
-              ),
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: () => showDurationEntryDialog(
-                  context: context,
-                  l10n: l10n,
-                  currentSeconds: restSeconds,
-                  accentColor: colorScheme.primary,
-                  onSave: (sec) =>
-                      setState(() => restSeconds = sec.clamp(0, 600)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.timer,
+                      size: 28,
+                      color: restSeconds <= 10
+                          ? Colors.red
+                          : colorScheme.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: () => showDurationEntryDialog(
+                        context: context,
+                        l10n: l10n,
+                        currentSeconds: restSeconds,
+                        accentColor: colorScheme.primary,
+                        onSave: (sec) =>
+                            setState(() => restSeconds = sec.clamp(0, 600)),
+                      ),
+                      child: Text(
+                        formatDurationMmSs(restSeconds),
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: restSeconds <= 10
+                              ? Colors.red
+                              : colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    FilledButton.icon(
+                      onPressed: () =>
+                          setState(() => _viewingPlanDuringRest = false),
+                      icon: const Icon(Icons.timer, size: 20),
+                      label: Text(l10n.get('backToRestTimer')),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                child: Text(
-                  formatDurationMmSs(restSeconds),
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: restSeconds <= 10 ? Colors.red : colorScheme.primary,
+              ),
+              if (showSetsHero)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                  child: _buildDurationSetsRemainingHero(
+                    l10n,
+                    current,
+                    compact: true,
                   ),
                 ),
-              ),
-              const Spacer(),
-              FilledButton.icon(
-                onPressed: () => setState(() => _viewingPlanDuringRest = false),
-                icon: const Icon(Icons.timer, size: 20),
-                label: Text(l10n.get('backToRestTimer')),
-                style: FilledButton.styleFrom(
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -5720,7 +5854,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildRestBar(l10n),
+        _buildRestBar(l10n, current),
         Expanded(
           child: _buildExerciseScreen(
             l10n,
@@ -5732,48 +5866,61 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     );
   }
 
-  Widget _buildRestScreen(AppLocalizations l10n) {
+  Widget _buildRestScreen(AppLocalizations l10n, TemplateExercise current) {
     // Elderly-friendly: large text, large touch targets (min 56–64dp)
     const double largeFontSize = 28;
     const double timerFontSize = 96;
     const double buttonFontSize = 22;
     const double minTapHeight = 64;
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              l10n.get('rest'),
-              style: const TextStyle(
-                fontSize: largeFontSize,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 28),
-            GestureDetector(
-              onTap: () => showDurationEntryDialog(
-                context: context,
-                l10n: l10n,
-                currentSeconds: restSeconds,
-                accentColor: Colors.blue,
-                onSave: (sec) =>
-                    setState(() => restSeconds = sec.clamp(0, 600)),
-              ),
-              child: Text(
-                formatDurationMmSs(restSeconds),
-                style: TextStyle(
-                  fontSize: timerFontSize,
-                  fontWeight: FontWeight.bold,
-                  color: restSeconds <= 10 ? Colors.red : Colors.blue,
-                ),
-              ),
-            ),
-            const SizedBox(height: 40),
-            // +30 / −30 sec row
-            Row(
+    final showSetsHero = current.durationBased &&
+        !_durationSessionInWork &&
+        isResting;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (showSetsHero)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: _buildDurationSetsRemainingHero(l10n, current),
+          ),
+        Expanded(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    l10n.get('rest'),
+                    style: const TextStyle(
+                      fontSize: largeFontSize,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  GestureDetector(
+                    onTap: () => showDurationEntryDialog(
+                      context: context,
+                      l10n: l10n,
+                      currentSeconds: restSeconds,
+                      accentColor: Colors.blue,
+                      onSave: (sec) =>
+                          setState(() => restSeconds = sec.clamp(0, 600)),
+                    ),
+                    child: Text(
+                      formatDurationMmSs(restSeconds),
+                      style: TextStyle(
+                        fontSize: timerFontSize,
+                        fontWeight: FontWeight.bold,
+                        color: restSeconds <= 10 ? Colors.red : Colors.blue,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  // +30 / −30 sec row
+                  Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 SizedBox(
@@ -5890,9 +6037,12 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                 ),
               ),
             ),
-          ],
+                ],
+              ),
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -5964,6 +6114,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
             ),
           ),
           const SizedBox(height: 24),
+          if (inActiveWorkHold) ...[
+            _buildDurationSetsRemainingHero(l10n, current),
+            const SizedBox(height: 16),
+          ],
           // Current exercise
           Container(
             padding: const EdgeInsets.all(24),

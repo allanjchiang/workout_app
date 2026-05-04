@@ -400,6 +400,9 @@ class AppLocalizations {
     'subtract30Seconds': '− 30 sec',
     'viewWorkoutPlan': 'View workout plan',
     'backToRestTimer': 'Back to rest timer',
+    'setsRemainingSuffix': 'sets left',
+    'setsRemainingSuffixOne': 'set left',
+    'setsRemainingOfTotal': 'of {total} planned',
     'restTimerWorkout': 'Workout',
 
     // Weight tracking
@@ -697,6 +700,9 @@ class AppLocalizations {
     'subtract30Seconds': '− 30 秒',
     'viewWorkoutPlan': '查看運動計畫',
     'backToRestTimer': '返回休息計時',
+    'setsRemainingSuffix': '組待完成',
+    'setsRemainingSuffixOne': '最後一組',
+    'setsRemainingOfTotal': '計畫共 {total} 組',
     'restTimerWorkout': '運動',
 
     // Progress Chart

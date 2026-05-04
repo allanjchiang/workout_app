@@ -3603,6 +3603,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     _durationWorkTimer?.cancel();
     _warmupTimer?.cancel();
     restTimer?.cancel();
+    restTimer = null;
     setState(() {
       _durationSessionRunning = false;
     });
@@ -5793,8 +5794,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         !_durationSessionInWork &&
         isResting;
     final setsN = _durationPlannedSetsRemaining(current);
-    final restCountdownActive =
-        isResting && restSeconds > 0 && restTimer != null;
+    final restCountdownActive = isResting &&
+        restSeconds > 0 &&
+        (restTimer?.isActive ?? false);
     final restCountdownPausedUi = isResting &&
         restSeconds > 0 &&
         ((current.durationBased && !_durationSessionRunning) ||
@@ -5804,12 +5806,17 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     mainAxisSize: MainAxisSize.min,
@@ -6025,8 +6032,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
               ),
             ),
                 ],
-              ),
-            ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ],

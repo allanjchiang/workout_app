@@ -4199,18 +4199,15 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   static const String _kBeepRest1 = 'audio/rest_1_beep.wav';
   static const String _kBeepWork1 = 'audio/work_1_beep.wav';
 
-  /// Hold finished (0s): the two timer ticks that used to play at 3s and 2s
-  /// ([_kBeepNormal] full, then same at lower gain).
+  /// Hold finished (0s): work_1 chime.
   Future<void> _playWorkEndBeep() async {
     try {
-      await _playBeep(asset: _kBeepNormal);
-      await Future<void>.delayed(const Duration(milliseconds: 150));
-      await _playBeep(asset: _kBeepNormal, volumeScale: 0.62);
+      await _playBeep(asset: _kBeepWork1);
     } catch (_) {
       try {
         await _playBeep(asset: _kBeepWorkEnd);
       } catch (_) {
-        await _playBeep(asset: _kBeepWork1);
+        await _playBeep(asset: _kBeepNormal);
       }
     }
   }
@@ -4231,14 +4228,14 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     }
   }
 
-  /// Hold countdown: same 1s work chime at 3s, 2s, and 1s.
+  /// Hold countdown: rest_1 at 3s, 2s, and 1s (same as rest/warm-up tier chime).
   Future<void> _playWorkCountdownBeep(int secondsRemaining) async {
     try {
       switch (secondsRemaining) {
         case 3:
         case 2:
         case 1:
-          await _playBeep(asset: _kBeepWork1);
+          await _playBeep(asset: _kBeepRest1);
         default:
           await _playBeep(asset: _kBeepNormal);
       }
@@ -5663,181 +5660,79 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     return (current.sets - logged).clamp(0, 9999);
   }
 
-  Widget _buildDurationSetsRemainingHero(
-    AppLocalizations l10n,
-    TemplateExercise current, {
-    bool compact = false,
-  }) {
-    final n = _durationPlannedSetsRemaining(current);
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final mq = MediaQuery.sizeOf(context);
-    final big = compact
-        ? (mq.width * 0.15).clamp(34.0, 50.0)
-        : (mq.shortestSide * 0.2).clamp(68.0, 112.0);
-    final subStyle = TextStyle(
-      fontSize: compact ? 13 : 16,
-      fontWeight: FontWeight.w600,
-      color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
-    );
-    final suffix = n == 1
-        ? l10n.get('setsRemainingSuffixOne')
-        : l10n.get('setsRemainingSuffix');
-    return Semantics(
-      container: true,
-      label: '$n $suffix',
-      child: Container(
-        width: double.infinity,
-        padding: EdgeInsets.symmetric(
-          vertical: compact ? 8 : 14,
-          horizontal: compact ? 12 : 16,
-        ),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? [
-                    colorScheme.primary.withValues(alpha: 0.38),
-                    colorScheme.primary.withValues(alpha: 0.16),
-                  ]
-                : [
-                    colorScheme.primary.withValues(alpha: 0.16),
-                    colorScheme.primary.withValues(alpha: 0.05),
-                  ],
-          ),
-          borderRadius: BorderRadius.circular(compact ? 14 : 18),
-          border: Border.all(
-            color: colorScheme.primary.withValues(alpha: 0.4),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.layers_outlined,
-              size: compact ? 20 : 26,
-              color: colorScheme.primary,
-            ),
-            SizedBox(height: compact ? 2 : 6),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                '$n',
-                maxLines: 1,
-                style: TextStyle(
-                  fontSize: big,
-                  fontWeight: FontWeight.w800,
-                  height: 1.05,
-                  color: isDark ? Colors.white : colorScheme.primary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ),
-            SizedBox(height: compact ? 0 : 2),
-            Text(
-              suffix,
-              style: subStyle,
-              textAlign: TextAlign.center,
-            ),
-            if (!compact)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  l10n
-                      .get('setsRemainingOfTotal')
-                      .replaceAll('{total}', '${current.sets}'),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isDark
-                        ? Colors.grey.shade400
-                        : Colors.grey.shade600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   /// Compact bar shown at top when viewing workout plan during rest; timer keeps running.
   Widget _buildRestBar(AppLocalizations l10n, TemplateExercise current) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorScheme = Theme.of(context).colorScheme;
-    final showSetsHero = current.durationBased &&
+    final showSetsInline = current.durationBased &&
         !_durationSessionInWork &&
         isResting;
+    final setsN = _durationPlannedSetsRemaining(current);
     return Material(
       elevation: 2,
       child: Container(
         color: isDark ? const Color(0xFF1A2634) : Colors.white,
         child: SafeArea(
           bottom: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.timer,
-                      size: 28,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.timer,
+                  size: 28,
+                  color: restSeconds <= 10 ? Colors.red : colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: () => showDurationEntryDialog(
+                    context: context,
+                    l10n: l10n,
+                    currentSeconds: restSeconds,
+                    accentColor: colorScheme.primary,
+                    onSave: (sec) =>
+                        setState(() => restSeconds = sec.clamp(0, 600)),
+                  ),
+                  child: Text(
+                    formatDurationMmSs(restSeconds),
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
                       color: restSeconds <= 10
                           ? Colors.red
                           : colorScheme.primary,
                     ),
-                    const SizedBox(width: 12),
-                    GestureDetector(
-                      onTap: () => showDurationEntryDialog(
-                        context: context,
-                        l10n: l10n,
-                        currentSeconds: restSeconds,
-                        accentColor: colorScheme.primary,
-                        onSave: (sec) =>
-                            setState(() => restSeconds = sec.clamp(0, 600)),
-                      ),
-                      child: Text(
-                        formatDurationMmSs(restSeconds),
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: restSeconds <= 10
-                              ? Colors.red
-                              : colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    FilledButton.icon(
-                      onPressed: () =>
-                          setState(() => _viewingPlanDuringRest = false),
-                      icon: const Icon(Icons.timer, size: 20),
-                      label: Text(l10n.get('backToRestTimer')),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: colorScheme.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (showSetsHero)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                  child: _buildDurationSetsRemainingHero(
-                    l10n,
-                    current,
-                    compact: true,
                   ),
                 ),
-            ],
+                if (showSetsInline) ...[
+                  const SizedBox(width: 12),
+                  Text(
+                    '$setsN',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : colorScheme.primary,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
+                const Spacer(),
+                FilledButton.icon(
+                  onPressed: () =>
+                      setState(() => _viewingPlanDuringRest = false),
+                  icon: const Icon(Icons.timer, size: 20),
+                  label: Text(l10n.get('backToRestTimer')),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -5870,18 +5765,14 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     const double buttonFontSize = 22;
     const double minTapHeight = 64;
 
-    final showSetsHero = current.durationBased &&
+    final showSetsInline = current.durationBased &&
         !_durationSessionInWork &&
         isResting;
+    final setsN = _durationPlannedSetsRemaining(current);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (showSetsHero)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-            child: _buildDurationSetsRemainingHero(l10n, current),
-          ),
         Expanded(
           child: Center(
             child: Padding(
@@ -5889,12 +5780,32 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    l10n.get('rest'),
-                    style: const TextStyle(
-                      fontSize: largeFontSize,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        l10n.get('rest'),
+                        style: const TextStyle(
+                          fontSize: largeFontSize,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (showSetsInline) ...[
+                        const SizedBox(width: 14),
+                        Text(
+                          '$setsN',
+                          style: TextStyle(
+                            fontSize: largeFontSize + 8,
+                            fontWeight: FontWeight.w800,
+                            color: Theme.of(context).colorScheme.primary,
+                            fontFeatures: const [
+                              FontFeature.tabularFigures(),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 28),
                   GestureDetector(
@@ -6111,10 +6022,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
             ),
           ),
           const SizedBox(height: 24),
-          if (inActiveWorkHold) ...[
-            _buildDurationSetsRemainingHero(l10n, current),
-            const SizedBox(height: 16),
-          ],
           // Current exercise
           Container(
             padding: const EdgeInsets.all(24),
@@ -6776,24 +6683,54 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          inDurationWarmup
-                              ? l10n.get('warmup')
-                              : l10n.get('holdTime'),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: inActiveWorkHold ? 22 : 18,
-                            fontWeight: FontWeight.w700,
-                            color: inDurationWarmup
-                                ? (isDark
-                                      ? Colors.amber.shade200
-                                      : Colors.amber.shade900)
-                                : inActiveWorkHold
-                                ? colorScheme.primary
-                                : (isDark
-                                      ? Colors.grey.shade400
-                                      : Colors.grey.shade600),
-                          ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                inDurationWarmup
+                                    ? l10n.get('warmup')
+                                    : l10n.get('holdTime'),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: inActiveWorkHold ? 22 : 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: inDurationWarmup
+                                      ? (isDark
+                                            ? Colors.amber.shade200
+                                            : Colors.amber.shade900)
+                                      : inActiveWorkHold
+                                      ? colorScheme.primary
+                                      : (isDark
+                                            ? Colors.grey.shade400
+                                            : Colors.grey.shade600),
+                                ),
+                              ),
+                            ),
+                            if (!inDurationWarmup &&
+                                current.durationBased &&
+                                (_durationSessionRunning ||
+                                    _workSecondsRemaining > 0)) ...[
+                              const SizedBox(width: 10),
+                              Text(
+                                '${_durationPlannedSetsRemaining(current)}',
+                                style: TextStyle(
+                                  fontSize: inActiveWorkHold ? 26 : 22,
+                                  fontWeight: FontWeight.w800,
+                                  color: inActiveWorkHold
+                                      ? colorScheme.primary
+                                      : (isDark
+                                            ? Colors.grey.shade300
+                                            : Colors.grey.shade700),
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       IconButton(

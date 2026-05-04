@@ -4182,11 +4182,17 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   static const String _kBeepWork2 = 'audio/work_2_beep.wav';
   static const String _kBeepWork1 = 'audio/work_1_beep.wav';
 
+  /// Hold finished: uses the same asset that was previously the harsh 2s cue
+  /// ([_kBeepWork2]); that tone is now reserved for “work done” only.
   Future<void> _playWorkEndBeep() async {
     try {
-      await _playBeep(asset: _kBeepWorkEnd);
+      await _playBeep(asset: _kBeepWork2);
     } catch (_) {
-      await _playBeep(asset: _kBeepNormal);
+      try {
+        await _playBeep(asset: _kBeepWorkEnd);
+      } catch (_) {
+        await _playBeep(asset: _kBeepNormal);
+      }
     }
   }
 
@@ -4205,11 +4211,12 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     }
   }
 
-  /// Timed hold work phase: three distinct ticks at 3, 2, 1 ([_kBeepWorkEnd] at 0 is separate).
+  /// Timed hold work phase: ticks at 3, 2, 1. At 2s use the softer rest-style cue
+  /// ([_kBeepRest2]); the sharper [_kBeepWork2] is reserved for work-end only.
   Future<void> _playWorkCountdownBeep(int secondsRemaining) async {
     final String asset = switch (secondsRemaining) {
       3 => _kBeepNormal,
-      2 => _kBeepWork2,
+      2 => _kBeepRest2,
       1 => _kBeepWork1,
       _ => _kBeepNormal,
     };

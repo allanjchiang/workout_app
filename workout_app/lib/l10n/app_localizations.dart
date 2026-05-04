@@ -381,6 +381,10 @@ class AppLocalizations {
 
     // Settings
     'settings': 'Settings',
+    'timerBeepVolume': 'Timer beep volume',
+    'timerBeepVolumeDesc':
+        'Applies to rest, warm-up, and hold countdown sounds. 0 is silent.',
+    'previewTimerBeep': 'Preview beep',
     'appearance': 'Appearance',
     'theme': 'Theme',
     'systemDefault': 'System default',
@@ -674,6 +678,10 @@ class AppLocalizations {
 
     // Settings
     'settings': '設定',
+    'timerBeepVolume': '計時提示音量',
+    'timerBeepVolumeDesc':
+        '適用於休息、暖身與維持倒數提示音。設為 0 則靜音。',
+    'previewTimerBeep': '試聽提示音',
     'appearance': '外觀',
     'theme': '主題',
     'systemDefault': '跟隨系統',

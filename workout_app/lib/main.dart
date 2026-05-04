@@ -209,6 +209,9 @@ String formatDurationMmSs(int totalSeconds) {
   return '$m:${sec.toString().padLeft(2, '0')}';
 }
 
+/// Shared preferences key for timer / beep volume (0–100, default 85).
+const String kPrefTimerBeepVolume = 'timer_beep_volume';
+
 /// Template editor / add-exercise dialog: 0 = use workout default ([null]),
 /// 1 = no rest (0 s), 2 = custom (clamped 0–600 s).
 int? restAfterSetFromTemplateDialog(int restMode, int customSeconds) {
@@ -3538,7 +3541,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       const Duration(seconds: 1),
       _onDurationWorkTick,
     );
-    unawaited(_playBeep());
     unawaited(_persistWorkoutDraft());
     _scrollRepsSetsSectionIntoView(alignment: 0.02);
   }
@@ -3548,13 +3550,38 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       timer.cancel();
       return;
     }
+    int? warmCountdownBeepAt;
+    var warmupDone = false;
     setState(() {
-      _warmupSecondsRemaining--;
+      final before = _warmupSecondsRemaining;
+      if (before <= 1) {
+        if (before == 1) warmCountdownBeepAt = 1;
+        _warmupSecondsRemaining = 0;
+        warmupDone = true;
+      } else {
+        if (before <= 3 && before > 1) warmCountdownBeepAt = before;
+        _warmupSecondsRemaining--;
+      }
     });
-    if (_warmupSecondsRemaining <= 0) {
+    if (warmCountdownBeepAt != null || warmupDone) {
+      unawaited(_warmupTickSounds(warmCountdownBeepAt, warmupDone));
+    }
+    if (warmupDone) {
       timer.cancel();
       _warmupTimer = null;
       _beginWorkAfterWarmup();
+    }
+  }
+
+  Future<void> _warmupTickSounds(int? countdownAt, bool finished) async {
+    if (countdownAt != null) {
+      await _playRestCountdownBeep(countdownAt);
+      if (finished) {
+        await Future<void>.delayed(const Duration(milliseconds: 110));
+      }
+    }
+    if (finished) {
+      await _playDoubleEndBeeps();
     }
   }
 
@@ -3597,25 +3624,37 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       timer.cancel();
       return;
     }
-    int? holdCountdownBeepAt;
+    int? workCountdownBeepAt;
+    var workJustEnded = false;
     setState(() {
       final before = _workSecondsRemaining;
-      if (_workSecondsRemaining > 0) {
+      if (before <= 1) {
+        if (before == 1) workCountdownBeepAt = 1;
+        _workSecondsRemaining = 0;
+        workJustEnded = true;
+        timer.cancel();
+      } else {
         if (_durationSessionRunning &&
             _durationSessionInWork &&
-            (before == 2 || before == 1)) {
-          holdCountdownBeepAt = before;
+            before <= 3 &&
+            before > 1) {
+          workCountdownBeepAt = before;
         }
         _workSecondsRemaining--;
-      } else {
-        timer.cancel();
       }
     });
-    if (holdCountdownBeepAt != null) {
-      unawaited(_playHoldCountdownBeep(holdCountdownBeepAt!));
-    }
-    if (_workSecondsRemaining <= 0) {
-      _beginDurationRestPhase();
+    if (workJustEnded) {
+      unawaited(() async {
+        if (workCountdownBeepAt != null) {
+          await _playWorkCountdownBeep(workCountdownBeepAt!);
+          await Future<void>.delayed(const Duration(milliseconds: 110));
+        }
+        if (mounted) {
+          _beginDurationRestPhase();
+        }
+      }());
+    } else if (workCountdownBeepAt != null) {
+      unawaited(_playWorkCountdownBeep(workCountdownBeepAt!));
     }
   }
 
@@ -3672,9 +3711,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       restSeconds = 0;
       _viewingPlanDuringRest = false;
     });
-
-    _playBeep();
-    _vibrateRestEnd();
 
     if (reachedTarget) {
       _stopDurationSession(clearRest: true);
@@ -4034,28 +4070,22 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     int? countdownBeepAt;
     setState(() {
       final before = restSeconds;
-      if (restSeconds > 0) {
-        if (_durationSessionRunning && !_durationSessionInWork) {
-          if (before == 2 || before == 1) {
-            countdownBeepAt = before;
-          }
-        }
-        restSeconds--;
-      } else {
-        timer.cancel();
+      if (before <= 1) {
+        if (before == 1) countdownBeepAt = 1;
+        restSeconds = 0;
         isResting = false;
         _viewingPlanDuringRest = false;
         finishedRest = true;
-        if (_durationSessionRunning && !_durationSessionInWork) {
-          // Duration session controls logging & transitions.
-        } else {
-          _playBeep();
-          _vibrateRestEnd();
+        timer.cancel();
+      } else {
+        if (before <= 3 && before > 1) {
+          countdownBeepAt = before;
         }
+        restSeconds--;
       }
     });
-    if (countdownBeepAt != null) {
-      unawaited(_playRestCountdownBeep(countdownBeepAt!));
+    if (countdownBeepAt != null || finishedRest) {
+      unawaited(_restTickAudio(countdownBeepAt, finishedRest));
     }
     if (finishedRest) {
       if (_durationSessionRunning && !_durationSessionInWork) {
@@ -4063,6 +4093,19 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       } else {
         _scheduleScrollAfterRestEnds();
       }
+    }
+  }
+
+  Future<void> _restTickAudio(int? countdownAt, bool finished) async {
+    if (countdownAt != null) {
+      await _playRestCountdownBeep(countdownAt);
+      if (finished) {
+        await Future<void>.delayed(const Duration(milliseconds: 110));
+      }
+    }
+    if (finished) {
+      await _playDoubleEndBeeps();
+      await _vibrateRestEnd();
     }
   }
 
@@ -4118,7 +4161,12 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
 
   Future<void> _playBeep({String asset = 'audio/timer_beep.wav'}) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final volPct = prefs.getInt(kPrefTimerBeepVolume);
+      final vol = ((volPct ?? 85).clamp(0, 100)) / 100.0;
+      if (vol <= 0) return;
       await _setBeepAudioContext();
+      await audioPlayer.setVolume(vol);
       await audioPlayer.stop();
       await audioPlayer.play(AssetSource(asset));
     } catch (e) {
@@ -4126,17 +4174,15 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     }
   }
 
-  // Interval-timer beeps (provide your own WAVs under assets/audio/)
+  // Interval-timer beeps (WAVs under assets/audio/)
   static const String _kBeepNormal = 'audio/timer_beep.wav';
   static const String _kBeepWorkEnd = 'audio/work_end_beep.wav';
   static const String _kBeepRest2 = 'audio/rest_2_beep.wav';
   static const String _kBeepRest1 = 'audio/rest_1_beep.wav';
-  /// Hold / work interval: last 2s and 1s (synthesized WAVs in assets/audio).
-  static const String _kBeepHold2 = 'audio/work_2_beep.wav';
-  static const String _kBeepHold1 = 'audio/work_1_beep.wav';
+  static const String _kBeepWork2 = 'audio/work_2_beep.wav';
+  static const String _kBeepWork1 = 'audio/work_1_beep.wav';
 
   Future<void> _playWorkEndBeep() async {
-    // Different beep when work ends → rest begins.
     try {
       await _playBeep(asset: _kBeepWorkEnd);
     } catch (_) {
@@ -4144,9 +4190,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     }
   }
 
+  /// Rest and warm-up: pleasant ticks at 3, 2, 1 (same timbre family).
   Future<void> _playRestCountdownBeep(int secondsRemaining) async {
-    // Two distinct beeps at 2s and 1s remaining during rest.
     final String asset = switch (secondsRemaining) {
+      3 => _kBeepNormal,
       2 => _kBeepRest2,
       1 => _kBeepRest1,
       _ => _kBeepNormal,
@@ -4158,15 +4205,27 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     }
   }
 
-  /// During duration holds: distinct beeps at 2s and 1s remaining (see assets/audio/work_*_beep.wav).
-  Future<void> _playHoldCountdownBeep(int secondsRemaining) async {
+  /// Timed hold work phase: three distinct ticks at 3, 2, 1 ([_kBeepWorkEnd] at 0 is separate).
+  Future<void> _playWorkCountdownBeep(int secondsRemaining) async {
     final String asset = switch (secondsRemaining) {
-      2 => _kBeepHold2,
-      1 => _kBeepHold1,
+      3 => _kBeepNormal,
+      2 => _kBeepWork2,
+      1 => _kBeepWork1,
       _ => _kBeepNormal,
     };
     try {
       await _playBeep(asset: asset);
+    } catch (_) {
+      await _playBeep(asset: _kBeepNormal);
+    }
+  }
+
+  /// Rest / warm-up finished: two slightly spaced longer tones.
+  Future<void> _playDoubleEndBeeps() async {
+    try {
+      await _playBeep(asset: _kBeepWorkEnd);
+      await Future<void>.delayed(const Duration(milliseconds: 420));
+      await _playBeep(asset: _kBeepWorkEnd);
     } catch (_) {
       await _playBeep(asset: _kBeepNormal);
     }
@@ -5595,7 +5654,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       setState(() => restSeconds = sec.clamp(0, 600)),
                 ),
                 child: Text(
-                  _formatDuration(restSeconds),
+                  formatDurationMmSs(restSeconds),
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -5674,7 +5733,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     setState(() => restSeconds = sec.clamp(0, 600)),
               ),
               child: Text(
-                _formatDuration(restSeconds),
+                formatDurationMmSs(restSeconds),
                 style: TextStyle(
                   fontSize: timerFontSize,
                   fontWeight: FontWeight.bold,
@@ -8498,11 +8557,53 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   int _defaultRestSeconds = 60;
+  double _timerBeepVolumePct = 85;
 
   @override
   void initState() {
     super.initState();
     _loadDefaultRestSeconds();
+    _loadTimerBeepVolume();
+  }
+
+  Future<void> _loadTimerBeepVolume() async {
+    final prefs = await SharedPreferences.getInstance();
+    final v = prefs.getInt(kPrefTimerBeepVolume);
+    if (mounted) {
+      setState(() => _timerBeepVolumePct = (v ?? 85).clamp(0, 100).toDouble());
+    }
+  }
+
+  Future<void> _setTimerBeepVolume(double pct) async {
+    final clamped = pct.clamp(0, 100).toDouble();
+    setState(() => _timerBeepVolumePct = clamped);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(kPrefTimerBeepVolume, clamped.round().clamp(0, 100));
+  }
+
+  Future<void> _previewTimerBeep() async {
+    final p = AudioPlayer();
+    try {
+      await p.setAudioContext(
+        AudioContext(
+          android: AudioContextAndroid(
+            audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+          ),
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playback,
+            options: const {AVAudioSessionOptions.duckOthers},
+          ),
+        ),
+      );
+      await p.setVolume(_timerBeepVolumePct / 100.0);
+      if (_timerBeepVolumePct <= 0) return;
+      await p.play(AssetSource('audio/timer_beep.wav'));
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+    } catch (_) {
+      // Ignore preview errors
+    } finally {
+      await p.dispose();
+    }
   }
 
   Future<void> _loadDefaultRestSeconds() async {
@@ -8763,6 +8864,89 @@ class _SettingsPageState extends State<SettingsPage> {
                     isSelected: widget.weightUnit == 'lbs',
                     onTap: () => _setWeightUnit('lbs'),
                     isDark: isDark,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 36),
+            Text(
+              l10n.get('timerBeepVolume'),
+              style: TextStyle(
+                fontSize: sectionTitleFontSize,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A2634) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: isDark
+                    ? null
+                    : [
+                        BoxShadow(
+                          color: Colors.grey.shade200,
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.get('timerBeepVolumeDesc'),
+                    style: TextStyle(
+                      fontSize: 17,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Icon(Icons.volume_down, size: 28),
+                      Expanded(
+                        child: Slider(
+                          value: _timerBeepVolumePct,
+                          min: 0,
+                          max: 100,
+                          divisions: 20,
+                          label: '${_timerBeepVolumePct.round()}%',
+                          onChanged: (v) => _setTimerBeepVolume(v),
+                        ),
+                      ),
+                      const Icon(Icons.volume_up, size: 28),
+                    ],
+                  ),
+                  Center(
+                    child: Text(
+                      '${_timerBeepVolumePct.round()}%',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: settingMinHeight,
+                    child: OutlinedButton.icon(
+                      onPressed: _previewTimerBeep,
+                      icon: const Icon(Icons.notifications_active_outlined),
+                      label: Text(
+                        l10n.get('previewTimerBeep'),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),

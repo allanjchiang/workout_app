@@ -3499,6 +3499,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         const Duration(seconds: 1),
         _onWarmupTick,
       );
+      if (warmup >= 2 && warmup <= 3) {
+        unawaited(_playRestCountdownBeep(warmup));
+      }
     } else {
       setState(() {
         _durationSessionRunning = true;
@@ -3513,6 +3516,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         const Duration(seconds: 1),
         _onDurationWorkTick,
       );
+      if (workSeconds >= 2 && workSeconds <= 3) {
+        unawaited(_playWorkCountdownBeep(workSeconds));
+      }
       _scrollRepsSetsSectionIntoView(alignment: 0.02);
     }
     unawaited(_persistWorkoutDraft());
@@ -3541,6 +3547,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       const Duration(seconds: 1),
       _onDurationWorkTick,
     );
+    if (workSeconds >= 2 && workSeconds <= 3) {
+      unawaited(_playWorkCountdownBeep(workSeconds));
+    }
     unawaited(_persistWorkoutDraft());
     _scrollRepsSetsSectionIntoView(alignment: 0.02);
   }
@@ -3559,7 +3568,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         _warmupSecondsRemaining = 0;
         warmupDone = true;
       } else {
-        if (before <= 3 && before > 1) warmCountdownBeepAt = before;
+        final after = before - 1;
+        if (after >= 1 && after <= 3) warmCountdownBeepAt = after;
         _warmupSecondsRemaining--;
       }
     });
@@ -3629,26 +3639,21 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     setState(() {
       final before = _workSecondsRemaining;
       if (before <= 1) {
-        if (before == 1) workCountdownBeepAt = 1;
         _workSecondsRemaining = 0;
         workJustEnded = true;
         timer.cancel();
       } else {
-        if (_durationSessionRunning &&
-            _durationSessionInWork &&
-            before <= 3 &&
-            before > 1) {
-          workCountdownBeepAt = before;
+        if (_durationSessionRunning && _durationSessionInWork) {
+          final after = before - 1;
+          if (after >= 1 && after <= 3) {
+            workCountdownBeepAt = after;
+          }
         }
         _workSecondsRemaining--;
       }
     });
     if (workJustEnded) {
       unawaited(() async {
-        if (workCountdownBeepAt != null) {
-          await _playWorkCountdownBeep(workCountdownBeepAt!);
-          await Future<void>.delayed(const Duration(milliseconds: 110));
-        }
         if (mounted) {
           _beginDurationRestPhase();
         }
@@ -3755,6 +3760,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         const Duration(seconds: 1),
         _onDurationWorkTick,
       );
+    }
+    if (nextWorkSeconds >= 2 && nextWorkSeconds <= 3) {
+      unawaited(_playWorkCountdownBeep(nextWorkSeconds));
     }
     unawaited(_persistWorkoutDraft());
     _scrollRepsSetsSectionIntoView(alignment: 0.02);
@@ -4078,8 +4086,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         finishedRest = true;
         timer.cancel();
       } else {
-        if (before <= 3 && before > 1) {
-          countdownBeepAt = before;
+        final after = before - 1;
+        if (after >= 1 && after <= 3) {
+          countdownBeepAt = after;
         }
         restSeconds--;
       }
@@ -4128,6 +4137,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     });
     restTimer?.cancel();
     restTimer = Timer.periodic(const Duration(seconds: 1), _onRestTimerTick);
+    if (effective >= 2 && effective <= 3) {
+      unawaited(_playRestCountdownBeep(effective));
+    }
   }
 
   void _restoreRestTimer() {
@@ -4159,14 +4171,21 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     unawaited(_persistWorkoutDraft());
   }
 
-  Future<void> _playBeep({String asset = 'audio/timer_beep.wav'}) async {
+  /// [volumeScale] multiplies the user’s timer volume (e.g. softer tier-2 ticks).
+  Future<void> _playBeep({
+    String asset = 'audio/timer_beep.wav',
+    double volumeScale = 1.0,
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final volPct = prefs.getInt(kPrefTimerBeepVolume);
       final vol = ((volPct ?? 85).clamp(0, 100)) / 100.0;
       if (vol <= 0) return;
+      final scaled =
+          (vol * volumeScale.clamp(0.05, 1.5)).clamp(0.0, 1.0);
+      if (scaled <= 0) return;
       await _setBeepAudioContext();
-      await audioPlayer.setVolume(vol);
+      await audioPlayer.setVolume(scaled);
       await audioPlayer.stop();
       await audioPlayer.play(AssetSource(asset));
     } catch (e) {
@@ -4177,51 +4196,55 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   // Interval-timer beeps (WAVs under assets/audio/)
   static const String _kBeepNormal = 'audio/timer_beep.wav';
   static const String _kBeepWorkEnd = 'audio/work_end_beep.wav';
-  static const String _kBeepRest2 = 'audio/rest_2_beep.wav';
   static const String _kBeepRest1 = 'audio/rest_1_beep.wav';
   static const String _kBeepWork2 = 'audio/work_2_beep.wav';
   static const String _kBeepWork1 = 'audio/work_1_beep.wav';
 
-  /// Hold finished: uses the same asset that was previously the harsh 2s cue
-  /// ([_kBeepWork2]); that tone is now reserved for “work done” only.
+  /// Hold finished: one longer tone (not the double rest/warm-up end pattern).
   Future<void> _playWorkEndBeep() async {
     try {
-      await _playBeep(asset: _kBeepWork2);
+      await _playBeep(asset: _kBeepWorkEnd);
     } catch (_) {
       try {
-        await _playBeep(asset: _kBeepWorkEnd);
+        await _playBeep(asset: _kBeepWork2);
       } catch (_) {
         await _playBeep(asset: _kBeepNormal);
       }
     }
   }
 
-  /// Rest and warm-up: pleasant ticks at 3, 2, 1 (same timbre family).
+  /// Rest and warm-up: ticks when the timer shows 3, 2, 1. Tier 2 uses the same
+  /// gentle tick as tier 3 at lower volume so it is not piercing.
   Future<void> _playRestCountdownBeep(int secondsRemaining) async {
-    final String asset = switch (secondsRemaining) {
-      3 => _kBeepNormal,
-      2 => _kBeepRest2,
-      1 => _kBeepRest1,
-      _ => _kBeepNormal,
-    };
     try {
-      await _playBeep(asset: asset);
+      switch (secondsRemaining) {
+        case 3:
+          await _playBeep(asset: _kBeepNormal);
+        case 2:
+          await _playBeep(asset: _kBeepNormal, volumeScale: 0.62);
+        case 1:
+          await _playBeep(asset: _kBeepRest1);
+        default:
+          await _playBeep(asset: _kBeepNormal);
+      }
     } catch (_) {
       await _playBeep(asset: _kBeepNormal);
     }
   }
 
-  /// Timed hold work phase: ticks at 3, 2, 1. At 2s use the softer rest-style cue
-  /// ([_kBeepRest2]); the sharper [_kBeepWork2] is reserved for work-end only.
+  /// Hold phase: same 3 / 2 / 1 mapping as rest ticks; tier 1 uses work chime.
   Future<void> _playWorkCountdownBeep(int secondsRemaining) async {
-    final String asset = switch (secondsRemaining) {
-      3 => _kBeepNormal,
-      2 => _kBeepRest2,
-      1 => _kBeepWork1,
-      _ => _kBeepNormal,
-    };
     try {
-      await _playBeep(asset: asset);
+      switch (secondsRemaining) {
+        case 3:
+          await _playBeep(asset: _kBeepNormal);
+        case 2:
+          await _playBeep(asset: _kBeepNormal, volumeScale: 0.62);
+        case 1:
+          await _playBeep(asset: _kBeepWork1);
+        default:
+          await _playBeep(asset: _kBeepNormal);
+      }
     } catch (_) {
       await _playBeep(asset: _kBeepNormal);
     }

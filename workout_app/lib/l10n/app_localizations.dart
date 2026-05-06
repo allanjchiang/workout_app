@@ -111,7 +111,17 @@ class AppLocalizations {
   /// Display label for a stored exercise name (templates, logs). Known English names map to zh-Hant when locale is Chinese; other strings are unchanged.
   String localizeExerciseName(String storedName) {
     if (!_isZhLocale) return storedName;
-    return _exerciseNameEnToZhHant[storedName] ?? storedName;
+    final normalized = storedName.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final direct = _exerciseNameEnToZhHant[storedName];
+    if (direct != null) return direct;
+    final byNormalized = _exerciseNameEnToZhHant[normalized];
+    if (byNormalized != null) return byNormalized;
+    // Be forgiving for capitalization differences in stored templates/logs.
+    final lower = normalized.toLowerCase();
+    for (final e in _exerciseNameEnToZhHant.entries) {
+      if (e.key.toLowerCase() == lower) return e.value;
+    }
+    return normalized;
   }
 
   /// English workout template titles (as stored) → zh-Hant for display when locale is Chinese.

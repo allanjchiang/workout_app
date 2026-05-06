@@ -5845,54 +5845,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     ],
                   ),
                   const SizedBox(height: 16),
-                  if (restCountdownActive || restCountdownPausedUi)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: SizedBox(
-                        width: 260,
-                        height: minTapHeight,
-                        child: OutlinedButton.icon(
-                          onPressed: restCountdownActive
-                              ? () {
-                                  if (current.durationBased) {
-                                    _pauseDurationSession();
-                                  } else {
-                                    _pauseRestCountdown();
-                                  }
-                                }
-                              : () {
-                                  if (current.durationBased) {
-                                    _resumeDurationSession();
-                                  } else {
-                                    _resumeRestCountdown();
-                                  }
-                                },
-                          icon: Icon(
-                            restCountdownActive ? Icons.pause : Icons.play_arrow,
-                            size: 28,
-                          ),
-                          label: Text(
-                            restCountdownActive
-                                ? l10n.get('pauseRestTimer')
-                                : l10n.get('resumeRestTimer'),
-                            style: const TextStyle(
-                              fontSize: buttonFontSize,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.blue.shade800,
-                            side: BorderSide(
-                              color: Colors.blue.shade600,
-                              width: 2,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
                   const SizedBox(height: 20),
                   GestureDetector(
                     onTap: () => showDurationEntryDialog(
@@ -5903,22 +5855,61 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       onSave: (sec) =>
                           setState(() => restSeconds = sec.clamp(0, 600)),
                     ),
-                    child: Text(
-                      formatDurationMmSs(restSeconds),
-                      style: TextStyle(
-                        fontSize: timerFontSize,
-                        fontWeight: FontWeight.bold,
-                        color: restSeconds <= 10 ? Colors.red : Colors.blue,
+                    child: Center(
+                      child: Text(
+                        formatDurationMmSs(restSeconds),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: timerFontSize,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
+                  if (restCountdownActive || restCountdownPausedUi) ...[
+                    const SizedBox(height: 12),
+                    Center(
+                      child: SizedBox(
+                        width: 64,
+                        height: 64,
+                        child: FilledButton(
+                          onPressed: () {
+                            if (restCountdownActive) {
+                              if (current.durationBased) {
+                                _pauseDurationSession();
+                              } else {
+                                _pauseRestCountdown();
+                              }
+                            } else {
+                              if (current.durationBased) {
+                                _resumeDurationSession();
+                              } else {
+                                _resumeRestCountdown();
+                              }
+                            }
+                          },
+                          style: FilledButton.styleFrom(
+                            shape: const CircleBorder(),
+                            backgroundColor: Colors.white.withValues(alpha: 0.18),
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.zero,
+                          ),
+                          child: Icon(
+                            restCountdownActive ? Icons.pause : Icons.play_arrow,
+                            size: 34,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 40),
                   // +30 / −30 sec row
                   Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 SizedBox(
-                  width: 140,
+                  width: 110,
                   height: minTapHeight,
                   child: ElevatedButton(
                     onPressed: () => _subtractRestSeconds(30),
@@ -5930,7 +5921,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       ),
                     ),
                     child: Text(
-                      l10n.get('subtract30Seconds'),
+                      '-30s',
                       style: const TextStyle(
                         fontSize: buttonFontSize,
                         fontWeight: FontWeight.bold,
@@ -5938,9 +5929,45 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     ),
                   ),
                 ),
-                const SizedBox(width: 20),
+                const SizedBox(width: 12),
                 SizedBox(
-                  width: 140,
+                  width: 64,
+                  height: minTapHeight,
+                  child: FilledButton(
+                    onPressed: (restCountdownActive || restCountdownPausedUi)
+                        ? () {
+                            if (restCountdownActive) {
+                              if (current.durationBased) {
+                                _pauseDurationSession();
+                              } else {
+                                _pauseRestCountdown();
+                              }
+                            } else {
+                              if (current.durationBased) {
+                                _resumeDurationSession();
+                              } else {
+                                _resumeRestCountdown();
+                              }
+                            }
+                          }
+                        : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.white.withValues(alpha: 0.18),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      padding: EdgeInsets.zero,
+                    ),
+                    child: Icon(
+                      restCountdownActive ? Icons.pause : Icons.play_arrow,
+                      size: 30,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 110,
                   height: minTapHeight,
                   child: ElevatedButton(
                     onPressed: () => _addRestSeconds(30),
@@ -5952,7 +5979,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       ),
                     ),
                     child: Text(
-                      l10n.get('add30Seconds'),
+                      '+30s',
                       style: const TextStyle(
                         fontSize: buttonFontSize,
                         fontWeight: FontWeight.bold,

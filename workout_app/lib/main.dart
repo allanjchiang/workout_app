@@ -5624,8 +5624,16 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       child: Scaffold(
         appBar: AppBar(
           title: Text(
-            l10n.localizeWorkoutTemplateName(widget.template.name),
+            (_orderedExercises.isNotEmpty &&
+                    currentExerciseIndex >= 0 &&
+                    currentExerciseIndex < _orderedExercises.length)
+                ? l10n.localizeExerciseName(
+                    _orderedExercises[currentExerciseIndex].exercise.name,
+                  )
+                : l10n.localizeWorkoutTemplateName(widget.template.name),
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           leading: IconButton(
             onPressed: _confirmExit,

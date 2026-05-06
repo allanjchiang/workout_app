@@ -3422,173 +3422,163 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     final existing = _exerciseNotesByExerciseId[exercise.exercise.id] ?? '';
     final controller = TextEditingController(text: existing);
 
-    await showDialog<void>(
+    await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
         final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
         final screenH = MediaQuery.sizeOf(context).height;
-        final topInset = MediaQuery.paddingOf(context).top;
-        // Keep dialog fully visible when keyboard opens.
-        final maxDialogHeight = (screenH - topInset - bottomInset - 24).clamp(
-          260.0,
-          screenH,
-        );
+        final sheetHeight = (screenH * 0.75).clamp(320.0, 620.0);
 
-        return AnimatedPadding(
+        return Padding(
           padding: EdgeInsets.only(bottom: bottomInset),
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
           child: SafeArea(
-            child: Dialog(
-              backgroundColor: isDark ? const Color(0xFF1E2A3A) : Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              insetPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 16,
-              ),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: maxDialogHeight,
-                  maxWidth: 560,
+            top: false,
+            child: Container(
+              height: sheetHeight,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        name,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: (isDark ? Colors.white : Colors.black)
+                            .withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      name,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        l10n.get('notes'),
                         style: TextStyle(
-                          fontSize: 24,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
+                          color: isDark
+                              ? Colors.grey.shade300
+                              : Colors.grey.shade800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        maxLines: null,
+                        expands: true,
+                        style: TextStyle(
+                          fontSize: 20,
                           color: isDark ? Colors.white : Colors.black87,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          l10n.get('notes'),
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: isDark
-                                ? Colors.grey.shade300
-                                : Colors.grey.shade800,
+                        decoration: InputDecoration(
+                          hintText: l10n.get('typeHere'),
+                          filled: true,
+                          fillColor: isDark
+                              ? Colors.white.withValues(alpha: 0.06)
+                              : Colors.grey.shade100,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(color: Colors.grey.shade400),
                           ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                              color: colorScheme.primary,
+                              width: 2,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.all(16),
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Flexible(
-                        child: SingleChildScrollView(
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
                           child: SizedBox(
-                            height: 240,
-                            child: TextField(
-                              controller: controller,
-                              expands: true,
-                              maxLines: null,
-                              minLines: null,
-                              style: TextStyle(
-                                fontSize: 20,
-                                color: isDark ? Colors.white : Colors.black87,
+                            height: 56,
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(
+                                  color: colorScheme.primary,
+                                  width: 2,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
                               ),
-                              decoration: InputDecoration(
-                                hintText: l10n.get('typeHere'),
-                                filled: true,
-                                fillColor: isDark
-                                    ? Colors.white.withValues(alpha: 0.06)
-                                    : Colors.grey.shade100,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide(
-                                    color: Colors.grey.shade400,
-                                  ),
+                              child: Text(
+                                l10n.get('cancel'),
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide(
-                                    color: colorScheme.primary,
-                                    width: 2,
-                                  ),
-                                ),
-                                contentPadding: const EdgeInsets.all(16),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: SizedBox(
-                              height: 56,
-                              child: OutlinedButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                style: OutlinedButton.styleFrom(
-                                  side: BorderSide(
-                                    color: colorScheme.primary,
-                                    width: 2,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: SizedBox(
+                            height: 56,
+                            child: FilledButton(
+                              onPressed: () {
+                                final trimmed = controller.text.trim();
+                                setState(() {
+                                  if (trimmed.isEmpty) {
+                                    _exerciseNotesByExerciseId.remove(
+                                      exercise.exercise.id,
+                                    );
+                                  } else {
+                                    _exerciseNotesByExerciseId[
+                                        exercise.exercise.id] = trimmed;
+                                  }
+                                });
+                                unawaited(_persistExerciseNotes());
+                                Navigator.of(context).pop();
+                              },
+                              style: FilledButton.styleFrom(
+                                backgroundColor: colorScheme.primary,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
-                                child: Text(
-                                  l10n.get('cancel'),
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                              ),
+                              child: Text(
+                                l10n.get('save'),
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: SizedBox(
-                              height: 56,
-                              child: FilledButton(
-                                onPressed: () {
-                                  final trimmed = controller.text.trim();
-                                  setState(() {
-                                    if (trimmed.isEmpty) {
-                                      _exerciseNotesByExerciseId.remove(
-                                        exercise.exercise.id,
-                                      );
-                                    } else {
-                                      _exerciseNotesByExerciseId[
-                                          exercise.exercise.id] = trimmed;
-                                    }
-                                  });
-                                  unawaited(_persistExerciseNotes());
-                                  Navigator.of(context).pop();
-                                },
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: colorScheme.primary,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                ),
-                                child: Text(
-                                  l10n.get('save'),
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),

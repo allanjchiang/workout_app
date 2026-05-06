@@ -5859,10 +5859,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       child: Text(
                         formatDurationMmSs(restSeconds),
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: timerFontSize,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          // Original rest timer colors: blue, turns red at 10s.
+                          color: restSeconds <= 10 ? Colors.red : Colors.blue,
                         ),
                       ),
                     ),
@@ -5909,7 +5910,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 SizedBox(
-                  width: 110,
+                  width: 140,
                   height: minTapHeight,
                   child: ElevatedButton(
                     onPressed: () => _subtractRestSeconds(30),
@@ -5921,7 +5922,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       ),
                     ),
                     child: Text(
-                      '-30s',
+                      l10n.get('subtract30Seconds'),
                       style: const TextStyle(
                         fontSize: buttonFontSize,
                         fontWeight: FontWeight.bold,
@@ -5929,45 +5930,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 20),
                 SizedBox(
-                  width: 64,
-                  height: minTapHeight,
-                  child: FilledButton(
-                    onPressed: (restCountdownActive || restCountdownPausedUi)
-                        ? () {
-                            if (restCountdownActive) {
-                              if (current.durationBased) {
-                                _pauseDurationSession();
-                              } else {
-                                _pauseRestCountdown();
-                              }
-                            } else {
-                              if (current.durationBased) {
-                                _resumeDurationSession();
-                              } else {
-                                _resumeRestCountdown();
-                              }
-                            }
-                          }
-                        : null,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white.withValues(alpha: 0.18),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      padding: EdgeInsets.zero,
-                    ),
-                    child: Icon(
-                      restCountdownActive ? Icons.pause : Icons.play_arrow,
-                      size: 30,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 110,
+                  width: 140,
                   height: minTapHeight,
                   child: ElevatedButton(
                     onPressed: () => _addRestSeconds(30),
@@ -5979,7 +5944,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       ),
                     ),
                     child: Text(
-                      '+30s',
+                      l10n.get('add30Seconds'),
                       style: const TextStyle(
                         fontSize: buttonFontSize,
                         fontWeight: FontWeight.bold,

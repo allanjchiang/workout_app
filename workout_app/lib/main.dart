@@ -6419,11 +6419,14 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                             child: InkWell(
                               onTap: isAvailable
                                   ? () {
+                                      final wasResting = isResting;
                                       setState(() {
                                         currentExerciseIndex = index;
                                         final exercise =
                                             _orderedExercises[index];
-                                        _stopDurationSession(clearRest: true);
+                                        // If user is browsing the plan during an active rest,
+                                        // keep the rest countdown running.
+                                        _stopDurationSession(clearRest: !wasResting);
                                         final loggedForExercise = logs
                                             .where(
                                               (l) =>
@@ -6434,7 +6437,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                         currentSet = loggedForExercise + 1;
                                         _initializeCurrentExercise();
                                       });
-                                      _scrollRepsSetsSectionIntoView();
+                                      if (!wasResting) {
+                                        _scrollRepsSetsSectionIntoView();
+                                      }
                                     }
                                   : null,
                               borderRadius: BorderRadius.circular(12),

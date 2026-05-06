@@ -201,7 +201,7 @@ class AppLocalizations {
     'restOptionDefault': 'Use workout default',
     'restOptionDefaultSub': 'Same as Rest timer in Settings ({time})',
     'restOptionNoRest': 'No rest',
-    'restOptionNoRestSub': 'Go to the next set right away (good for stretches)',
+    'restOptionNoRestSub': 'Go to the next set right away',
     'restOptionCustom': 'Custom rest time',
     'restOptionCustomSub': 'Set how long to rest after each set (tap − / +)',
     'restHintDefault': 'Rest: same as settings ({time})',

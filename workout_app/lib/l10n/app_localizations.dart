@@ -91,6 +91,10 @@ class AppLocalizations {
       languageCode: 'zh',
       scriptCode: 'Hant',
     ), // Chinese Traditional
+    Locale.fromSubtags(
+      languageCode: 'zh',
+      scriptCode: 'Hans',
+    ), // Chinese Simplified
   ];
 
   // Get localized strings based on locale
@@ -103,23 +107,112 @@ class AppLocalizations {
     return _enStrings;
   }
 
-  String get(String key) => _localizedStrings[key] ?? key;
+  String get(String key) {
+    final v = _localizedStrings[key] ?? key;
+    return _isZhHansLocale ? _toSimplified(v) : v;
+  }
 
   bool get _isZhLocale =>
-      locale.scriptCode == 'Hant' || locale.languageCode == 'zh';
+      locale.languageCode == 'zh' ||
+      locale.scriptCode == 'Hant' ||
+      locale.scriptCode == 'Hans';
+
+  bool get _isZhHansLocale =>
+      locale.languageCode == 'zh' && locale.scriptCode == 'Hans';
+
+  String _toSimplified(String input) {
+    // Lightweight Traditional → Simplified conversion for our built-in strings.
+    // (Covers common UI / fitness terms used in this app.)
+    const replacements = <String, String>{
+      '運': '运',
+      '動': '动',
+      '蹤': '踪',
+      '器': '器',
+      '歷': '历',
+      '統': '统',
+      '計': '计',
+      '刪': '删',
+      '除': '除',
+      '編': '编',
+      '輯': '辑',
+      '確': '确',
+      '定': '定',
+      '輸': '输',
+      '入': '入',
+      '說': '说',
+      '明': '明',
+      '選': '选',
+      '擇': '择',
+      '設': '设',
+      '置': '置',
+      '開': '开',
+      '始': '始',
+      '結': '结',
+      '束': '束',
+      '復': '复',
+      '舊': '旧',
+      '資': '资',
+      '料': '料',
+      '導': '导',
+      '出': '出',
+      '匯': '汇',
+      '備': '备',
+      '份': '份',
+      '檔': '档',
+      '案': '案',
+      '臺': '台',
+      '灣': '湾',
+      '輔': '辅',
+      '助': '助',
+      '體': '体',
+      '啞': '哑',
+      '鈴': '铃',
+      '槓': '杠',
+      '臥': '卧',
+      '壓': '压',
+      '顯': '显',
+      '示': '示',
+      '隱': '隐',
+      '藏': '藏',
+      '點': '点',
+      '擊': '击',
+      '頁': '页',
+      '單': '单',
+      '雙': '双',
+      '腳': '脚',
+      '練': '练',
+      '習': '习',
+      '變': '变',
+      '換': '换',
+      '觸': '触',
+      '控': '控',
+      '幫': '帮',
+      '鐘': '钟',
+    };
+
+    var out = input;
+    for (final e in replacements.entries) {
+      out = out.replaceAll(e.key, e.value);
+    }
+    return out;
+  }
 
   /// Display label for a stored exercise name (templates, logs). Known English names map to zh-Hant when locale is Chinese; other strings are unchanged.
   String localizeExerciseName(String storedName) {
     if (!_isZhLocale) return storedName;
     final normalized = storedName.trim().replaceAll(RegExp(r'\s+'), ' ');
     final direct = _exerciseNameEnToZhHant[storedName];
-    if (direct != null) return direct;
+    if (direct != null) return _isZhHansLocale ? _toSimplified(direct) : direct;
     final byNormalized = _exerciseNameEnToZhHant[normalized];
-    if (byNormalized != null) return byNormalized;
+    if (byNormalized != null) {
+      return _isZhHansLocale ? _toSimplified(byNormalized) : byNormalized;
+    }
     // Be forgiving for capitalization differences in stored templates/logs.
     final lower = normalized.toLowerCase();
     for (final e in _exerciseNameEnToZhHant.entries) {
-      if (e.key.toLowerCase() == lower) return e.value;
+      if (e.key.toLowerCase() == lower) {
+        return _isZhHansLocale ? _toSimplified(e.value) : e.value;
+      }
     }
     return normalized;
   }
@@ -143,7 +236,8 @@ class AppLocalizations {
 
   String localizeWorkoutTemplateName(String storedName) {
     if (!_isZhLocale) return storedName;
-    return _workoutTemplateNameEnToZhHant[storedName] ?? storedName;
+    final v = _workoutTemplateNameEnToZhHant[storedName] ?? storedName;
+    return _isZhHansLocale ? _toSimplified(v) : v;
   }
 
   // English strings

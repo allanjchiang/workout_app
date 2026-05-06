@@ -3870,6 +3870,38 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     );
   }
 
+  Future<void> _persistExerciseOrderToTemplateStorage() async {
+    try {
+      final updatedTemplate = widget.template.copyWith(
+        exercises: List<TemplateExercise>.from(_orderedExercises),
+      );
+
+      // Keep the in-memory templates list (parent) in sync, if provided.
+      widget.onUpdateTemplate?.call(updatedTemplate);
+
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('workout_templates');
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      final storedTemplates = decoded
+          .map((e) => WorkoutTemplate.fromJson(e as Map<String, dynamic>))
+          .toList();
+      final templateIndex =
+          storedTemplates.indexWhere((t) => t.id == widget.template.id);
+      if (templateIndex == -1) return;
+
+      storedTemplates[templateIndex] = storedTemplates[templateIndex].copyWith(
+        exercises: List<TemplateExercise>.from(_orderedExercises),
+      );
+      await prefs.setString(
+        'workout_templates',
+        jsonEncode(storedTemplates.map((t) => t.toJson()).toList()),
+      );
+    } catch (_) {
+      // Ignore persistence errors; in-memory reorder still applies.
+    }
+  }
+
   Future<void> _persistWorkoutDraft() async {
     if (_suppressDraftSave || !mounted) return;
     try {
@@ -6356,6 +6388,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                         currentExerciseIndex++;
                       }
                     });
+                    unawaited(_persistExerciseOrderToTemplateStorage());
                   },
                   itemBuilder: (context, index) {
                     final exercise = _orderedExercises[index];

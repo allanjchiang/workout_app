@@ -3112,6 +3112,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   /// Mutable copy of template exercises so user can reorder during workout.
   late List<TemplateExercise> _orderedExercises;
 
+  // Per-exercise notes (elderly-friendly). Persisted locally.
+  static const String _exerciseNotesPrefsKey = 'exercise_notes_v1';
+  Map<String, String> _exerciseNotesByExerciseId = {};
+
   /// Keeps weight/reps controls in view after rest, or scrolls to the plan row when target sets are done.
   final ScrollController _exerciseScrollController = ScrollController();
   final GlobalKey _repsSetsSectionKey = GlobalKey();
@@ -3336,6 +3340,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    unawaited(_loadExerciseNotes());
     final restored = widget.restoredDraft;
     if (restored != null) {
       _orderedExercises = List.from(restored.template.exercises);
@@ -3374,6 +3379,157 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         unawaited(_persistWorkoutDraft());
       }
     });
+  }
+
+  Future<void> _loadExerciseNotes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_exerciseNotesPrefsKey);
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return;
+      final notes = <String, String>{};
+      for (final entry in decoded.entries) {
+        final v = entry.value;
+        if (v is String) notes[entry.key] = v;
+      }
+      if (!mounted) return;
+      setState(() => _exerciseNotesByExerciseId = notes);
+    } catch (_) {
+      // Ignore persistence errors
+    }
+  }
+
+  Future<void> _persistExerciseNotes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _exerciseNotesPrefsKey,
+        jsonEncode(_exerciseNotesByExerciseId),
+      );
+    } catch (_) {
+      // Ignore persistence errors
+    }
+  }
+
+  Future<void> _showExerciseNotesDialog(
+    AppLocalizations l10n,
+    TemplateExercise exercise,
+  ) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+    final name = l10n.localizeExerciseName(exercise.exercise.name);
+    final existing = _exerciseNotesByExerciseId[exercise.exercise.id] ?? '';
+    final controller = TextEditingController(text: existing);
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            name,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  l10n.get('notes'),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  maxLines: 7,
+                  style: TextStyle(
+                    fontSize: 20,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: l10n.get('typeHere'),
+                    filled: true,
+                    fillColor: isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.grey.shade100,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(color: Colors.grey.shade400),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                    ),
+                    contentPadding: const EdgeInsets.all(16),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          actions: [
+            SizedBox(
+              height: 56,
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: colorScheme.primary, width: 2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: Text(
+                  l10n.get('cancel'),
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 56,
+              child: FilledButton(
+                onPressed: () {
+                  final trimmed = controller.text.trim();
+                  setState(() {
+                    if (trimmed.isEmpty) {
+                      _exerciseNotesByExerciseId.remove(exercise.exercise.id);
+                    } else {
+                      _exerciseNotesByExerciseId[exercise.exercise.id] = trimmed;
+                    }
+                  });
+                  unawaited(_persistExerciseNotes());
+                  Navigator.of(context).pop();
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
+                ),
+                child: Text(
+                  l10n.get('save'),
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -6519,6 +6675,27 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                           ),
                                         ],
                                       ),
+                                    ),
+                                    IconButton(
+                                      onPressed: () =>
+                                          unawaited(_showExerciseNotesDialog(
+                                        l10n,
+                                        exercise,
+                                      )),
+                                      icon: Icon(
+                                        (_exerciseNotesByExerciseId[
+                                                    exercise.exercise.id] ??
+                                                '')
+                                                .trim()
+                                                .isEmpty
+                                            ? Icons.note_alt_outlined
+                                            : Icons.note_alt,
+                                        color: isDark
+                                            ? Colors.grey.shade200
+                                            : Colors.grey.shade700,
+                                        size: 26,
+                                      ),
+                                      tooltip: l10n.get('notes'),
                                     ),
                                     if (isCurrent)
                                       Container(

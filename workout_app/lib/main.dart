@@ -8526,6 +8526,8 @@ class StatisticsPage extends StatelessWidget {
 
 enum ChartViewMode { weight, reps, oneRepMax }
 
+enum ProgressTimeRange { week, month, year, all }
+
 class _ProgressChartSection extends StatefulWidget {
   final List<WorkoutSession> history;
   final String weightUnit;
@@ -8539,6 +8541,23 @@ class _ProgressChartSection extends StatefulWidget {
 class _ProgressChartSectionState extends State<_ProgressChartSection> {
   String? selectedExerciseName;
   ChartViewMode viewMode = ChartViewMode.weight;
+  ProgressTimeRange timeRange = ProgressTimeRange.all;
+
+  DateTime? get _timeRangeStart {
+    if (timeRange == ProgressTimeRange.all) return null;
+    final today = DateTime.now();
+    final startOfToday = DateTime(today.year, today.month, today.day);
+    switch (timeRange) {
+      case ProgressTimeRange.week:
+        return startOfToday.subtract(const Duration(days: 7));
+      case ProgressTimeRange.month:
+        return startOfToday.subtract(const Duration(days: 30));
+      case ProgressTimeRange.year:
+        return startOfToday.subtract(const Duration(days: 365));
+      case ProgressTimeRange.all:
+        return null;
+    }
+  }
 
   /// Unique exercise names in history (same name = one entry), matching past-history / stats aggregation.
   List<String> get uniqueExerciseNames {
@@ -8608,7 +8627,28 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
 
     // Sort by date (oldest first)
     dataPoints.sort((a, b) => a.date.compareTo(b.date));
-    return dataPoints;
+    final rangeStart = _timeRangeStart;
+    if (rangeStart == null) return dataPoints;
+    return dataPoints
+        .where((p) => !p.date.isBefore(rangeStart))
+        .toList();
+  }
+
+  bool get _hasDataOutsideTimeRange {
+    if (selectedExerciseName == null || timeRange == ProgressTimeRange.all) {
+      return false;
+    }
+    final rangeStart = _timeRangeStart;
+    if (rangeStart == null) return false;
+    for (final session in widget.history) {
+      if (session.startTime.isBefore(rangeStart)) {
+        final hasExercise = session.logs.any(
+          (log) => log.exerciseName == selectedExerciseName,
+        );
+        if (hasExercise) return true;
+      }
+    }
+    return false;
   }
 
   @override
@@ -8702,7 +8742,81 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
+
+        // Time range (elderly-friendly 2×2 large buttons)
+        Text(
+          l10n.get('progressTimeRange'),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1A2634) : Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.all(6),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _ToggleButton(
+                      label: l10n.get('progressOneWeek'),
+                      isSelected: timeRange == ProgressTimeRange.week,
+                      onTap: () => setState(
+                        () => timeRange = ProgressTimeRange.week,
+                      ),
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _ToggleButton(
+                      label: l10n.get('progressOneMonth'),
+                      isSelected: timeRange == ProgressTimeRange.month,
+                      onTap: () => setState(
+                        () => timeRange = ProgressTimeRange.month,
+                      ),
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: _ToggleButton(
+                      label: l10n.get('progressOneYear'),
+                      isSelected: timeRange == ProgressTimeRange.year,
+                      onTap: () => setState(
+                        () => timeRange = ProgressTimeRange.year,
+                      ),
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _ToggleButton(
+                      label: l10n.get('progressAllTime'),
+                      isSelected: timeRange == ProgressTimeRange.all,
+                      onTap: () => setState(
+                        () => timeRange = ProgressTimeRange.all,
+                      ),
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
 
         // View Mode Toggle (Weight / Reps / 1RM)
         Container(
@@ -8756,19 +8870,24 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
     final data = chartData;
 
     if (data.isEmpty) {
+      final emptyMessage = _hasDataOutsideTimeRange
+          ? l10n.get('noDataForTimeRange')
+          : l10n.get('noDataForExercise');
       return Container(
         height: 200,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1A2634) : Colors.white,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Center(
           child: Text(
-            l10n.get('noDataForExercise'),
+            emptyMessage,
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 18,
               color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
             ),
+            textAlign: TextAlign.center,
           ),
         ),
       );
@@ -9115,11 +9234,13 @@ class _ToggleButton extends StatelessWidget {
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
+  final double fontSize;
 
   const _ToggleButton({
     required this.label,
     required this.isSelected,
     required this.onTap,
+    this.fontSize = 16,
   });
 
   @override
@@ -9134,12 +9255,12 @@ class _ToggleButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
           alignment: Alignment.center,
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 16,
+              fontSize: fontSize,
               fontWeight: FontWeight.bold,
               color: isSelected
                   ? Colors.white

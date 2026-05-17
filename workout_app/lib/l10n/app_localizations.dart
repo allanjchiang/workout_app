@@ -532,6 +532,12 @@ class AppLocalizations {
 
     // Progress Chart
     'progressChart': 'Progress Chart',
+    'progressTimeRange': 'Time range',
+    'progressOneWeek': '1 week',
+    'progressOneMonth': '1 month',
+    'progressOneYear': '1 year',
+    'progressAllTime': 'All time',
+    'noDataForTimeRange': 'No workouts in this time range for this exercise',
     'repsOverTime': 'Reps',
     'weightOverTime': 'Weight',
     'bothOverTime': 'Both',
@@ -838,6 +844,12 @@ class AppLocalizations {
     'enterValue': '輸入數值',
 
     'progressChart': '進度圖表',
+    'progressTimeRange': '時間範圍',
+    'progressOneWeek': '一週',
+    'progressOneMonth': '一個月',
+    'progressOneYear': '一年',
+    'progressAllTime': '全部',
+    'noDataForTimeRange': '此時間範圍內沒有此動作的紀錄',
     'repsOverTime': '次數',
     'weightOverTime': '重量',
     'bothOverTime': '兩者',

@@ -1277,6 +1277,11 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
           onComplete: _addSession,
           history: history,
           weightUnit: _weightUnit,
+          onWeightUnitChanged: () async {
+            final prefs = await SharedPreferences.getInstance();
+            final unit = prefs.getString('weight_unit') ?? 'kg';
+            if (mounted) setState(() => _weightUnit = unit);
+          },
           onUpdateTemplate: _updateTemplate,
         ),
       ),
@@ -3051,6 +3056,9 @@ class ActiveWorkoutPage extends StatefulWidget {
   final List<WorkoutSession> history;
   final String weightUnit;
 
+  /// Called when user changes kg/lbs during a workout (also persisted locally).
+  final VoidCallback? onWeightUnitChanged;
+
   /// Called when user adds an exercise and chooses "Add to workout template".
   final void Function(WorkoutTemplate updatedTemplate)? onUpdateTemplate;
 
@@ -3061,6 +3069,7 @@ class ActiveWorkoutPage extends StatefulWidget {
     required this.onComplete,
     required this.history,
     this.weightUnit = 'kg',
+    this.onWeightUnitChanged,
     this.onUpdateTemplate,
   });
 
@@ -3124,9 +3133,14 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   GlobalKey _globalKeyForPlanRow(String exerciseId) =>
       _planRowKeys.putIfAbsent(exerciseId, () => GlobalKey());
 
-  String get _weightUnit => widget.weightUnit;
+  late String _weightUnit;
 
   static const double _kgToLbs = 2.2046226218;
+  static const double _kgStep = 0.5;
+  static const double _lbsStep = 5.0;
+
+  double get _weightStepKg =>
+      _weightUnit == 'lbs' ? _lbsStep / _kgToLbs : _kgStep;
 
   double _kgToDisplay(double kg) => _weightUnit == 'lbs' ? kg * _kgToLbs : kg;
 
@@ -3136,6 +3150,25 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   String _formatWeightDisplay(double kg) {
     final v = _kgToDisplay(kg);
     return v == v.toInt() ? '${v.toInt()}' : v.toStringAsFixed(1);
+  }
+
+  Future<void> _setWeightUnit(String unit) async {
+    if (unit != 'kg' && unit != 'lbs') return;
+    if (_weightUnit == unit) return;
+    setState(() => _weightUnit = unit);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('weight_unit', unit);
+    } catch (_) {
+      // Ignore persistence errors; in-memory unit still applies.
+    }
+    widget.onWeightUnitChanged?.call();
+  }
+
+  void _adjustCurrentWeight(double deltaKg) {
+    setState(
+      () => currentWeight = (currentWeight + deltaKg).clamp(0.0, 999.0),
+    );
   }
 
   /// Look up by exercise name so history is shared across templates (same exercise name).
@@ -3340,6 +3373,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _weightUnit =
+        widget.weightUnit == 'lbs' || widget.weightUnit == 'kg'
+        ? widget.weightUnit
+        : 'kg';
     unawaited(_loadExerciseNotes());
     final restored = widget.restoredDraft;
     if (restored != null) {
@@ -6814,16 +6851,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   _LargeRoundButton(
                     icon: Icons.remove,
                     color: Colors.orange.shade400,
-                    onPressed: () {
-                      if (currentWeight > 0) {
-                        setState(
-                          () => currentWeight = (currentWeight - 0.5).clamp(
-                            0,
-                            999,
-                          ),
-                        );
-                      }
-                    },
+                    onPressed: currentWeight > 0
+                        ? () => _adjustCurrentWeight(-_weightStepKg)
+                        : null,
                   ),
                   Expanded(
                     child: GestureDetector(
@@ -6887,6 +6917,15 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                               ),
                             ),
                           ),
+                          const SizedBox(height: 12),
+                          _WeightUnitSegmentedToggle(
+                            selectedUnit: _weightUnit,
+                            kgLabel: l10n.get('weightShort'),
+                            lbsLabel: l10n.get('weightShortLbs'),
+                            onUnitSelected: (unit) =>
+                                unawaited(_setWeightUnit(unit)),
+                            isDark: isDark,
+                          ),
                           const SizedBox(height: 4),
                           Text(
                             l10n.get('tapToEdit'),
@@ -6904,7 +6943,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   _LargeRoundButton(
                     icon: Icons.add,
                     color: Colors.green.shade400,
-                    onPressed: () => setState(() => currentWeight += 0.5),
+                    onPressed: () => _adjustCurrentWeight(_weightStepKg),
                   ),
                 ],
               ),
@@ -8893,6 +8932,68 @@ class _StatCard extends StatelessWidget {
 }
 
 // ============== REUSABLE WIDGETS ==============
+
+/// Large kg / lbs toggle for the active workout weight card.
+class _WeightUnitSegmentedToggle extends StatelessWidget {
+  final String selectedUnit;
+  final String kgLabel;
+  final String lbsLabel;
+  final ValueChanged<String> onUnitSelected;
+  final bool isDark;
+
+  const _WeightUnitSegmentedToggle({
+    required this.selectedUnit,
+    required this.kgLabel,
+    required this.lbsLabel,
+    required this.onUnitSelected,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const labelStyle = TextStyle(
+      fontSize: 20,
+      fontWeight: FontWeight.bold,
+    );
+
+    return SizedBox(
+      width: 240,
+      child: SegmentedButton<String>(
+        style: ButtonStyle(
+          minimumSize: WidgetStateProperty.all(const Size(0, 52)),
+          padding: WidgetStateProperty.all(
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return colorScheme.primary;
+            }
+            return isDark ? const Color(0xFF232F3E) : Colors.grey.shade200;
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return Colors.white;
+            }
+            return isDark ? Colors.white : Colors.black87;
+          }),
+        ),
+        segments: [
+          ButtonSegment(value: 'kg', label: Text(kgLabel, style: labelStyle)),
+          ButtonSegment(
+            value: 'lbs',
+            label: Text(lbsLabel, style: labelStyle),
+          ),
+        ],
+        selected: {selectedUnit},
+        onSelectionChanged: (selected) {
+          if (selected.isNotEmpty) onUnitSelected(selected.first);
+        },
+        showSelectedIcon: false,
+      ),
+    );
+  }
+}
 
 class _LargeRoundButton extends StatelessWidget {
   final IconData icon;

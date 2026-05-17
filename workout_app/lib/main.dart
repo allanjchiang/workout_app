@@ -500,6 +500,9 @@ class TemplateExercise {
   final int sets;
   final bool durationBased;
 
+  /// When [durationBased] is true, also log weight each timed set (e.g. farmer's carry).
+  final bool durationTracksWeight;
+
   /// Work duration for hold-by-time / duration-based exercises (seconds).
   /// If null, the active workout will fall back to history or a default.
   final int? targetDurationSeconds;
@@ -516,10 +519,14 @@ class TemplateExercise {
     this.targetWeight = 0,
     this.sets = 3,
     this.durationBased = false,
+    this.durationTracksWeight = false,
     this.targetDurationSeconds,
     this.restAfterSetSeconds,
     this.warmupSeconds,
   });
+
+  /// Strength exercises, or timed exercises that also record weight.
+  bool get showsWeightInWorkout => !durationBased || durationTracksWeight;
 
   Map<String, dynamic> toJson() => {
     'exercise': exercise.toJson(),
@@ -527,6 +534,7 @@ class TemplateExercise {
     'targetWeight': targetWeight,
     'sets': sets,
     'durationBased': durationBased,
+    'durationTracksWeight': durationTracksWeight,
     if (targetDurationSeconds != null)
       'targetDurationSeconds': targetDurationSeconds,
     if (restAfterSetSeconds != null) 'restAfterSetSeconds': restAfterSetSeconds,
@@ -541,6 +549,7 @@ class TemplateExercise {
         targetWeight: (json['targetWeight'] as num?)?.toDouble() ?? 0,
         sets: json['sets'] as int? ?? 3,
         durationBased: json['durationBased'] as bool? ?? false,
+        durationTracksWeight: json['durationTracksWeight'] as bool? ?? false,
         targetDurationSeconds: json['targetDurationSeconds'] as int?,
         restAfterSetSeconds: json['restAfterSetSeconds'] as int?,
         warmupSeconds: json['warmupSeconds'] as int?,
@@ -552,6 +561,7 @@ class TemplateExercise {
     double? targetWeight,
     int? sets,
     bool? durationBased,
+    bool? durationTracksWeight,
     int? targetDurationSeconds,
     int? restAfterSetSeconds,
     int? warmupSeconds,
@@ -564,6 +574,7 @@ class TemplateExercise {
     targetWeight: targetWeight ?? this.targetWeight,
     sets: sets ?? this.sets,
     durationBased: durationBased ?? this.durationBased,
+    durationTracksWeight: durationTracksWeight ?? this.durationTracksWeight,
     targetDurationSeconds: clearTargetDurationSeconds
         ? null
         : (targetDurationSeconds ?? this.targetDurationSeconds),
@@ -2083,6 +2094,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
     var sets = initial?.sets ?? 3;
     var targetWeight = initial?.targetWeight ?? 0;
     var durationBased = initial?.durationBased ?? false;
+    var durationTracksWeight = initial?.durationTracksWeight ?? false;
     var targetDurationSeconds =
         (initial?.targetDurationSeconds ?? kDefaultTargetDurationSeconds).clamp(
           1,
@@ -2289,8 +2301,29 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                       style: const TextStyle(fontSize: 14),
                     ),
                     value: durationBased,
-                    onChanged: (v) => setDialogState(() => durationBased = v),
+                    onChanged: (v) => setDialogState(() {
+                      durationBased = v;
+                      if (!v) durationTracksWeight = false;
+                    }),
                   ),
+                  if (durationBased)
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        l10n.get('durationTracksWeight'),
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        l10n.get('durationTracksWeightDesc'),
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      value: durationTracksWeight,
+                      onChanged: (v) =>
+                          setDialogState(() => durationTracksWeight = v),
+                    ),
                   const SizedBox(height: 8),
                   // Sets only for hold-by-time; Sets | target reps for rep-based
                   if (durationBased)
@@ -2707,6 +2740,8 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                     targetWeight: targetWeight,
                     sets: sets,
                     durationBased: durationBased,
+                    durationTracksWeight:
+                        durationBased && durationTracksWeight,
                     targetDurationSeconds: durationBased
                         ? targetDurationSeconds
                         : null,
@@ -3112,6 +3147,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   /// Countdown seconds before hold starts (interval "Start workout" only).
   int _warmupSecondsRemaining = 0;
   int _workSecondsRemaining = 0;
+  /// Total seconds for the current work phase (countdown start value).
+  int _workPhaseDurationSeconds = 0;
+  /// Seconds held when work ended; used when logging after rest.
+  int? _pendingDurationLogSeconds;
   List<int> _restPresetSeconds = [5, 10, 15, 30, 60];
 
   // Previous best reps (or hold seconds) for each exercise name
@@ -3169,6 +3208,46 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     setState(
       () => currentWeight = (currentWeight + deltaKg).clamp(0.0, 999.0),
     );
+  }
+
+  int _elapsedWorkSecondsForCurrentPhase() {
+    if (_workPhaseDurationSeconds > 0) {
+      return (_workPhaseDurationSeconds - _workSecondsRemaining).clamp(1, 86400);
+    }
+    if (_orderedExercises.isEmpty) return 1;
+    final current = _orderedExercises[currentExerciseIndex];
+    return (current.targetDurationSeconds ?? currentDurationSeconds).clamp(
+      1,
+      86400,
+    );
+  }
+
+  void _captureWorkPhaseDuration() {
+    _pendingDurationLogSeconds = _elapsedWorkSecondsForCurrentPhase();
+  }
+
+  double _logWeightForExercise(TemplateExercise exercise) {
+    if (!exercise.showsWeightInWorkout || currentWeight <= 0) return 0;
+    return currentWeight;
+  }
+
+  String _formatLogSetDetail(
+    AppLocalizations l10n,
+    ExerciseLog log, {
+    required String exerciseName,
+  }) {
+    if (log.isDurationSet) {
+      var detail = formatDurationMmSs(log.durationSeconds!);
+      if (log.weight > 0) {
+        detail +=
+            ' × ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}';
+      }
+      return detail;
+    }
+    if (_isAssistedPullUp(exerciseName) && log.weight > 0) {
+      return '${log.reps} ${l10n.reps}, ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('minusWeight')}';
+    }
+    return '${log.reps} ${l10n.reps}${log.weight > 0 ? ' ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}' : ''}';
   }
 
   /// Look up by exercise name so history is shared across templates (same exercise name).
@@ -3330,8 +3409,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                     const SizedBox(height: 8),
                                     ...logs.map((log) {
                                       final weightPart = log.isDurationSet
-                                          ? formatDurationMmSs(
-                                              log.durationSeconds!,
+                                          ? _formatLogSetDetail(
+                                              l10n,
+                                              log,
+                                              exerciseName: exercise.name,
                                             )
                                           : log.weight > 0
                                           ? _isAssistedPullUp(exercise.name)
@@ -3711,6 +3792,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     _durationSessionInWork = true;
     _warmupSecondsRemaining = 0;
     _workSecondsRemaining = 0;
+    _workPhaseDurationSeconds = 0;
+    _pendingDurationLogSeconds = null;
     if (clearRest) {
       restTimer?.cancel();
       isResting = false;
@@ -3761,6 +3844,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         _durationSessionInWork = true;
         _warmupSecondsRemaining = 0;
         _workSecondsRemaining = workSeconds;
+        _workPhaseDurationSeconds = workSeconds;
+        _pendingDurationLogSeconds = null;
         isResting = false;
         restSeconds = 0;
         _viewingPlanDuringRest = false;
@@ -3794,6 +3879,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       _warmupSecondsRemaining = 0;
       _durationSessionInWork = true;
       _workSecondsRemaining = workSeconds;
+      _workPhaseDurationSeconds = workSeconds;
+      _pendingDurationLogSeconds = null;
     });
     _durationWorkTimer?.cancel();
     _durationWorkTimer = Timer.periodic(
@@ -3805,6 +3892,14 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     }
     unawaited(_persistWorkoutDraft());
     _scrollRepsSetsSectionIntoView(alignment: 0.02);
+  }
+
+  void _finishCurrentDurationWorkPhase() {
+    if (!mounted || _orderedExercises.isEmpty) return;
+    _durationWorkTimer?.cancel();
+    _durationWorkTimer = null;
+    _captureWorkPhaseDuration();
+    _beginDurationRestPhase();
   }
 
   void _onWarmupTick(Timer timer) {
@@ -3912,7 +4007,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     if (workJustEnded) {
       unawaited(() async {
         if (mounted) {
-          _beginDurationRestPhase();
+          _finishCurrentDurationWorkPhase();
         }
       }());
     } else if (workCountdownBeepAt != null) {
@@ -3946,17 +4041,20 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     final current = _orderedExercises[currentExerciseIndex];
     if (!current.durationBased) return;
 
-    final workDuration =
+    final plannedDuration =
         (current.targetDurationSeconds ?? currentDurationSeconds).clamp(
           1,
           86400,
         );
+    final workDuration =
+        (_pendingDurationLogSeconds ?? plannedDuration).clamp(1, 86400);
+    _pendingDurationLogSeconds = null;
     final log = ExerciseLog(
       exerciseId: current.exercise.id,
       exerciseName: current.exercise.name,
       setNumber: currentSet,
       reps: 0,
-      weight: 0,
+      weight: _logWeightForExercise(current),
       durationSeconds: workDuration,
       timestamp: DateTime.now(),
     );
@@ -4010,6 +4108,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     setState(() {
       _durationSessionInWork = true;
       _workSecondsRemaining = nextWorkSeconds;
+      _workPhaseDurationSeconds = nextWorkSeconds;
+      _pendingDurationLogSeconds = null;
     });
     if (_durationSessionRunning) {
       _durationWorkTimer?.cancel();
@@ -4099,7 +4199,12 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       currentDurationSeconds =
           (target ?? lastD ?? kDefaultTargetDurationSeconds).clamp(1, 86400);
       currentReps = 0;
-      currentWeight = 0;
+      if (current.durationTracksWeight) {
+        final lastWeight = _getLastWeightForExercise(current.exercise.name);
+        currentWeight = lastWeight ?? current.targetWeight;
+      } else {
+        currentWeight = 0;
+      }
     } else {
       final lastReps = _getLastRepsForExercise(current.exercise.name);
       currentReps = lastReps ?? current.targetReps;
@@ -4336,7 +4441,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
             exerciseName: current.exercise.name,
             setNumber: currentSet,
             reps: 0,
-            weight: 0,
+            weight: _logWeightForExercise(current),
             durationSeconds: currentDurationSeconds,
             timestamp: DateTime.now(),
           )
@@ -4598,6 +4703,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     var warmupSeconds =
         ((current.warmupSeconds ?? 0).clamp(0, 600));
 
+    var durationTracksWeight = current.durationTracksWeight;
+
     var restMode = 0;
     var customRestSec = 60;
     final rInit = current.restAfterSetSeconds;
@@ -4712,6 +4819,28 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       color: isDark ? Colors.white70 : Colors.black87,
                     ),
                     textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      l10n.get('durationTracksWeight'),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    subtitle: Text(
+                      l10n.get('durationTracksWeightDesc'),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                      ),
+                    ),
+                    value: durationTracksWeight,
+                    onChanged: (v) =>
+                        setDialogState(() => durationTracksWeight = v),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -5066,6 +5195,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   };
                   final updatedExercise = current.copyWith(
                     sets: safeSets,
+                    durationTracksWeight: durationTracksWeight,
                     targetDurationSeconds: targetDurationSeconds,
                     restAfterSetSeconds: restAfterSetSeconds,
                     clearRestAfterSetSeconds: restMode == 0,
@@ -5075,6 +5205,17 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   setState(() {
                     _orderedExercises[currentExerciseIndex] = updatedExercise;
                     currentDurationSeconds = targetDurationSeconds;
+                    if (durationTracksWeight) {
+                      final lastW =
+                          _getLastWeightForExercise(current.exercise.name);
+                      if (lastW != null) {
+                        currentWeight = lastW;
+                      } else if (currentWeight <= 0) {
+                        currentWeight = updatedExercise.targetWeight;
+                      }
+                    } else {
+                      currentWeight = 0;
+                    }
                     _restPresetSeconds = List<int>.from(presetSeconds);
                   });
                   _persistExerciseToTemplate(updatedExercise);
@@ -5192,6 +5333,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     int targetReps = 10;
     double targetWeight = 0;
     bool durationBased = false;
+    bool durationTracksWeight = false;
     int targetDurationSeconds = kDefaultTargetDurationSeconds;
     var restMode = 0;
     var customRestSec = 60;
@@ -5430,9 +5572,33 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       ),
                     ),
                     value: durationBased,
-                    onChanged: (v) => setDialogState(() => durationBased = v),
+                    onChanged: (v) => setDialogState(() {
+                      durationBased = v;
+                      if (!v) durationTracksWeight = false;
+                    }),
                   ),
                   if (durationBased) ...[
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        l10n.get('durationTracksWeight'),
+                        style: TextStyle(
+                          fontSize: largeFont,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white70 : Colors.black87,
+                        ),
+                      ),
+                      subtitle: Text(
+                        l10n.get('durationTracksWeightDesc'),
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: isDark ? Colors.white54 : Colors.black54,
+                        ),
+                      ),
+                      value: durationTracksWeight,
+                      onChanged: (v) =>
+                          setDialogState(() => durationTracksWeight = v),
+                    ),
                     const SizedBox(height: 12),
                     Text(
                       l10n.get('holdTime'),
@@ -5702,6 +5868,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     targetWeight: targetWeight,
                     sets: sets,
                     durationBased: durationBased,
+                    durationTracksWeight:
+                        durationBased && durationTracksWeight,
                     targetDurationSeconds: durationBased
                         ? targetDurationSeconds
                         : null,
@@ -6757,7 +6925,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                           ),
                                           Text(
                                             exercise.durationBased
-                                                ? '$displayedSets ${l10n.get('sets')}'
+                                                ? (exercise.durationTracksWeight &&
+                                                          exercise.targetWeight >
+                                                              0
+                                                      ? '$displayedSets ${l10n.get('sets')} · ${_formatWeightDisplay(exercise.targetWeight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}'
+                                                      : '$displayedSets ${l10n.get('sets')}')
                                                 : '$displayedSets ${l10n.get('sets')} × ${exercise.targetReps} ${l10n.reps}',
                                             style: TextStyle(
                                               fontSize: 14,
@@ -6831,8 +7003,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (!current.durationBased) ...[
-                  // First row: weight, or "Minus weight" for Assisted Pull-Up (elderly-friendly labels)
+                if (current.showsWeightInWorkout) ...[
+                  // Weight (strength or timed + weight e.g. farmer's carry)
                   Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
@@ -6948,6 +7120,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                 ],
               ),
             ),
+                ],
+            if (!current.durationBased) ...[
             const SizedBox(height: 12),
             // Reps counter (vertical layout)
             Container(
@@ -7048,8 +7222,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                 ],
               ),
             ),
-          ] else ...[
-            // Hold time (elderly-friendly: large ±5s, presets, tap to type m:ss)
+            ],
+          if (current.durationBased) ...[
+            if (current.durationTracksWeight) const SizedBox(height: 12),
+            // Hold / carry time (elderly-friendly: large timer, presets, tap to type m:ss)
             AnimatedContainer(
               duration: const Duration(milliseconds: 320),
               curve: Curves.easeOutCubic,
@@ -7381,6 +7557,18 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                 height: 56,
                 child: OutlinedButton.icon(
                   onPressed: () {
+                    if (_durationSessionInWork &&
+                        (_workSecondsRemaining > 0 ||
+                            _workPhaseDurationSeconds > 0)) {
+                      _finishCurrentDurationWorkPhase();
+                      return;
+                    }
+                    if (isResting && _pendingDurationLogSeconds != null) {
+                      restTimer?.cancel();
+                      restTimer = null;
+                      _onDurationRestFinished();
+                      return;
+                    }
                     setState(() {
                       _stopDurationSession(clearRest: true);
                     });
@@ -7388,7 +7576,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   },
                   icon: const Icon(Icons.stop_circle_outlined, size: 26),
                   label: Text(
-                    l10n.get('endNow'),
+                    (_durationSessionInWork &&
+                            (_workSecondsRemaining > 0 ||
+                                _workPhaseDurationSeconds > 0))
+                        ? l10n.get('endSetEarly')
+                        : l10n.get('endNow'),
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -7481,17 +7673,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
             ...logs.where((l) => l.exerciseId == current.exercise.id).map((
               log,
             ) {
-              final String setDetail;
-              if (log.isDurationSet) {
-                setDetail = formatDurationMmSs(log.durationSeconds!);
-              } else if (_isAssistedPullUp(current.exercise.name) &&
-                  log.weight > 0) {
-                setDetail =
-                    '${log.reps} ${l10n.reps}, ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')} ${l10n.get('minusWeight')}';
-              } else {
-                setDetail =
-                    '${log.reps} ${l10n.reps}${log.weight > 0 ? ' ${_formatWeightDisplay(log.weight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}' : ''}';
-              }
+              final setDetail = _formatLogSetDetail(
+                l10n,
+                log,
+                exerciseName: current.exercise.name,
+              );
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Container(
@@ -7803,8 +7989,13 @@ class _HistoryCard extends StatelessWidget {
                       ...logs.map((log) {
                         final String line;
                         if (log.isDurationSet) {
-                          line =
-                              '${l10n.get('set')} ${log.setNumber}: ${formatDurationMmSs(log.durationSeconds!)}';
+                          var detail =
+                              formatDurationMmSs(log.durationSeconds!);
+                          if (log.weight > 0) {
+                            detail +=
+                                ' × ${_formatWeightDisplay(log.weight)} ${weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}';
+                          }
+                          line = '${l10n.get('set')} ${log.setNumber}: $detail';
                         } else {
                           final isAssisted =
                               _isAssistedPullUp(exerciseName) && log.weight > 0;

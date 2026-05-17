@@ -678,6 +678,27 @@ class ExerciseLog {
     timestamp: DateTime.parse(json['timestamp'] as String),
     durationSeconds: json['durationSeconds'] as int?,
   );
+
+  ExerciseLog copyWith({
+    String? exerciseId,
+    String? exerciseName,
+    int? setNumber,
+    int? reps,
+    double? weight,
+    DateTime? timestamp,
+    int? durationSeconds,
+    bool clearDurationSeconds = false,
+  }) => ExerciseLog(
+    exerciseId: exerciseId ?? this.exerciseId,
+    exerciseName: exerciseName ?? this.exerciseName,
+    setNumber: setNumber ?? this.setNumber,
+    reps: reps ?? this.reps,
+    weight: weight ?? this.weight,
+    timestamp: timestamp ?? this.timestamp,
+    durationSeconds: clearDurationSeconds
+        ? null
+        : (durationSeconds ?? this.durationSeconds),
+  );
 }
 
 /// Completed workout session
@@ -3151,6 +3172,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   int _workPhaseDurationSeconds = 0;
   /// Seconds held when work ended; used when logging after rest.
   int? _pendingDurationLogSeconds;
+  /// Weight (kg) when work ended; used when logging after rest.
+  double? _pendingDurationLogWeight;
   List<int> _restPresetSeconds = [5, 10, 15, 30, 60];
 
   // Previous best reps (or hold seconds) for each exercise name
@@ -3224,11 +3247,79 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
 
   void _captureWorkPhaseDuration() {
     _pendingDurationLogSeconds = _elapsedWorkSecondsForCurrentPhase();
+    final current = _orderedExercises[currentExerciseIndex];
+    _pendingDurationLogWeight = _logWeightForExercise(current);
   }
 
   double _logWeightForExercise(TemplateExercise exercise) {
     if (!exercise.showsWeightInWorkout || currentWeight <= 0) return 0;
     return currentWeight;
+  }
+
+  double _pendingOrCurrentLogWeight(TemplateExercise exercise) {
+    if (_pendingDurationLogWeight != null && _pendingDurationLogWeight! > 0) {
+      return _pendingDurationLogWeight!;
+    }
+    return _logWeightForExercise(exercise);
+  }
+
+  /// Logs the finished hold set when rest begins so weight can be edited during rest.
+  void _ensureDurationSetLoggedForCurrentSet() {
+    if (_orderedExercises.isEmpty) return;
+    final current = _orderedExercises[currentExerciseIndex];
+    if (!current.durationBased) return;
+    if (logs.any(
+      (l) =>
+          l.exerciseId == current.exercise.id && l.setNumber == currentSet,
+    )) {
+      return;
+    }
+    final plannedDuration =
+        (current.targetDurationSeconds ?? currentDurationSeconds).clamp(
+          1,
+          86400,
+        );
+    final workDuration =
+        (_pendingDurationLogSeconds ?? plannedDuration).clamp(1, 86400);
+    logs.add(
+      ExerciseLog(
+        exerciseId: current.exercise.id,
+        exerciseName: current.exercise.name,
+        setNumber: currentSet,
+        reps: 0,
+        weight: _pendingOrCurrentLogWeight(current),
+        durationSeconds: workDuration,
+        timestamp: DateTime.now(),
+      ),
+    );
+  }
+
+  void _updateLogWeightAt(int logIndex, double newKg) {
+    if (logIndex < 0 || logIndex >= logs.length) return;
+    final clamped = newKg.clamp(0.0, 999.0);
+    setState(() {
+      logs[logIndex] = logs[logIndex].copyWith(weight: clamped);
+      currentWeight = clamped;
+    });
+    unawaited(_persistWorkoutDraft());
+  }
+
+  void _editCompletedSetWeight(
+    AppLocalizations l10n,
+    ExerciseLog log,
+    int logIndex,
+  ) {
+    _showNumberInputDialog(
+      context: context,
+      title: _weightUnit == 'lbs' ? l10n.get('weightLbs') : l10n.get('weight'),
+      currentValue: _kgToDisplay(log.weight),
+      isInteger: false,
+      accentColor: Colors.orange,
+      onSave: (displayValue) => _updateLogWeightAt(
+        logIndex,
+        _displayToKg(displayValue),
+      ),
+    );
   }
 
   String _formatLogSetDetail(
@@ -3794,6 +3885,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     _workSecondsRemaining = 0;
     _workPhaseDurationSeconds = 0;
     _pendingDurationLogSeconds = null;
+    _pendingDurationLogWeight = null;
     if (clearRest) {
       restTimer?.cancel();
       isResting = false;
@@ -3846,6 +3938,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         _workSecondsRemaining = workSeconds;
         _workPhaseDurationSeconds = workSeconds;
         _pendingDurationLogSeconds = null;
+        _pendingDurationLogWeight = null;
         isResting = false;
         restSeconds = 0;
         _viewingPlanDuringRest = false;
@@ -3881,6 +3974,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       _workSecondsRemaining = workSeconds;
       _workPhaseDurationSeconds = workSeconds;
       _pendingDurationLogSeconds = null;
+      _pendingDurationLogWeight = null;
     });
     _durationWorkTimer?.cancel();
     _durationWorkTimer = Timer.periodic(
@@ -4017,6 +4111,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
 
   void _beginDurationRestPhase() {
     if (!mounted) return;
+    _ensureDurationSetLoggedForCurrentSet();
     final rest = _effectiveRestSecondsForCurrentDurationExercise();
     setState(() {
       _durationSessionInWork = false;
@@ -4041,24 +4136,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     final current = _orderedExercises[currentExerciseIndex];
     if (!current.durationBased) return;
 
-    final plannedDuration =
-        (current.targetDurationSeconds ?? currentDurationSeconds).clamp(
-          1,
-          86400,
-        );
-    final workDuration =
-        (_pendingDurationLogSeconds ?? plannedDuration).clamp(1, 86400);
+    _ensureDurationSetLoggedForCurrentSet();
     _pendingDurationLogSeconds = null;
-    final log = ExerciseLog(
-      exerciseId: current.exercise.id,
-      exerciseName: current.exercise.name,
-      setNumber: currentSet,
-      reps: 0,
-      weight: _logWeightForExercise(current),
-      durationSeconds: workDuration,
-      timestamp: DateTime.now(),
-    );
-    logs.add(log);
+    _pendingDurationLogWeight = null;
 
     final loggedCount = logs
         .where((l) => l.exerciseId == current.exercise.id)
@@ -4110,6 +4190,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       _workSecondsRemaining = nextWorkSeconds;
       _workPhaseDurationSeconds = nextWorkSeconds;
       _pendingDurationLogSeconds = null;
+      _pendingDurationLogWeight = null;
     });
     if (_durationSessionRunning) {
       _durationWorkTimer?.cancel();
@@ -7670,53 +7751,93 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
               ),
             ),
             const SizedBox(height: 8),
-            ...logs.where((l) => l.exerciseId == current.exercise.id).map((
-              log,
-            ) {
-              final setDetail = _formatLogSetDetail(
-                l10n,
-                log,
-                exerciseName: current.exercise.name,
-              );
-              return Padding(
+            if (current.durationTracksWeight)
+              Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? Colors.green.shade900.withValues(alpha: 0.4)
-                        : Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isDark
-                          ? Colors.green.shade700
-                          : Colors.green.shade300,
-                    ),
+                child: Text(
+                  l10n.get('tapToEditWeight'),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                   ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle,
+                ),
+              ),
+            for (var logIndex = 0; logIndex < logs.length; logIndex++) ...[
+              if (logs[logIndex].exerciseId == current.exercise.id) ...[
+                Builder(
+                  builder: (context) {
+                    final log = logs[logIndex];
+                    final setDetail = _formatLogSetDetail(
+                      l10n,
+                      log,
+                      exerciseName: current.exercise.name,
+                    );
+                    final canEditWeight = current.durationTracksWeight;
+                    final row = Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          color: isDark
+                              ? Colors.green.shade400
+                              : Colors.green.shade600,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            '${l10n.localizeExerciseName(current.exercise.name)} ${l10n.get('set')} ${log.setNumber}: $setDetail',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ),
+                        if (canEditWeight)
+                          Icon(
+                            Icons.edit_outlined,
+                            size: 22,
+                            color: isDark
+                                ? Colors.grey.shade300
+                                : Colors.grey.shade700,
+                          ),
+                      ],
+                    );
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Material(
                         color: isDark
-                            ? Colors.green.shade400
-                            : Colors.green.shade600,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          '${l10n.localizeExerciseName(current.exercise.name)} ${l10n.get('set')} ${log.setNumber}: $setDetail',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: isDark ? Colors.white : Colors.black87,
+                            ? Colors.green.shade900.withValues(alpha: 0.4)
+                            : Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          onTap: canEditWeight
+                              ? () => _editCompletedSetWeight(
+                                    l10n,
+                                    log,
+                                    logIndex,
+                                  )
+                              : null,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isDark
+                                    ? Colors.green.shade700
+                                    : Colors.green.shade300,
+                                width: canEditWeight ? 2 : 1,
+                              ),
+                            ),
+                            child: row,
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
-              );
-            }),
+              ],
+            ],
           ],
         ],
       ),

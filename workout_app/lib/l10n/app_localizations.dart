@@ -527,6 +527,7 @@ class AppLocalizations {
     'weightUnitDesc': 'Default unit for weight',
     'noWeight': 'No weight',
     'tapToEdit': 'Tap to type',
+    'tapToEditWeight': 'Tap a completed set to edit weight for the next round',
     'enterValue': 'Enter Value',
 
     // Progress Chart
@@ -833,6 +834,7 @@ class AppLocalizations {
     'weightUnitDesc': '重量的預設單位',
     'noWeight': '無重量',
     'tapToEdit': '點擊輸入',
+    'tapToEditWeight': '點擊已完成的組數可編輯重量，方便下一組加重',
     'enterValue': '輸入數值',
 
     'progressChart': '進度圖表',

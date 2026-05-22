@@ -6212,14 +6212,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     );
   }
 
-  /// Planned timed sets still to finish (hold not yet logged during rest).
+  /// Planned timed sets still to finish (uses logged count; set is logged when rest begins).
   int _durationPlannedSetsRemaining(TemplateExercise current) {
     if (!current.durationBased) return 0;
     final logged =
         logs.where((l) => l.exerciseId == current.exercise.id).length;
-    if (!_durationSessionInWork && isResting) {
-      return (current.sets - logged - 1).clamp(0, 9999);
-    }
     return (current.sets - logged).clamp(0, 9999);
   }
 

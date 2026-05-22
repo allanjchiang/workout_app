@@ -6336,6 +6336,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         restSeconds > 0 &&
         ((current.durationBased && !_durationSessionRunning) ||
             (!current.durationBased && _restCountdownPaused));
+    final mqSize = MediaQuery.sizeOf(context);
+    final setsRemainingFontSize = (mqSize.shortestSide * 0.16).clamp(72.0, 108.0);
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -6352,35 +6356,41 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        l10n.get('rest'),
-                        style: const TextStyle(
-                          fontSize: largeFontSize,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (showSetsInline) ...[
-                        const SizedBox(width: 14),
-                        Text(
-                          '$setsN',
-                          style: TextStyle(
-                            fontSize: largeFontSize + 8,
-                            fontWeight: FontWeight.w800,
-                            color: Theme.of(context).colorScheme.primary,
-                            fontFeatures: const [
-                              FontFeature.tabularFigures(),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
+                  Text(
+                    l10n.get('rest'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: largeFontSize,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  const SizedBox(height: 20),
+                  if (showSetsInline) ...[
+                    const SizedBox(height: 20),
+                    Text(
+                      '$setsN',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: setsRemainingFontSize,
+                        fontWeight: FontWeight.w800,
+                        height: 1.0,
+                        color: isDark ? Colors.white : colorScheme.primary,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.get('setsRemainingLabel'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: isDark
+                            ? Colors.grey.shade300
+                            : Colors.grey.shade800,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
                   GestureDetector(
                     onTap: () => showDurationEntryDialog(
                       context: context,

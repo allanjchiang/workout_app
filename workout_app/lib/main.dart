@@ -6602,10 +6602,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         !inDurationWarmup &&
         _durationSessionInWork &&
         _workSecondsRemaining > 0;
+    final inLargeDurationCountdown = inDurationWarmup || inActiveWorkHold;
     final mqSize = MediaQuery.sizeOf(context);
-    final activeHoldFontSize = inActiveWorkHold
-        ? (mqSize.shortestSide * 0.29).clamp(104.0, 172.0)
-        : (mqSize.shortestSide * 0.21).clamp(76.0, 132.0);
+    final largeDurationCountdownFontSize =
+        (mqSize.shortestSide * 0.29).clamp(104.0, 172.0);
 
     return SingleChildScrollView(
       controller: _exerciseScrollController,
@@ -7318,24 +7318,28 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
               duration: const Duration(milliseconds: 320),
               curve: Curves.easeOutCubic,
               padding: EdgeInsets.symmetric(
-                horizontal: inActiveWorkHold ? 12 : 16,
-                vertical: inActiveWorkHold ? 22 : 16,
+                horizontal: inLargeDurationCountdown ? 12 : 16,
+                vertical: inLargeDurationCountdown ? 22 : 16,
               ),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1A2634) : Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                border: inActiveWorkHold
+                border: inLargeDurationCountdown
                     ? Border.all(
-                        color: colorScheme.primary.withValues(alpha: 0.55),
+                        color: inDurationWarmup
+                            ? Colors.amber.withValues(alpha: 0.65)
+                            : colorScheme.primary.withValues(alpha: 0.55),
                         width: 3,
                       )
                     : null,
                 boxShadow: [
                   BoxShadow(
-                    color: inActiveWorkHold
-                        ? colorScheme.primary.withValues(alpha: 0.12)
+                    color: inLargeDurationCountdown
+                        ? (inDurationWarmup
+                              ? Colors.amber.withValues(alpha: 0.12)
+                              : colorScheme.primary.withValues(alpha: 0.12))
                         : Colors.black.withValues(alpha: 0.05),
-                    blurRadius: inActiveWorkHold ? 18 : 10,
+                    blurRadius: inLargeDurationCountdown ? 18 : 10,
                     offset: const Offset(0, 4),
                   ),
                 ],
@@ -7354,7 +7358,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: inActiveWorkHold ? 22 : 18,
+                            fontSize: inLargeDurationCountdown ? 22 : 18,
                             fontWeight: FontWeight.w700,
                             color: inDurationWarmup
                                 ? (isDark
@@ -7416,8 +7420,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                           curve: Curves.easeOutCubic,
                           width: double.infinity,
                           padding: EdgeInsets.symmetric(
-                            horizontal: inActiveWorkHold ? 4 : 16,
-                            vertical: inActiveWorkHold ? 22 : 12,
+                            horizontal: inLargeDurationCountdown ? 4 : 16,
+                            vertical: inLargeDurationCountdown ? 22 : 12,
                           ),
                           decoration: BoxDecoration(
                             color: inDurationWarmup
@@ -7449,7 +7453,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                   : colorScheme.primary.withValues(
                                       alpha: 0.5,
                                     ),
-                              width: inActiveWorkHold ? 3 : 2,
+                              width: inLargeDurationCountdown ? 3 : 2,
                             ),
                           ),
                           child: Center(
@@ -7460,12 +7464,13 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                 duration: const Duration(milliseconds: 280),
                                 curve: Curves.easeOutCubic,
                                 style: TextStyle(
-                                  fontSize: inActiveWorkHold
-                                      ? activeHoldFontSize
+                                  fontSize: inLargeDurationCountdown
+                                      ? largeDurationCountdownFontSize
                                       : 42,
                                   fontWeight: FontWeight.w800,
                                   height: 1.05,
-                                  letterSpacing: inActiveWorkHold ? 1.5 : 0,
+                                  letterSpacing:
+                                      inLargeDurationCountdown ? 1.5 : 0,
                                   fontFeatures: const [
                                     FontFeature.tabularFigures(),
                                   ],
@@ -7498,7 +7503,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                             ),
                           ),
                         ),
-                        SizedBox(height: inActiveWorkHold ? 10 : 4),
+                        SizedBox(height: inLargeDurationCountdown ? 10 : 4),
                         Text(
                           inDurationWarmup
                               ? l10n.get('warmupSubtitle')
@@ -7507,8 +7512,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                               : l10n.get('tapToEdit'),
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: inActiveWorkHold ? 15 : 12,
-                            fontWeight: inActiveWorkHold
+                            fontSize: inLargeDurationCountdown ? 15 : 12,
+                            fontWeight: inLargeDurationCountdown
                                 ? FontWeight.w600
                                 : FontWeight.normal,
                             color: inDurationWarmup

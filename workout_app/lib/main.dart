@@ -8741,6 +8741,48 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
         ),
         const SizedBox(height: 20),
 
+        // View Mode Toggle (Weight / Reps / 1RM)
+        Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1A2634) : Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.all(4),
+          child: Row(
+            children: [
+              Expanded(
+                child: _ToggleButton(
+                  label: l10n.get('weightOverTime'),
+                  isSelected: viewMode == ChartViewMode.weight,
+                  onTap: () => setState(() => viewMode = ChartViewMode.weight),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: _ToggleButton(
+                  label: l10n.get('repsOverTime'),
+                  isSelected: viewMode == ChartViewMode.reps,
+                  onTap: () => setState(() => viewMode = ChartViewMode.reps),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: _ToggleButton(
+                  label: l10n.get('estimated1RM'),
+                  isSelected: viewMode == ChartViewMode.oneRepMax,
+                  onTap: () =>
+                      setState(() => viewMode = ChartViewMode.oneRepMax),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Chart
+        _buildChart(l10n, colorScheme, isDark),
+        const SizedBox(height: 20),
+
         // Time range (elderly-friendly 2×2 large buttons)
         Text(
           l10n.get('progressTimeRange'),
@@ -8813,48 +8855,6 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
             ],
           ),
         ),
-        const SizedBox(height: 20),
-
-        // View Mode Toggle (Weight / Reps / 1RM)
-        Container(
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1A2634) : Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          padding: const EdgeInsets.all(4),
-          child: Row(
-            children: [
-              Expanded(
-                child: _ToggleButton(
-                  label: l10n.get('weightOverTime'),
-                  isSelected: viewMode == ChartViewMode.weight,
-                  onTap: () => setState(() => viewMode = ChartViewMode.weight),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: _ToggleButton(
-                  label: l10n.get('repsOverTime'),
-                  isSelected: viewMode == ChartViewMode.reps,
-                  onTap: () => setState(() => viewMode = ChartViewMode.reps),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: _ToggleButton(
-                  label: l10n.get('estimated1RM'),
-                  isSelected: viewMode == ChartViewMode.oneRepMax,
-                  onTap: () =>
-                      setState(() => viewMode = ChartViewMode.oneRepMax),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        // Chart
-        _buildChart(l10n, colorScheme, isDark),
       ],
     );
   }

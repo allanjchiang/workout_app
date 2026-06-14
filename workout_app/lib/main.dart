@@ -18,6 +18,13 @@ import 'l10n/app_localizations.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  try {
+    await AudioPlayer.global.setAudioContext(
+      timerBeepMixWithOthersAudioContext(),
+    );
+  } catch (_) {
+    // Beep audio context is re-applied per player before each sound.
+  }
   runApp(const WorkoutTrackerApp());
 }
 
@@ -211,6 +218,19 @@ String formatDurationMmSs(int totalSeconds) {
 
 /// Shared preferences key for timer / beep volume (0–100, default 85).
 const String kPrefTimerBeepVolume = 'timer_beep_volume';
+
+/// Audio context for timer beeps: mix over Audible/podcasts without pausing them.
+AudioContext timerBeepMixWithOthersAudioContext() {
+  return AudioContext(
+    android: AudioContextAndroid(
+      audioFocus: AndroidAudioFocus.none,
+    ),
+    iOS: AudioContextIOS(
+      category: AVAudioSessionCategory.playback,
+      options: const {AVAudioSessionOptions.mixWithOthers},
+    ),
+  );
+}
 
 /// Template editor / add-exercise dialog: 0 = use workout default ([null]),
 /// 1 = no rest (0 s), 2 = custom (clamped 0–600 s).
@@ -3814,22 +3834,12 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     }
   }
 
-  /// Configure beep to duck background music (lower it during beep, then restore).
+  /// Configure beeps to mix with other audio (Audible, podcasts) without pausing.
   Future<void> _setBeepAudioContext() async {
     try {
-      await audioPlayer.setAudioContext(
-        AudioContext(
-          android: AudioContextAndroid(
-            audioFocus: AndroidAudioFocus.gainTransientMayDuck,
-          ),
-          iOS: AudioContextIOS(
-            category: AVAudioSessionCategory.playback,
-            options: const {AVAudioSessionOptions.duckOthers},
-          ),
-        ),
-      );
+      await audioPlayer.setAudioContext(timerBeepMixWithOthersAudioContext());
     } catch (e) {
-      // Ignore; beep will still play, may interrupt music on some devices
+      // Ignore; beep will still play, may interrupt other audio on some devices
     }
   }
 
@@ -9516,17 +9526,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _previewTimerBeep() async {
     final p = AudioPlayer();
     try {
-      await p.setAudioContext(
-        AudioContext(
-          android: AudioContextAndroid(
-            audioFocus: AndroidAudioFocus.gainTransientMayDuck,
-          ),
-          iOS: AudioContextIOS(
-            category: AVAudioSessionCategory.playback,
-            options: const {AVAudioSessionOptions.duckOthers},
-          ),
-        ),
-      );
+      await p.setAudioContext(timerBeepMixWithOthersAudioContext());
       await p.setVolume(_timerBeepVolumePct / 100.0);
       if (_timerBeepVolumePct <= 0) return;
       await p.play(AssetSource('audio/timer_beep.wav'));

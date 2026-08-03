@@ -222,9 +222,7 @@ const String kPrefTimerBeepVolume = 'timer_beep_volume';
 /// Audio context for timer beeps: mix over Audible/podcasts without pausing them.
 AudioContext timerBeepMixWithOthersAudioContext() {
   return AudioContext(
-    android: AudioContextAndroid(
-      audioFocus: AndroidAudioFocus.none,
-    ),
+    android: AudioContextAndroid(audioFocus: AndroidAudioFocus.none),
     iOS: AudioContextIOS(
       category: AVAudioSessionCategory.playback,
       options: const {AVAudioSessionOptions.mixWithOthers},
@@ -367,9 +365,7 @@ void showDurationEntryDialog({
                 isFormattingDurationInput = true;
                 controller.value = TextEditingValue(
                   text: formatted,
-                  selection: TextSelection.collapsed(
-                    offset: formatted.length,
-                  ),
+                  selection: TextSelection.collapsed(offset: formatted.length),
                 );
                 isFormattingDurationInput = false;
               },
@@ -784,6 +780,11 @@ class WorkoutDraft {
   final int defaultRestSeconds;
   final bool viewingPlanDuringRest;
 
+  /// Not-yet-logged set row values, keyed by exercise id (strength exercises only).
+  final Map<String, List<double>> pendingSetWeights;
+  final Map<String, List<int>> pendingSetReps;
+  final Map<String, List<bool>> pendingSetEdited;
+
   const WorkoutDraft({
     required this.template,
     required this.startTime,
@@ -798,6 +799,9 @@ class WorkoutDraft {
     required this.restSeconds,
     required this.defaultRestSeconds,
     required this.viewingPlanDuringRest,
+    this.pendingSetWeights = const {},
+    this.pendingSetReps = const {},
+    this.pendingSetEdited = const {},
   });
 
   Map<String, dynamic> toJson() => {
@@ -815,6 +819,9 @@ class WorkoutDraft {
     'restSeconds': restSeconds,
     'defaultRestSeconds': defaultRestSeconds,
     'viewingPlanDuringRest': viewingPlanDuringRest,
+    'pendingSetWeights': pendingSetWeights,
+    'pendingSetReps': pendingSetReps,
+    'pendingSetEdited': pendingSetEdited,
   };
 
   factory WorkoutDraft.fromJson(Map<String, dynamic> json) {
@@ -840,6 +847,28 @@ class WorkoutDraft {
       restSeconds: json['restSeconds'] as int? ?? 0,
       defaultRestSeconds: json['defaultRestSeconds'] as int? ?? 60,
       viewingPlanDuringRest: json['viewingPlanDuringRest'] as bool? ?? false,
+      pendingSetWeights:
+          (json['pendingSetWeights'] as Map<String, dynamic>?)?.map(
+            (k, v) => MapEntry(
+              k,
+              (v as List<dynamic>).map((e) => (e as num).toDouble()).toList(),
+            ),
+          ) ??
+          const {},
+      pendingSetReps:
+          (json['pendingSetReps'] as Map<String, dynamic>?)?.map(
+            (k, v) =>
+                MapEntry(k, (v as List<dynamic>).map((e) => e as int).toList()),
+          ) ??
+          const {},
+      pendingSetEdited:
+          (json['pendingSetEdited'] as Map<String, dynamic>?)?.map(
+            (k, v) => MapEntry(
+              k,
+              (v as List<dynamic>).map((e) => e as bool).toList(),
+            ),
+          ) ??
+          const {},
     );
   }
 }
@@ -891,6 +920,316 @@ const List<String> kExerciseIconKeys = [
   'keyboard_double_arrow_up',
   'pan_tool',
 ];
+
+// ============== CONSISTENCY CALENDAR: DATA MODELS ==============
+
+/// How often the Consistency Calendar's day grid repeats before scrolling to
+/// the next range.
+enum ConsistencyViewMode { week, fortnight, month }
+
+/// One exercise tracked inside a [ConsistencyExerciseList]. Identity is by
+/// [exerciseName] (trimmed, matched case-insensitively against
+/// [ExerciseLog.exerciseName]) — the app has no stable cross-history exercise
+/// id (see [Exercise.id]), so, like everywhere else, matching is by name.
+class TrackedExercise {
+  final String id;
+  final String exerciseName;
+
+  /// Index into [kConsistencyColorPalette].
+  final int colorIndex;
+
+  /// Sets of this exercise expected per day it's done. 0 = no target (any
+  /// set logged that day counts as fully done).
+  final int targetSetsPerDay;
+
+  const TrackedExercise({
+    required this.id,
+    required this.exerciseName,
+    required this.colorIndex,
+    this.targetSetsPerDay = 1,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'exerciseName': exerciseName,
+    'colorIndex': colorIndex,
+    'targetSetsPerDay': targetSetsPerDay,
+  };
+
+  factory TrackedExercise.fromJson(Map<String, dynamic> json) =>
+      TrackedExercise(
+        id: json['id'] as String,
+        exerciseName: json['exerciseName'] as String,
+        colorIndex: ((json['colorIndex'] as int?) ?? 0).clamp(
+          0,
+          kConsistencyColorPalette.length - 1,
+        ),
+        targetSetsPerDay: json['targetSetsPerDay'] as int? ?? 1,
+      );
+
+  TrackedExercise copyWith({
+    String? id,
+    String? exerciseName,
+    int? colorIndex,
+    int? targetSetsPerDay,
+  }) => TrackedExercise(
+    id: id ?? this.id,
+    exerciseName: exerciseName ?? this.exerciseName,
+    colorIndex: colorIndex ?? this.colorIndex,
+    targetSetsPerDay: targetSetsPerDay ?? this.targetSetsPerDay,
+  );
+}
+
+/// A named, ordered set of tracked exercises shown together on one
+/// Consistency Calendar, plus that calendar's own view settings.
+class ConsistencyExerciseList {
+  /// One distinguishable color per exercise; [kConsistencyColorPalette] has
+  /// exactly this many colors.
+  static const int maxExercises = 14;
+
+  final String id;
+  final String name;
+  final List<TrackedExercise> exercises;
+  final ConsistencyViewMode viewMode;
+
+  /// 1 (Monday) .. 7 (Sunday), matching [DateTime.weekday].
+  final int startWeekday;
+  final bool showSetCounts;
+
+  const ConsistencyExerciseList({
+    required this.id,
+    required this.name,
+    this.exercises = const [],
+    this.viewMode = ConsistencyViewMode.week,
+    this.startWeekday = DateTime.friday,
+    this.showSetCounts = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'exercises': exercises.map((e) => e.toJson()).toList(),
+    'viewMode': viewMode.name,
+    'startWeekday': startWeekday,
+    'showSetCounts': showSetCounts,
+  };
+
+  factory ConsistencyExerciseList.fromJson(Map<String, dynamic> json) =>
+      ConsistencyExerciseList(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        exercises: (json['exercises'] as List<dynamic>? ?? [])
+            .map((e) => TrackedExercise.fromJson(e as Map<String, dynamic>))
+            .take(ConsistencyExerciseList.maxExercises)
+            .toList(),
+        viewMode: ConsistencyViewMode.values.firstWhere(
+          (v) => v.name == json['viewMode'],
+          orElse: () => ConsistencyViewMode.week,
+        ),
+        startWeekday: ((json['startWeekday'] as int?) ?? DateTime.friday).clamp(
+          1,
+          7,
+        ),
+        showSetCounts: json['showSetCounts'] as bool? ?? false,
+      );
+
+  ConsistencyExerciseList copyWith({
+    String? id,
+    String? name,
+    List<TrackedExercise>? exercises,
+    ConsistencyViewMode? viewMode,
+    int? startWeekday,
+    bool? showSetCounts,
+  }) => ConsistencyExerciseList(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    exercises: exercises ?? this.exercises,
+    viewMode: viewMode ?? this.viewMode,
+    startWeekday: startWeekday ?? this.startWeekday,
+    showSetCounts: showSetCounts ?? this.showSetCounts,
+  );
+}
+
+const String kConsistencyListsPrefsKey = 'consistency_lists_v1';
+const String kConsistencySelectedListPrefsKey = 'consistency_selected_list_id';
+
+/// 14 hues evenly spaced around the color wheel at fixed saturation/lightness
+/// (HSL 62%/46%), so every tracked exercise in a list gets a clearly
+/// differentiated color. One shared palette (not separate light/dark
+/// variants) keeps "exercise N is always this swatch" consistent regardless
+/// of theme; per-segment opacity/contrast is handled at render time instead
+/// (see [segmentOpacity] / [segmentOverlayTextColor]).
+const List<Color> kConsistencyColorPalette = [
+  Color(0xFFBE2D2D),
+  Color(0xFFBE6B2D),
+  Color(0xFFBEA92D),
+  Color(0xFF94BE2D),
+  Color(0xFF56BE2D),
+  Color(0xFF2DBE41),
+  Color(0xFF2DBE80),
+  Color(0xFF2DBEBE),
+  Color(0xFF2D80BE),
+  Color(0xFF2D41BE),
+  Color(0xFF562DBE),
+  Color(0xFF942DBE),
+  Color(0xFFBE2DA9),
+  Color(0xFFBE2D6B),
+];
+
+/// Lowest-index palette color not already used by another exercise in
+/// [existing]; falls back to index 0 if somehow all colors are taken.
+int nextAvailableConsistencyColorIndex(List<TrackedExercise> existing) {
+  final used = existing.map((e) => e.colorIndex).toSet();
+  for (var i = 0; i < kConsistencyColorPalette.length; i++) {
+    if (!used.contains(i)) return i;
+  }
+  return 0;
+}
+
+// ---- Date-range engine (pure, no BuildContext) ----
+
+DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+/// The most recent date on/before [reference] that falls on [startWeekday]
+/// (1=Mon..7=Sun, matching [DateTime.weekday]).
+DateTime _startOfWeekContaining(DateTime reference, int startWeekday) {
+  final ref = _dateOnly(reference);
+  final diff = (ref.weekday - startWeekday + 7) % 7;
+  return ref.subtract(Duration(days: diff));
+}
+
+/// An inclusive, local-midnight date range.
+class ConsistencyDateRange {
+  final DateTime start;
+  final DateTime end;
+  const ConsistencyDateRange(this.start, this.end);
+
+  int get dayCount => end.difference(start).inDays + 1;
+
+  List<DateTime> get days =>
+      List.generate(dayCount, (i) => start.add(Duration(days: i)));
+}
+
+/// The visible range for [mode], containing [anchor].
+///
+/// Week/fortnight are rolling windows anchored to [startWeekday] (so
+/// prev/next is a flat ±7/±14 day shift). Month is anchored to the calendar
+/// month containing [anchor] (not a rolling 30 days), so headers read like a
+/// normal calendar ("August 2026") — [startWeekday] only affects grid
+/// alignment for month view, via [computeConsistencyMonthGridDays].
+ConsistencyDateRange computeConsistencyRange({
+  required DateTime anchor,
+  required ConsistencyViewMode mode,
+  required int startWeekday,
+}) {
+  switch (mode) {
+    case ConsistencyViewMode.week:
+      final start = _startOfWeekContaining(anchor, startWeekday);
+      return ConsistencyDateRange(start, start.add(const Duration(days: 6)));
+    case ConsistencyViewMode.fortnight:
+      final start = _startOfWeekContaining(anchor, startWeekday);
+      return ConsistencyDateRange(start, start.add(const Duration(days: 13)));
+    case ConsistencyViewMode.month:
+      final first = DateTime(anchor.year, anchor.month, 1);
+      final lastDay = DateTime(anchor.year, anchor.month + 1, 0).day;
+      return ConsistencyDateRange(
+        first,
+        DateTime(anchor.year, anchor.month, lastDay),
+      );
+  }
+}
+
+/// The new anchor to use after stepping the range forward/backward one unit.
+/// Callers re-derive the visible range via [computeConsistencyRange] using
+/// the same `mode`/`startWeekday` and this new anchor.
+DateTime nextConsistencyAnchor(
+  DateTime anchor,
+  ConsistencyViewMode mode, {
+  required bool forward,
+}) {
+  switch (mode) {
+    case ConsistencyViewMode.week:
+      return anchor.add(Duration(days: forward ? 7 : -7));
+    case ConsistencyViewMode.fortnight:
+      return anchor.add(Duration(days: forward ? 14 : -14));
+    case ConsistencyViewMode.month:
+      return DateTime(anchor.year, anchor.month + (forward ? 1 : -1), 1);
+  }
+}
+
+/// Month view only: the full 7-wide grid including leading/trailing days
+/// from adjacent months so every row starts on [startWeekday]. Padding days
+/// are still real dates (rendered dimmed by the caller) — a log on one of
+/// them is real data regardless of which month's grid it's shown in.
+List<DateTime> computeConsistencyMonthGridDays(
+  DateTime anchor,
+  int startWeekday,
+) {
+  final range = computeConsistencyRange(
+    anchor: anchor,
+    mode: ConsistencyViewMode.month,
+    startWeekday: startWeekday,
+  );
+  final gridStart = _startOfWeekContaining(range.start, startWeekday);
+  final lastRowStart = _startOfWeekContaining(range.end, startWeekday);
+  final gridEnd = lastRowStart.add(const Duration(days: 6));
+  return ConsistencyDateRange(gridStart, gridEnd).days;
+}
+
+// ---- Aggregation + opacity/contrast ----
+
+/// Sets logged per calendar day per tracked exercise, across all of
+/// [history]. Grouped by each [ExerciseLog.timestamp] (not
+/// [WorkoutSession.startTime], since a session can span midnight) and summed
+/// across sessions on the same day. One [ExerciseLog] row = one set. Matching
+/// is case-insensitive/trimmed against [TrackedExercise.exerciseName].
+Map<DateTime, Map<String, int>> buildConsistencySetsByDay({
+  required List<WorkoutSession> history,
+  required List<TrackedExercise> trackedExercises,
+}) {
+  final wanted = <String, String>{
+    for (final te in trackedExercises)
+      te.exerciseName.trim().toLowerCase(): te.exerciseName,
+  };
+  final result = <DateTime, Map<String, int>>{};
+  if (wanted.isEmpty) return result;
+  for (final session in history) {
+    for (final log in session.logs) {
+      final trackedName = wanted[log.exerciseName.trim().toLowerCase()];
+      if (trackedName == null) continue;
+      final day = _dateOnly(log.timestamp);
+      final dayMap = result.putIfAbsent(day, () => <String, int>{});
+      dayMap[trackedName] = (dayMap[trackedName] ?? 0) + 1;
+    }
+  }
+  return result;
+}
+
+/// Opacity for a day's segment: ratio of sets done to target, clamped to a
+/// max of 1.0 (fully met or exceeded = 100%; 1-of-2 = 50%; 1-of-3 = 33%).
+/// No artificial floor. `targetSetsPerDay <= 0` means "no target" — any set
+/// logged that day is treated as fully done.
+double segmentOpacity({required int setsDone, required int targetSetsPerDay}) {
+  if (setsDone <= 0) return 0.0;
+  if (targetSetsPerDay <= 0) return 1.0;
+  return (setsDone / targetSetsPerDay).clamp(0.0, 1.0);
+}
+
+/// A legible text color for a sets-done number overlaid on a segment,
+/// computed against the color as it will actually render (the base color
+/// blended at `opacity` over the page background) rather than the raw base
+/// color, since a low-opacity segment reads much lighter than its base hue.
+Color segmentOverlayTextColor({
+  required Color base,
+  required double opacity,
+  required Color pageBackground,
+}) {
+  final blended = Color.alphaBlend(
+    base.withValues(alpha: opacity.clamp(0.0, 1.0)),
+    pageBackground,
+  );
+  return blended.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+}
 
 /// Common gym exercise names for elderly-friendly autocomplete when adding exercises.
 const List<String> kCommonExerciseNames = [
@@ -1659,7 +1998,8 @@ class TemplatesPage extends StatelessWidget {
                 child: _TemplateCard(
                   template: template,
                   onTap: () => onStartWorkout(template),
-                  onEdit: () => _showEditTemplateDialog(context, l10n, template),
+                  onEdit: () =>
+                      _showEditTemplateDialog(context, l10n, template),
                   onDelete: () => _confirmDelete(context, l10n, template),
                   trailingAction: ReorderableDragStartListener(
                     index: index,
@@ -2781,8 +3121,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                     targetWeight: targetWeight,
                     sets: sets,
                     durationBased: durationBased,
-                    durationTracksWeight:
-                        durationBased && durationTracksWeight,
+                    durationTracksWeight: durationBased && durationTracksWeight,
                     targetDurationSeconds: durationBased
                         ? targetDurationSeconds
                         : null,
@@ -3185,13 +3524,17 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   Timer? _warmupTimer;
   bool _durationSessionRunning = false;
   bool _durationSessionInWork = true;
+
   /// Countdown seconds before hold starts (interval "Start workout" only).
   int _warmupSecondsRemaining = 0;
   int _workSecondsRemaining = 0;
+
   /// Total seconds for the current work phase (countdown start value).
   int _workPhaseDurationSeconds = 0;
+
   /// Seconds held when work ended; used when logging after rest.
   int? _pendingDurationLogSeconds;
+
   /// Weight (kg) when work ended; used when logging after rest.
   double? _pendingDurationLogWeight;
   List<int> _restPresetSeconds = [5, 10, 15, 30, 60];
@@ -3199,6 +3542,15 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   // Previous best reps (or hold seconds) for each exercise name
   Map<String, int> previousBestReps = {};
   Map<String, int> previousBestDurationSeconds = {};
+
+  /// Not-yet-logged set row values for strength exercises, keyed by exercise id.
+  /// List length is the number of rows currently shown for that exercise (starts
+  /// at [TemplateExercise.sets], can grow via "Add Set" or a raised target).
+  final Map<String, List<double>> _pendingSetWeights = {};
+  final Map<String, List<int>> _pendingSetReps = {};
+
+  /// Styling only: whether the user has edited a row away from its placeholder.
+  final Map<String, List<bool>> _pendingSetEdited = {};
 
   /// Mutable copy of template exercises so user can reorder during workout.
   late List<TemplateExercise> _orderedExercises;
@@ -3248,14 +3600,15 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   }
 
   void _adjustCurrentWeight(double deltaKg) {
-    setState(
-      () => currentWeight = (currentWeight + deltaKg).clamp(0.0, 999.0),
-    );
+    setState(() => currentWeight = (currentWeight + deltaKg).clamp(0.0, 999.0));
   }
 
   int _elapsedWorkSecondsForCurrentPhase() {
     if (_workPhaseDurationSeconds > 0) {
-      return (_workPhaseDurationSeconds - _workSecondsRemaining).clamp(1, 86400);
+      return (_workPhaseDurationSeconds - _workSecondsRemaining).clamp(
+        1,
+        86400,
+      );
     }
     if (_orderedExercises.isEmpty) return 1;
     final current = _orderedExercises[currentExerciseIndex];
@@ -3289,8 +3642,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     final current = _orderedExercises[currentExerciseIndex];
     if (!current.durationBased) return;
     if (logs.any(
-      (l) =>
-          l.exerciseId == current.exercise.id && l.setNumber == currentSet,
+      (l) => l.exerciseId == current.exercise.id && l.setNumber == currentSet,
     )) {
       return;
     }
@@ -3299,8 +3651,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
           1,
           86400,
         );
-    final workDuration =
-        (_pendingDurationLogSeconds ?? plannedDuration).clamp(1, 86400);
+    final workDuration = (_pendingDurationLogSeconds ?? plannedDuration).clamp(
+      1,
+      86400,
+    );
     logs.add(
       ExerciseLog(
         exerciseId: current.exercise.id,
@@ -3324,6 +3678,16 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     unawaited(_persistWorkoutDraft());
   }
 
+  void _updateLogRepsAt(int logIndex, int newReps) {
+    if (logIndex < 0 || logIndex >= logs.length) return;
+    final clamped = newReps.clamp(0, 999);
+    setState(() {
+      logs[logIndex] = logs[logIndex].copyWith(reps: clamped);
+      currentReps = clamped;
+    });
+    unawaited(_persistWorkoutDraft());
+  }
+
   void _editCompletedSetWeight(
     AppLocalizations l10n,
     ExerciseLog log,
@@ -3335,10 +3699,23 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       currentValue: _kgToDisplay(log.weight),
       isInteger: false,
       accentColor: Colors.orange,
-      onSave: (displayValue) => _updateLogWeightAt(
-        logIndex,
-        _displayToKg(displayValue),
-      ),
+      onSave: (displayValue) =>
+          _updateLogWeightAt(logIndex, _displayToKg(displayValue)),
+    );
+  }
+
+  void _editCompletedSetReps(
+    AppLocalizations l10n,
+    ExerciseLog log,
+    int logIndex,
+  ) {
+    _showNumberInputDialog(
+      context: context,
+      title: l10n.reps,
+      currentValue: log.reps.toDouble(),
+      isInteger: true,
+      accentColor: Theme.of(context).colorScheme.primary,
+      onSave: (value) => _updateLogRepsAt(logIndex, value.toInt()),
     );
   }
 
@@ -3373,18 +3750,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     return null;
   }
 
-  /// Last reps logged for this exercise (most recent session); null if none. Uses name so history is shared across templates.
-  int? _getLastRepsForExercise(String exerciseName) {
-    for (final session in widget.history) {
-      for (final log in session.logs.reversed) {
-        if (log.exerciseName == exerciseName && !log.isDurationSet) {
-          return log.reps;
-        }
-      }
-    }
-    return null;
-  }
-
   /// Last hold duration logged (seconds); null if none.
   int? _getLastDurationForExercise(String exerciseName) {
     for (final session in widget.history) {
@@ -3395,6 +3760,107 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       }
     }
     return null;
+  }
+
+  /// Placeholder weight/reps for one set row, from the most recent session that
+  /// actually performed this exercise (skipping sessions where it was skipped).
+  /// Prefers the log with the same [setNumber]; if that session did fewer sets
+  /// than requested, falls back to its last logged set rather than the raw
+  /// template target. Returns null if the exercise has never been logged.
+  ({double weight, int reps})? _historicalSetPlaceholder(
+    String exerciseName,
+    int setNumber,
+  ) {
+    for (final session in widget.history) {
+      final exLogs =
+          session.logs
+              .where((l) => l.exerciseName == exerciseName && !l.isDurationSet)
+              .toList()
+            ..sort((a, b) => a.setNumber.compareTo(b.setNumber));
+      if (exLogs.isEmpty) continue;
+      final match = exLogs.where((l) => l.setNumber == setNumber);
+      final log = match.isNotEmpty ? match.first : exLogs.last;
+      return (weight: log.weight, reps: log.reps);
+    }
+    return null;
+  }
+
+  /// Lazily creates/grows (never shrinks or overwrites) the pending set-row
+  /// caches for [ex] up to `ex.sets` rows, filling new rows from
+  /// [_historicalSetPlaceholder] or the template's target reps/weight. Safe to
+  /// call repeatedly (e.g. every time the user jumps to this exercise).
+  void _ensureRowCache(TemplateExercise ex) {
+    final id = ex.exercise.id;
+    final weights = _pendingSetWeights.putIfAbsent(id, () => []);
+    final reps = _pendingSetReps.putIfAbsent(id, () => []);
+    final edited = _pendingSetEdited.putIfAbsent(id, () => []);
+    while (weights.length < ex.sets) {
+      final setNumber = weights.length + 1;
+      final placeholder = _historicalSetPlaceholder(
+        ex.exercise.name,
+        setNumber,
+      );
+      weights.add(placeholder?.weight ?? ex.targetWeight);
+      reps.add(placeholder?.reps ?? ex.targetReps);
+      edited.add(false);
+    }
+  }
+
+  /// Appends one more pending set row beyond the template's planned count.
+  void _addExtraSetRow(TemplateExercise ex) {
+    _ensureRowCache(ex);
+    final id = ex.exercise.id;
+    setState(() {
+      final weights = _pendingSetWeights[id]!;
+      final reps = _pendingSetReps[id]!;
+      final edited = _pendingSetEdited[id]!;
+      final setNumber = weights.length + 1;
+      final placeholder = _historicalSetPlaceholder(
+        ex.exercise.name,
+        setNumber,
+      );
+      weights.add(
+        placeholder?.weight ??
+            (weights.isNotEmpty ? weights.last : ex.targetWeight),
+      );
+      reps.add(
+        placeholder?.reps ?? (reps.isNotEmpty ? reps.last : ex.targetReps),
+      );
+      edited.add(false);
+    });
+    unawaited(_persistWorkoutDraft());
+  }
+
+  /// Logs a pending row's current weight/reps and starts rest — the per-row
+  /// equivalent of the old single-set "Log Set" button.
+  void _completeSetRow(TemplateExercise ex, int setNumber) {
+    final id = ex.exercise.id;
+    final idx = setNumber - 1;
+    final weights = _pendingSetWeights[id];
+    final reps = _pendingSetReps[id];
+    if (weights == null || reps == null || idx < 0 || idx >= reps.length) {
+      return;
+    }
+    final weight = weights[idx];
+    final repCount = reps[idx];
+    if (repCount <= 0) return;
+    logs.add(
+      ExerciseLog(
+        exerciseId: id,
+        exerciseName: ex.exercise.name,
+        setNumber: setNumber,
+        reps: repCount,
+        weight: weight,
+        timestamp: DateTime.now(),
+      ),
+    );
+    setState(() {
+      currentSet = setNumber + 1;
+      currentReps = repCount;
+      currentWeight = weight;
+    });
+    _startRestTimer();
+    unawaited(_persistWorkoutDraft());
   }
 
   /// Past workout sessions that contain logs for this exercise (newest first). Matches by exercise name so history is shared across templates.
@@ -3565,8 +4031,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _weightUnit =
-        widget.weightUnit == 'lbs' || widget.weightUnit == 'kg'
+    _weightUnit = widget.weightUnit == 'lbs' || widget.weightUnit == 'kg'
         ? widget.weightUnit
         : 'kg';
     unawaited(_loadExerciseNotes());
@@ -3588,6 +4053,15 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       restSeconds = restored.restSeconds;
       _defaultRestSeconds = restored.defaultRestSeconds;
       _viewingPlanDuringRest = restored.viewingPlanDuringRest;
+      restored.pendingSetWeights.forEach(
+        (id, values) => _pendingSetWeights[id] = List<double>.from(values),
+      );
+      restored.pendingSetReps.forEach(
+        (id, values) => _pendingSetReps[id] = List<int>.from(values),
+      );
+      restored.pendingSetEdited.forEach(
+        (id, values) => _pendingSetEdited[id] = List<bool>.from(values),
+      );
       if (isResting && restSeconds <= 0) {
         isResting = false;
         _viewingPlanDuringRest = false;
@@ -3782,8 +4256,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                       exercise.exercise.id,
                                     );
                                   } else {
-                                    _exerciseNotesByExerciseId[
-                                        exercise.exercise.id] = trimmed;
+                                    _exerciseNotesByExerciseId[exercise
+                                            .exercise
+                                            .id] =
+                                        trimmed;
                                   }
                                 });
                                 unawaited(_persistExerciseNotes());
@@ -3933,10 +4409,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         restSeconds = 0;
         _viewingPlanDuringRest = false;
       });
-      _warmupTimer = Timer.periodic(
-        const Duration(seconds: 1),
-        _onWarmupTick,
-      );
+      _warmupTimer = Timer.periodic(const Duration(seconds: 1), _onWarmupTick);
       if (warmup >= 2 && warmup <= 3) {
         unawaited(_playRestCountdownBeep(warmup));
       }
@@ -4006,6 +4479,28 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     _beginDurationRestPhase();
   }
 
+  /// Logs the full planned hold time immediately, for when the user already
+  /// did the hold/carry (e.g. a 15-minute run) before opening the app, so
+  /// they don't have to wait for the timer to count down again.
+  void _logDurationSetAlreadyCompleted() {
+    if (!mounted || _orderedExercises.isEmpty) return;
+    final current = _orderedExercises[currentExerciseIndex];
+    if (!current.durationBased) return;
+    if (_durationSessionRunning || _workSecondsRemaining > 0) return;
+    final plannedSeconds =
+        (current.targetDurationSeconds ?? currentDurationSeconds).clamp(
+          1,
+          86400,
+        );
+    setState(() {
+      _durationSessionRunning = true;
+      _durationSessionInWork = true;
+    });
+    _pendingDurationLogSeconds = plannedSeconds;
+    _pendingDurationLogWeight = _logWeightForExercise(current);
+    _beginDurationRestPhase();
+  }
+
   void _onWarmupTick(Timer timer) {
     if (!mounted) {
       timer.cancel();
@@ -4069,10 +4564,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     });
     if (_warmupSecondsRemaining > 0 && !isResting) {
       _warmupTimer?.cancel();
-      _warmupTimer = Timer.periodic(
-        const Duration(seconds: 1),
-        _onWarmupTick,
-      );
+      _warmupTimer = Timer.periodic(const Duration(seconds: 1), _onWarmupTick);
     } else if (_durationSessionInWork) {
       _durationWorkTimer?.cancel();
       _durationWorkTimer = Timer.periodic(
@@ -4297,10 +4789,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         currentWeight = 0;
       }
     } else {
-      final lastReps = _getLastRepsForExercise(current.exercise.name);
-      currentReps = lastReps ?? current.targetReps;
-      final lastWeight = _getLastWeightForExercise(current.exercise.name);
-      currentWeight = lastWeight ?? current.targetWeight;
+      _ensureRowCache(current);
       currentDurationSeconds = 0;
     }
   }
@@ -4331,8 +4820,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       final storedTemplates = decoded
           .map((e) => WorkoutTemplate.fromJson(e as Map<String, dynamic>))
           .toList();
-      final templateIndex =
-          storedTemplates.indexWhere((t) => t.id == widget.template.id);
+      final templateIndex = storedTemplates.indexWhere(
+        (t) => t.id == widget.template.id,
+      );
       if (templateIndex == -1) return;
 
       storedTemplates[templateIndex] = storedTemplates[templateIndex].copyWith(
@@ -4364,6 +4854,15 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         restSeconds: restSeconds,
         defaultRestSeconds: _defaultRestSeconds,
         viewingPlanDuringRest: _viewingPlanDuringRest,
+        pendingSetWeights: _pendingSetWeights.map(
+          (id, values) => MapEntry(id, List<double>.from(values)),
+        ),
+        pendingSetReps: _pendingSetReps.map(
+          (id, values) => MapEntry(id, List<int>.from(values)),
+        ),
+        pendingSetEdited: _pendingSetEdited.map(
+          (id, values) => MapEntry(id, List<bool>.from(values)),
+        ),
       );
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(kWorkoutDraftPrefsKey, jsonEncode(draft.toJson()));
@@ -4524,36 +5023,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     );
   }
 
-  void _logSet() {
-    final current = _orderedExercises[currentExerciseIndex];
-    final log = current.durationBased
-        ? ExerciseLog(
-            exerciseId: current.exercise.id,
-            exerciseName: current.exercise.name,
-            setNumber: currentSet,
-            reps: 0,
-            weight: _logWeightForExercise(current),
-            durationSeconds: currentDurationSeconds,
-            timestamp: DateTime.now(),
-          )
-        : ExerciseLog(
-            exerciseId: current.exercise.id,
-            exerciseName: current.exercise.name,
-            setNumber: currentSet,
-            reps: currentReps,
-            weight: currentWeight,
-            timestamp: DateTime.now(),
-          );
-    logs.add(log);
-
-    // Always move to next set and start rest (user can add extra sets beyond template target)
-    setState(() {
-      currentSet++;
-    });
-    _startRestTimer();
-    unawaited(_persistWorkoutDraft());
-  }
-
   void _onRestTimerTick(Timer timer) {
     if (!mounted) {
       timer.cancel();
@@ -4683,8 +5152,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       final volPct = prefs.getInt(kPrefTimerBeepVolume);
       final vol = ((volPct ?? 85).clamp(0, 100)) / 100.0;
       if (vol <= 0) return;
-      final scaled =
-          (vol * volumeScale.clamp(0.05, 1.5)).clamp(0.0, 1.0);
+      final scaled = (vol * volumeScale.clamp(0.05, 1.5)).clamp(0.0, 1.0);
       if (scaled <= 0) return;
       await _setBeepAudioContext();
       await audioPlayer.setVolume(scaled);
@@ -4791,8 +5259,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                 kDefaultTargetDurationSeconds)
             .clamp(1, 86400);
 
-    var warmupSeconds =
-        ((current.warmupSeconds ?? 0).clamp(0, 600));
+    var warmupSeconds = ((current.warmupSeconds ?? 0).clamp(0, 600));
 
     var durationTracksWeight = current.durationTracksWeight;
 
@@ -4926,7 +5393,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       l10n.get('durationTracksWeightDesc'),
                       style: TextStyle(
                         fontSize: 15,
-                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade700,
                       ),
                     ),
                     value: durationTracksWeight,
@@ -5030,7 +5499,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     style: TextStyle(
                       fontSize: 15,
                       height: 1.35,
-                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade700,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -5040,8 +5511,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     children: [
                       IconButton(
                         onPressed: () => setDialogState(
-                          () => warmupSeconds =
-                              (warmupSeconds - 5).clamp(0, 600),
+                          () =>
+                              warmupSeconds = (warmupSeconds - 5).clamp(0, 600),
                         ),
                         icon: const Icon(Icons.remove_circle_outline),
                         iconSize: 36,
@@ -5073,8 +5544,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       ),
                       IconButton(
                         onPressed: () => setDialogState(
-                          () => warmupSeconds =
-                              (warmupSeconds + 5).clamp(0, 600),
+                          () =>
+                              warmupSeconds = (warmupSeconds + 5).clamp(0, 600),
                         ),
                         icon: const Icon(Icons.add_circle_outline),
                         iconSize: 36,
@@ -5297,8 +5768,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     _orderedExercises[currentExerciseIndex] = updatedExercise;
                     currentDurationSeconds = targetDurationSeconds;
                     if (durationTracksWeight) {
-                      final lastW =
-                          _getLastWeightForExercise(current.exercise.name);
+                      final lastW = _getLastWeightForExercise(
+                        current.exercise.name,
+                      );
                       if (lastW != null) {
                         currentWeight = lastW;
                       } else if (currentWeight <= 0) {
@@ -5310,9 +5782,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     _restPresetSeconds = List<int>.from(presetSeconds);
                   });
                   _persistExerciseToTemplate(updatedExercise);
-                  unawaited(
-                    _persistExerciseToTemplateStorage(updatedExercise),
-                  );
+                  unawaited(_persistExerciseToTemplateStorage(updatedExercise));
                   unawaited(_persistWorkoutDraft());
                   Navigator.pop(ctx);
                 },
@@ -5959,8 +6429,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     targetWeight: targetWeight,
                     sets: sets,
                     durationBased: durationBased,
-                    durationTracksWeight:
-                        durationBased && durationTracksWeight,
+                    durationTracksWeight: durationBased && durationTracksWeight,
                     targetDurationSeconds: durationBased
                         ? targetDurationSeconds
                         : null,
@@ -6225,8 +6694,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   /// Planned timed sets still to finish (uses logged count; set is logged when rest begins).
   int _durationPlannedSetsRemaining(TemplateExercise current) {
     if (!current.durationBased) return 0;
-    final logged =
-        logs.where((l) => l.exerciseId == current.exercise.id).length;
+    final logged = logs
+        .where((l) => l.exerciseId == current.exercise.id)
+        .length;
     return (current.sets - logged).clamp(0, 9999);
   }
 
@@ -6234,9 +6704,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   Widget _buildRestBar(AppLocalizations l10n, TemplateExercise current) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorScheme = Theme.of(context).colorScheme;
-    final showSetsInline = current.durationBased &&
-        !_durationSessionInWork &&
-        isResting;
+    final showSetsInline =
+        current.durationBased && !_durationSessionInWork && isResting;
     final setsN = _durationPlannedSetsRemaining(current);
     return Material(
       elevation: 2,
@@ -6335,19 +6804,21 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     const double buttonFontSize = 22;
     const double minTapHeight = 64;
 
-    final showSetsInline = current.durationBased &&
-        !_durationSessionInWork &&
-        isResting;
+    final showSetsInline =
+        current.durationBased && !_durationSessionInWork && isResting;
     final setsN = _durationPlannedSetsRemaining(current);
-    final restCountdownActive = isResting &&
-        restSeconds > 0 &&
-        (restTimer?.isActive ?? false);
-    final restCountdownPausedUi = isResting &&
+    final restCountdownActive =
+        isResting && restSeconds > 0 && (restTimer?.isActive ?? false);
+    final restCountdownPausedUi =
+        isResting &&
         restSeconds > 0 &&
         ((current.durationBased && !_durationSessionRunning) ||
             (!current.durationBased && _restCountdownPaused));
     final mqSize = MediaQuery.sizeOf(context);
-    final setsRemainingFontSize = (mqSize.shortestSide * 0.16).clamp(72.0, 108.0);
+    final setsRemainingFontSize = (mqSize.shortestSide * 0.16).clamp(
+      72.0,
+      108.0,
+    );
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -6359,226 +6830,242 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
             builder: (context, constraints) {
               return SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
+                ),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                  Text(
-                    l10n.get('rest'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: largeFontSize,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (showSetsInline) ...[
-                    const SizedBox(height: 20),
-                    Text(
-                      '$setsN',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: setsRemainingFontSize,
-                        fontWeight: FontWeight.w800,
-                        height: 1.0,
-                        color: isDark ? Colors.white : colorScheme.primary,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.get('setsRemainingLabel'),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w600,
-                        color: isDark
-                            ? Colors.grey.shade300
-                            : Colors.grey.shade800,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  GestureDetector(
-                    onTap: () => showDurationEntryDialog(
-                      context: context,
-                      l10n: l10n,
-                      currentSeconds: restSeconds,
-                      accentColor: Colors.blue,
-                      onSave: (sec) =>
-                          setState(() => restSeconds = sec.clamp(0, 600)),
-                    ),
-                    child: Center(
-                      child: Text(
-                        formatDurationMmSs(restSeconds),
+                      Text(
+                        l10n.get('rest'),
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: timerFontSize,
+                        style: const TextStyle(
+                          fontSize: largeFontSize,
                           fontWeight: FontWeight.bold,
-                          // Original rest timer colors: blue, turns red at 10s.
-                          color: restSeconds <= 10 ? Colors.red : Colors.blue,
                         ),
                       ),
-                    ),
-                  ),
-                  if (restCountdownActive || restCountdownPausedUi) ...[
-                    const SizedBox(height: 12),
-                    Center(
-                      child: SizedBox(
-                        width: 64,
-                        height: 64,
-                        child: FilledButton(
-                          onPressed: () {
-                            if (restCountdownActive) {
-                              if (current.durationBased) {
-                                _pauseDurationSession();
-                              } else {
-                                _pauseRestCountdown();
-                              }
-                            } else {
-                              if (current.durationBased) {
-                                _resumeDurationSession();
-                              } else {
-                                _resumeRestCountdown();
-                              }
-                            }
-                          },
-                          style: FilledButton.styleFrom(
-                            shape: const CircleBorder(),
-                            backgroundColor: Colors.white.withValues(alpha: 0.18),
+                      if (showSetsInline) ...[
+                        const SizedBox(height: 20),
+                        Text(
+                          '$setsN',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: setsRemainingFontSize,
+                            fontWeight: FontWeight.w800,
+                            height: 1.0,
+                            color: isDark ? Colors.white : colorScheme.primary,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          l10n.get('setsRemainingLabel'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? Colors.grey.shade300
+                                : Colors.grey.shade800,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      GestureDetector(
+                        onTap: () => showDurationEntryDialog(
+                          context: context,
+                          l10n: l10n,
+                          currentSeconds: restSeconds,
+                          accentColor: Colors.blue,
+                          onSave: (sec) =>
+                              setState(() => restSeconds = sec.clamp(0, 600)),
+                        ),
+                        child: Center(
+                          child: Text(
+                            formatDurationMmSs(restSeconds),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: timerFontSize,
+                              fontWeight: FontWeight.bold,
+                              // Original rest timer colors: blue, turns red at 10s.
+                              color: restSeconds <= 10
+                                  ? Colors.red
+                                  : Colors.blue,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (restCountdownActive || restCountdownPausedUi) ...[
+                        const SizedBox(height: 12),
+                        Center(
+                          child: SizedBox(
+                            width: 64,
+                            height: 64,
+                            child: FilledButton(
+                              onPressed: () {
+                                if (restCountdownActive) {
+                                  if (current.durationBased) {
+                                    _pauseDurationSession();
+                                  } else {
+                                    _pauseRestCountdown();
+                                  }
+                                } else {
+                                  if (current.durationBased) {
+                                    _resumeDurationSession();
+                                  } else {
+                                    _resumeRestCountdown();
+                                  }
+                                }
+                              },
+                              style: FilledButton.styleFrom(
+                                shape: const CircleBorder(),
+                                backgroundColor: Colors.white.withValues(
+                                  alpha: 0.18,
+                                ),
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.zero,
+                              ),
+                              child: Icon(
+                                restCountdownActive
+                                    ? Icons.pause
+                                    : Icons.play_arrow,
+                                size: 34,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 40),
+                      // +30 / −30 sec row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 140,
+                            height: minTapHeight,
+                            child: ElevatedButton(
+                              onPressed: () => _subtractRestSeconds(30),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange.shade700,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: Text(
+                                l10n.get('subtract30Seconds'),
+                                style: const TextStyle(
+                                  fontSize: buttonFontSize,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 20),
+                          SizedBox(
+                            width: 140,
+                            height: minTapHeight,
+                            child: ElevatedButton(
+                              onPressed: () => _addRestSeconds(30),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue.shade700,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: Text(
+                                l10n.get('add30Seconds'),
+                                style: const TextStyle(
+                                  fontSize: buttonFontSize,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 28),
+                      SizedBox(
+                        width: 260,
+                        height: minTapHeight,
+                        child: ElevatedButton(
+                          onPressed: _skipRest,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
                             foregroundColor: Colors.white,
-                            padding: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
-                          child: Icon(
-                            restCountdownActive ? Icons.pause : Icons.play_arrow,
-                            size: 34,
+                          child: Text(
+                            l10n.get('skipRest'),
+                            style: const TextStyle(
+                              fontSize: buttonFontSize,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                  const SizedBox(height: 40),
-                  // +30 / −30 sec row
-                  Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: 140,
-                  height: minTapHeight,
-                  child: ElevatedButton(
-                    onPressed: () => _subtractRestSeconds(30),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange.shade700,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: 260,
+                        height: minTapHeight,
+                        child: OutlinedButton.icon(
+                          onPressed: () =>
+                              setState(() => _viewingPlanDuringRest = true),
+                          icon: const Icon(Icons.list, size: 24),
+                          label: Text(
+                            l10n.get('viewWorkoutPlan'),
+                            style: const TextStyle(
+                              fontSize: buttonFontSize,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.blue.shade700,
+                            side: BorderSide(
+                              color: Colors.blue.shade700,
+                              width: 2,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                    child: Text(
-                      l10n.get('subtract30Seconds'),
-                      style: const TextStyle(
-                        fontSize: buttonFontSize,
-                        fontWeight: FontWeight.bold,
+                      const SizedBox(height: 20),
+                      // Finish workout – always available during rest, elderly-friendly
+                      SizedBox(
+                        width: 260,
+                        height: minTapHeight,
+                        child: OutlinedButton.icon(
+                          onPressed: () => unawaited(_finishWorkout()),
+                          icon: const Icon(Icons.flag, size: 26),
+                          label: Text(
+                            l10n.get('finishWorkout'),
+                            style: const TextStyle(
+                              fontSize: buttonFontSize,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.orange.shade700,
+                            side: BorderSide(
+                              color: Colors.orange.shade600,
+                              width: 2,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 20),
-                SizedBox(
-                  width: 140,
-                  height: minTapHeight,
-                  child: ElevatedButton(
-                    onPressed: () => _addRestSeconds(30),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade700,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: Text(
-                      l10n.get('add30Seconds'),
-                      style: const TextStyle(
-                        fontSize: buttonFontSize,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 28),
-            SizedBox(
-              width: 260,
-              height: minTapHeight,
-              child: ElevatedButton(
-                onPressed: _skipRest,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: Text(
-                  l10n.get('skipRest'),
-                  style: const TextStyle(
-                    fontSize: buttonFontSize,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: 260,
-              height: minTapHeight,
-              child: OutlinedButton.icon(
-                onPressed: () => setState(() => _viewingPlanDuringRest = true),
-                icon: const Icon(Icons.list, size: 24),
-                label: Text(
-                  l10n.get('viewWorkoutPlan'),
-                  style: const TextStyle(
-                    fontSize: buttonFontSize,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.blue.shade700,
-                  side: BorderSide(color: Colors.blue.shade700, width: 2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            // Finish workout – always available during rest, elderly-friendly
-            SizedBox(
-              width: 260,
-              height: minTapHeight,
-              child: OutlinedButton.icon(
-                onPressed: () => unawaited(_finishWorkout()),
-                icon: const Icon(Icons.flag, size: 26),
-                label: Text(
-                  l10n.get('finishWorkout'),
-                  style: const TextStyle(
-                    fontSize: buttonFontSize,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.orange.shade700,
-                  side: BorderSide(color: Colors.orange.shade600, width: 2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-            ),
-                ],
+                    ],
                   ),
                 ),
               );
@@ -6608,14 +7095,17 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final inDurationWarmup =
         current.durationBased && _warmupSecondsRemaining > 0 && !isResting;
-    final inActiveWorkHold = current.durationBased &&
+    final inActiveWorkHold =
+        current.durationBased &&
         !inDurationWarmup &&
         _durationSessionInWork &&
         _workSecondsRemaining > 0;
     final inLargeDurationCountdown = inDurationWarmup || inActiveWorkHold;
     final mqSize = MediaQuery.sizeOf(context);
-    final largeDurationCountdownFontSize =
-        (mqSize.shortestSide * 0.29).clamp(104.0, 172.0);
+    final largeDurationCountdownFontSize = (mqSize.shortestSide * 0.29).clamp(
+      104.0,
+      172.0,
+    );
 
     return SingleChildScrollView(
       controller: _exerciseScrollController,
@@ -6645,9 +7135,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                 ),
                 const SizedBox(width: 16),
                 Text(
-                  currentSet <= current.sets
-                      ? '${l10n.get('set')} $currentSet/${current.sets}'
-                      : '${l10n.get('set')} $currentSet',
+                  current.durationBased
+                      ? (currentSet <= current.sets
+                            ? '${l10n.get('set')} $currentSet/${current.sets}'
+                            : '${l10n.get('set')} $currentSet')
+                      : '${l10n.get('set')} ${logs.where((l) => l.exerciseId == current.exercise.id).length}/${_pendingSetWeights[current.exercise.id]?.length ?? current.sets}',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -6941,7 +7433,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                             _orderedExercises[index];
                                         // If user is browsing the plan during an active rest,
                                         // keep the rest countdown running.
-                                        _stopDurationSession(clearRest: !wasResting);
+                                        _stopDurationSession(
+                                          clearRest: !wasResting,
+                                        );
                                         final loggedForExercise = logs
                                             .where(
                                               (l) =>
@@ -7040,15 +7534,17 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                       ),
                                     ),
                                     IconButton(
-                                      onPressed: () =>
-                                          unawaited(_showExerciseNotesDialog(
-                                        l10n,
-                                        exercise,
-                                      )),
+                                      onPressed: () => unawaited(
+                                        _showExerciseNotesDialog(
+                                          l10n,
+                                          exercise,
+                                        ),
+                                      ),
                                       icon: Icon(
-                                        (_exerciseNotesByExerciseId[
-                                                    exercise.exercise.id] ??
-                                                '')
+                                        (_exerciseNotesByExerciseId[exercise
+                                                        .exercise
+                                                        .id] ??
+                                                    '')
                                                 .trim()
                                                 .isEmpty
                                             ? Icons.note_alt_outlined
@@ -7101,554 +7597,500 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (current.showsWeightInWorkout) ...[
-                  // Weight (strength or timed + weight e.g. farmer's carry)
+                if (current.durationBased && current.showsWeightInWorkout) ...[
+                  // Weight (timed + weight e.g. farmer's carry). Plain strength
+                  // exercises get weight inline in _buildSetRowsSection instead.
                   Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1A2634) : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  _LargeRoundButton(
-                    icon: Icons.remove,
-                    color: Colors.orange.shade400,
-                    onPressed: currentWeight > 0
-                        ? () => _adjustCurrentWeight(-_weightStepKg)
-                        : null,
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => _showNumberInputDialog(
-                        context: context,
-                        title: _isAssistedPullUp(current.exercise.name)
-                            ? (_weightUnit == 'lbs'
-                                  ? l10n.get('minusWeightLbs')
-                                  : l10n.get('minusWeightKg'))
-                            : (_weightUnit == 'lbs'
-                                  ? l10n.get('weightLbs')
-                                  : l10n.get('weight')),
-                        currentValue: _kgToDisplay(currentWeight),
-                        isInteger: false,
-                        accentColor: Colors.orange,
-                        onSave: (value) =>
-                            setState(() => currentWeight = _displayToKg(value)),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            _isAssistedPullUp(current.exercise.name)
-                                ? (_weightUnit == 'lbs'
-                                      ? l10n.get('minusWeightLbs')
-                                      : l10n.get('minusWeightKg'))
-                                : (_weightUnit == 'lbs'
-                                      ? l10n.get('weightLbs')
-                                      : l10n.get('weight')),
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: isDark
-                                  ? Colors.grey.shade400
-                                  : Colors.grey.shade600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? Colors.orange.withValues(alpha: 0.2)
-                                  : Colors.orange.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: Colors.orange.withValues(alpha: 0.5),
-                                width: 2,
-                              ),
-                            ),
-                            child: Text(
-                              _formatWeightDisplay(currentWeight),
-                              style: TextStyle(
-                                fontSize: 42,
-                                fontWeight: FontWeight.bold,
-                                color: isDark
-                                    ? Colors.white
-                                    : Colors.orange.shade700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _WeightUnitSegmentedToggle(
-                            selectedUnit: _weightUnit,
-                            kgLabel: l10n.get('weightShort'),
-                            lbsLabel: l10n.get('weightShortLbs'),
-                            onUnitSelected: (unit) =>
-                                unawaited(_setWeightUnit(unit)),
-                            isDark: isDark,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            l10n.get('tapToEdit'),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark
-                                  ? Colors.grey.shade500
-                                  : Colors.grey.shade500,
-                            ),
-                          ),
-                        ],
-                      ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
                     ),
-                  ),
-                  _LargeRoundButton(
-                    icon: Icons.add,
-                    color: Colors.green.shade400,
-                    onPressed: () => _adjustCurrentWeight(_weightStepKg),
-                  ),
-                ],
-              ),
-            ),
-                ],
-            if (!current.durationBased) ...[
-            const SizedBox(height: 12),
-            // Reps counter (vertical layout)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1A2634) : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  _LargeRoundButton(
-                    icon: Icons.remove,
-                    color: Colors.red.shade400,
-                    onPressed: () {
-                      if (currentReps > 0) {
-                        setState(() => currentReps--);
-                      }
-                    },
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => _showNumberInputDialog(
-                        context: context,
-                        title: l10n.reps,
-                        currentValue: currentReps.toDouble(),
-                        isInteger: true,
-                        accentColor: colorScheme.primary,
-                        onSave: (value) =>
-                            setState(() => currentReps = value.toInt()),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            l10n.reps,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: isDark
-                                  ? Colors.grey.shade400
-                                  : Colors.grey.shade600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? colorScheme.primary.withValues(alpha: 0.2)
-                                  : colorScheme.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: colorScheme.primary.withValues(
-                                  alpha: 0.5,
-                                ),
-                                width: 2,
-                              ),
-                            ),
-                            child: Text(
-                              '$currentReps',
-                              style: TextStyle(
-                                fontSize: 42,
-                                fontWeight: FontWeight.bold,
-                                color: isDark
-                                    ? Colors.white
-                                    : colorScheme.primary,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            l10n.get('tapToEdit'),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark
-                                  ? Colors.grey.shade500
-                                  : Colors.grey.shade500,
-                            ),
-                          ),
-                        ],
-                      ),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1A2634) : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                  ),
-                  _LargeRoundButton(
-                    icon: Icons.add,
-                    color: Colors.green.shade400,
-                    onPressed: () => setState(() => currentReps++),
-                  ),
-                ],
-              ),
-            ),
-            ],
-          if (current.durationBased) ...[
-            if (current.durationTracksWeight) const SizedBox(height: 12),
-            // Hold / carry time (elderly-friendly: large timer, presets, tap to type m:ss)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 320),
-              curve: Curves.easeOutCubic,
-              padding: EdgeInsets.symmetric(
-                horizontal: inLargeDurationCountdown ? 12 : 16,
-                vertical: inLargeDurationCountdown ? 22 : 16,
-              ),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1A2634) : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: inLargeDurationCountdown
-                    ? Border.all(
-                        color: inDurationWarmup
-                            ? Colors.amber.withValues(alpha: 0.65)
-                            : colorScheme.primary.withValues(alpha: 0.55),
-                        width: 3,
-                      )
-                    : null,
-                boxShadow: [
-                  BoxShadow(
-                    color: inLargeDurationCountdown
-                        ? (inDurationWarmup
-                              ? Colors.amber.withValues(alpha: 0.12)
-                              : colorScheme.primary.withValues(alpha: 0.12))
-                        : Colors.black.withValues(alpha: 0.05),
-                    blurRadius: inLargeDurationCountdown ? 18 : 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          inDurationWarmup
-                              ? l10n.get('warmup')
-                              : l10n.get('holdTime'),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: inLargeDurationCountdown ? 22 : 18,
-                            fontWeight: FontWeight.w700,
-                            color: inDurationWarmup
-                                ? (isDark
-                                      ? Colors.amber.shade200
-                                      : Colors.amber.shade900)
-                                : inActiveWorkHold
-                                ? colorScheme.primary
-                                : (isDark
-                                      ? Colors.grey.shade400
-                                      : Colors.grey.shade600),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: l10n.get('settings'),
-                        onPressed: isResting || inDurationWarmup
-                            ? null
-                            : _showDurationExerciseSettingsDialog,
-                        icon:                         Icon(
-                          Icons.settings,
-                          size: 26,
-                          color: (isResting || inDurationWarmup)
-                              ? (isDark
-                                    ? Colors.grey.shade600
-                                    : Colors.grey.shade400)
-                              : colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: _durationSessionRunning
-                        ? null
-                        : () => showDurationEntryDialog(
-                              context: context,
-                              l10n: l10n,
-                              currentSeconds: currentDurationSeconds,
-                              accentColor: colorScheme.primary,
-                              onSave: (sec) {
-                                setState(() {
-                                  currentDurationSeconds = sec;
-                                  final cur =
-                                      _orderedExercises[currentExerciseIndex];
-                                  _orderedExercises[currentExerciseIndex] =
-                                      cur.copyWith(
-                                        targetDurationSeconds:
-                                            currentDurationSeconds,
-                                      );
-                                });
-                                unawaited(_persistWorkoutDraft());
-                              },
-                            ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                    child: Row(
                       children: [
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 320),
-                          curve: Curves.easeOutCubic,
-                          width: double.infinity,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: inLargeDurationCountdown ? 4 : 16,
-                            vertical: inLargeDurationCountdown ? 22 : 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: inDurationWarmup
-                                ? (isDark
-                                      ? Colors.amber.withValues(alpha: 0.16)
-                                      : Colors.amber.withValues(alpha: 0.1))
-                                : inActiveWorkHold
-                                ? (isDark
-                                      ? colorScheme.primary.withValues(
-                                          alpha: 0.28,
-                                        )
-                                      : colorScheme.primary.withValues(
-                                          alpha: 0.14,
-                                        ))
-                                : (isDark
-                                      ? colorScheme.primary.withValues(
-                                          alpha: 0.2,
-                                        )
-                                      : colorScheme.primary.withValues(
-                                          alpha: 0.1,
-                                        )),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: inDurationWarmup
-                                  ? Colors.amber.withValues(alpha: 0.65)
-                                  : inActiveWorkHold &&
-                                        _workSecondsRemaining <= 3
-                                  ? Colors.deepOrange.withValues(alpha: 0.85)
-                                  : colorScheme.primary.withValues(
-                                      alpha: 0.5,
-                                    ),
-                              width: inLargeDurationCountdown ? 3 : 2,
-                            ),
-                          ),
-                          child: Center(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.center,
-                              child: AnimatedDefaultTextStyle(
-                                duration: const Duration(milliseconds: 280),
-                                curve: Curves.easeOutCubic,
-                                style: TextStyle(
-                                  fontSize: inLargeDurationCountdown
-                                      ? largeDurationCountdownFontSize
-                                      : 42,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1.05,
-                                  letterSpacing:
-                                      inLargeDurationCountdown ? 1.5 : 0,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures(),
-                                  ],
-                                  color: inDurationWarmup
-                                      ? (isDark
-                                            ? Colors.amber.shade100
-                                            : Colors.amber.shade900)
-                                      : inActiveWorkHold &&
-                                            _workSecondsRemaining <= 3
-                                      ? (isDark
-                                            ? Colors.deepOrange.shade200
-                                            : Colors.deepOrange.shade800)
-                                      : (isDark
-                                            ? Colors.white
-                                            : colorScheme.primary),
-                                ),
-                                child: Text(
-                                  formatDurationMmSs(
-                                    inDurationWarmup
-                                        ? _warmupSecondsRemaining
-                                        : (_durationSessionInWork &&
-                                                  _workSecondsRemaining > 0
-                                              ? _workSecondsRemaining
-                                              : currentDurationSeconds),
-                                  ),
-                                  maxLines: 1,
-                                  softWrap: false,
-                                ),
+                        _LargeRoundButton(
+                          icon: Icons.remove,
+                          color: Colors.orange.shade400,
+                          onPressed: currentWeight > 0
+                              ? () => _adjustCurrentWeight(-_weightStepKg)
+                              : null,
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => _showNumberInputDialog(
+                              context: context,
+                              title: _isAssistedPullUp(current.exercise.name)
+                                  ? (_weightUnit == 'lbs'
+                                        ? l10n.get('minusWeightLbs')
+                                        : l10n.get('minusWeightKg'))
+                                  : (_weightUnit == 'lbs'
+                                        ? l10n.get('weightLbs')
+                                        : l10n.get('weight')),
+                              currentValue: _kgToDisplay(currentWeight),
+                              isInteger: false,
+                              accentColor: Colors.orange,
+                              onSave: (value) => setState(
+                                () => currentWeight = _displayToKg(value),
                               ),
                             ),
-                          ),
-                        ),
-                        SizedBox(height: inLargeDurationCountdown ? 10 : 4),
-                        Text(
-                          inDurationWarmup
-                              ? l10n.get('warmupSubtitle')
-                              : inActiveWorkHold
-                              ? l10n.get('holdTimeRemaining')
-                              : l10n.get('tapToEdit'),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: inLargeDurationCountdown ? 15 : 12,
-                            fontWeight: inLargeDurationCountdown
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                            color: inDurationWarmup
-                                ? (isDark
-                                      ? Colors.amber.shade300
-                                      : Colors.amber.shade800)
-                                : inActiveWorkHold
-                                ? (isDark
-                                      ? Colors.grey.shade300
-                                      : Colors.grey.shade700)
-                                : (isDark
-                                      ? Colors.grey.shade500
-                                      : Colors.grey.shade500),
-                          ),
-                        ),
-                        if (inActiveWorkHold &&
-                            !inDurationWarmup &&
-                            current.durationBased)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 16),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
+                            child: Column(
                               children: [
                                 Text(
-                                  '${_durationPlannedSetsRemaining(current)}',
-                                  style: TextStyle(
-                                    fontSize: (mqSize.shortestSide * 0.11)
-                                        .clamp(42.0, 58.0),
-                                    fontWeight: FontWeight.w800,
-                                    height: 1.05,
-                                    color: Colors.white,
-                                    fontFeatures: const [
-                                      FontFeature.tabularFigures(),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  l10n.get('setsRemainingLabel'),
+                                  _isAssistedPullUp(current.exercise.name)
+                                      ? (_weightUnit == 'lbs'
+                                            ? l10n.get('minusWeightLbs')
+                                            : l10n.get('minusWeightKg'))
+                                      : (_weightUnit == 'lbs'
+                                            ? l10n.get('weightLbs')
+                                            : l10n.get('weight')),
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w600,
-                                    color: Colors.white.withValues(alpha: 0.92),
+                                    color: isDark
+                                        ? Colors.grey.shade400
+                                        : Colors.grey.shade600,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? Colors.orange.withValues(alpha: 0.2)
+                                        : Colors.orange.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: Colors.orange.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    _formatWeightDisplay(currentWeight),
+                                    style: TextStyle(
+                                      fontSize: 42,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark
+                                          ? Colors.white
+                                          : Colors.orange.shade700,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                _WeightUnitSegmentedToggle(
+                                  selectedUnit: _weightUnit,
+                                  kgLabel: l10n.get('weightShort'),
+                                  lbsLabel: l10n.get('weightShortLbs'),
+                                  onUnitSelected: (unit) =>
+                                      unawaited(_setWeightUnit(unit)),
+                                  isDark: isDark,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  l10n.get('tapToEdit'),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark
+                                        ? Colors.grey.shade500
+                                        : Colors.grey.shade500,
                                   ),
                                 ),
                               ],
                             ),
                           ),
+                        ),
+                        _LargeRoundButton(
+                          icon: Icons.add,
+                          color: Colors.green.shade400,
+                          onPressed: () => _adjustCurrentWeight(_weightStepKg),
+                        ),
                       ],
                     ),
                   ),
                 ],
-              ),
-            ),
-              ],
-            ],
-          ),
-        ),
-          const SizedBox(height: 16),
-          // Primary action button
-          SizedBox(
-            height: 70,
-            child: current.durationBased
-                ? ElevatedButton.icon(
-                    onPressed: currentDurationSeconds > 0
-                        ? () {
-                            if (_durationSessionRunning) {
-                              _pauseDurationSession();
-                            } else if (_workSecondsRemaining > 0 ||
-                                restSeconds > 0 ||
-                                _warmupSecondsRemaining > 0) {
-                              _resumeDurationSession();
-                            } else {
-                              _startDurationSession();
-                            }
-                          }
-                        : null,
-                    icon: Icon(
-                      _durationSessionRunning ? Icons.pause : Icons.play_arrow,
-                      size: 30,
+                if (!current.durationBased) ...[
+                  const SizedBox(height: 12),
+                  _buildSetRowsSection(l10n, current),
+                ],
+                if (current.durationBased) ...[
+                  if (current.durationTracksWeight) const SizedBox(height: 12),
+                  // Hold / carry time (elderly-friendly: large timer, presets, tap to type m:ss)
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 320),
+                    curve: Curves.easeOutCubic,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: inLargeDurationCountdown ? 12 : 16,
+                      vertical: inLargeDurationCountdown ? 22 : 16,
                     ),
-                    label: Text(
-                      _durationSessionRunning
-                          ? l10n.get('pause')
-                          : (_workSecondsRemaining > 0 ||
-                                    restSeconds > 0 ||
-                                    _warmupSecondsRemaining > 0
-                                ? l10n.get('resumeWorkout')
-                                : l10n.get('startWorkout')),
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1A2634) : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: inLargeDurationCountdown
+                          ? Border.all(
+                              color: inDurationWarmup
+                                  ? Colors.amber.withValues(alpha: 0.65)
+                                  : colorScheme.primary.withValues(alpha: 0.55),
+                              width: 3,
+                            )
+                          : null,
+                      boxShadow: [
+                        BoxShadow(
+                          color: inLargeDurationCountdown
+                              ? (inDurationWarmup
+                                    ? Colors.amber.withValues(alpha: 0.12)
+                                    : colorScheme.primary.withValues(
+                                        alpha: 0.12,
+                                      ))
+                              : Colors.black.withValues(alpha: 0.05),
+                          blurRadius: inLargeDurationCountdown ? 18 : 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey.shade300,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                  )
-                : ElevatedButton.icon(
-                    onPressed: currentReps > 0 ? _logSet : null,
-                    icon: const Icon(Icons.check, size: 30),
-                    label: Text(
-                      l10n.get('logSet'),
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey.shade300,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                inDurationWarmup
+                                    ? l10n.get('warmup')
+                                    : l10n.get('holdTime'),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: inLargeDurationCountdown ? 22 : 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: inDurationWarmup
+                                      ? (isDark
+                                            ? Colors.amber.shade200
+                                            : Colors.amber.shade900)
+                                      : inActiveWorkHold
+                                      ? colorScheme.primary
+                                      : (isDark
+                                            ? Colors.grey.shade400
+                                            : Colors.grey.shade600),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: l10n.get('settings'),
+                              onPressed: isResting || inDurationWarmup
+                                  ? null
+                                  : _showDurationExerciseSettingsDialog,
+                              icon: Icon(
+                                Icons.settings,
+                                size: 26,
+                                color: (isResting || inDurationWarmup)
+                                    ? (isDark
+                                          ? Colors.grey.shade600
+                                          : Colors.grey.shade400)
+                                    : colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: _durationSessionRunning
+                              ? null
+                              : () => showDurationEntryDialog(
+                                  context: context,
+                                  l10n: l10n,
+                                  currentSeconds: currentDurationSeconds,
+                                  accentColor: colorScheme.primary,
+                                  onSave: (sec) {
+                                    setState(() {
+                                      currentDurationSeconds = sec;
+                                      final cur =
+                                          _orderedExercises[currentExerciseIndex];
+                                      _orderedExercises[currentExerciseIndex] =
+                                          cur.copyWith(
+                                            targetDurationSeconds:
+                                                currentDurationSeconds,
+                                          );
+                                    });
+                                    unawaited(_persistWorkoutDraft());
+                                  },
+                                ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 320),
+                                curve: Curves.easeOutCubic,
+                                width: double.infinity,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: inLargeDurationCountdown ? 4 : 16,
+                                  vertical: inLargeDurationCountdown ? 22 : 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: inDurationWarmup
+                                      ? (isDark
+                                            ? Colors.amber.withValues(
+                                                alpha: 0.16,
+                                              )
+                                            : Colors.amber.withValues(
+                                                alpha: 0.1,
+                                              ))
+                                      : inActiveWorkHold
+                                      ? (isDark
+                                            ? colorScheme.primary.withValues(
+                                                alpha: 0.28,
+                                              )
+                                            : colorScheme.primary.withValues(
+                                                alpha: 0.14,
+                                              ))
+                                      : (isDark
+                                            ? colorScheme.primary.withValues(
+                                                alpha: 0.2,
+                                              )
+                                            : colorScheme.primary.withValues(
+                                                alpha: 0.1,
+                                              )),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: inDurationWarmup
+                                        ? Colors.amber.withValues(alpha: 0.65)
+                                        : inActiveWorkHold &&
+                                              _workSecondsRemaining <= 3
+                                        ? Colors.deepOrange.withValues(
+                                            alpha: 0.85,
+                                          )
+                                        : colorScheme.primary.withValues(
+                                            alpha: 0.5,
+                                          ),
+                                    width: inLargeDurationCountdown ? 3 : 2,
+                                  ),
+                                ),
+                                child: Center(
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.center,
+                                    child: AnimatedDefaultTextStyle(
+                                      duration: const Duration(
+                                        milliseconds: 280,
+                                      ),
+                                      curve: Curves.easeOutCubic,
+                                      style: TextStyle(
+                                        fontSize: inLargeDurationCountdown
+                                            ? largeDurationCountdownFontSize
+                                            : 42,
+                                        fontWeight: FontWeight.w800,
+                                        height: 1.05,
+                                        letterSpacing: inLargeDurationCountdown
+                                            ? 1.5
+                                            : 0,
+                                        fontFeatures: const [
+                                          FontFeature.tabularFigures(),
+                                        ],
+                                        color: inDurationWarmup
+                                            ? (isDark
+                                                  ? Colors.amber.shade100
+                                                  : Colors.amber.shade900)
+                                            : inActiveWorkHold &&
+                                                  _workSecondsRemaining <= 3
+                                            ? (isDark
+                                                  ? Colors.deepOrange.shade200
+                                                  : Colors.deepOrange.shade800)
+                                            : (isDark
+                                                  ? Colors.white
+                                                  : colorScheme.primary),
+                                      ),
+                                      child: Text(
+                                        formatDurationMmSs(
+                                          inDurationWarmup
+                                              ? _warmupSecondsRemaining
+                                              : (_durationSessionInWork &&
+                                                        _workSecondsRemaining >
+                                                            0
+                                                    ? _workSecondsRemaining
+                                                    : currentDurationSeconds),
+                                        ),
+                                        maxLines: 1,
+                                        softWrap: false,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(
+                                height: inLargeDurationCountdown ? 10 : 4,
+                              ),
+                              Text(
+                                inDurationWarmup
+                                    ? l10n.get('warmupSubtitle')
+                                    : inActiveWorkHold
+                                    ? l10n.get('holdTimeRemaining')
+                                    : l10n.get('tapToEdit'),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: inLargeDurationCountdown ? 15 : 12,
+                                  fontWeight: inLargeDurationCountdown
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                  color: inDurationWarmup
+                                      ? (isDark
+                                            ? Colors.amber.shade300
+                                            : Colors.amber.shade800)
+                                      : inActiveWorkHold
+                                      ? (isDark
+                                            ? Colors.grey.shade300
+                                            : Colors.grey.shade700)
+                                      : (isDark
+                                            ? Colors.grey.shade500
+                                            : Colors.grey.shade500),
+                                ),
+                              ),
+                              if (inActiveWorkHold &&
+                                  !inDurationWarmup &&
+                                  current.durationBased)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 16),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.baseline,
+                                    textBaseline: TextBaseline.alphabetic,
+                                    children: [
+                                      Text(
+                                        '${_durationPlannedSetsRemaining(current)}',
+                                        style: TextStyle(
+                                          fontSize: (mqSize.shortestSide * 0.11)
+                                              .clamp(42.0, 58.0),
+                                          fontWeight: FontWeight.w800,
+                                          height: 1.05,
+                                          color: Colors.white,
+                                          fontFeatures: const [
+                                            FontFeature.tabularFigures(),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        l10n.get('setsRemainingLabel'),
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white.withValues(
+                                            alpha: 0.92,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                ],
+              ],
+            ),
           ),
+          const SizedBox(height: 16),
+          // Primary action button (duration-based sessions only; strength sets
+          // are logged per-row via the ticks in _buildSetRowsSection)
+          if (current.durationBased)
+            SizedBox(
+              height: 70,
+              child: ElevatedButton.icon(
+                onPressed: currentDurationSeconds > 0
+                    ? () {
+                        if (_durationSessionRunning) {
+                          _pauseDurationSession();
+                        } else if (_workSecondsRemaining > 0 ||
+                            restSeconds > 0 ||
+                            _warmupSecondsRemaining > 0) {
+                          _resumeDurationSession();
+                        } else {
+                          _startDurationSession();
+                        }
+                      }
+                    : null,
+                icon: Icon(
+                  _durationSessionRunning ? Icons.pause : Icons.play_arrow,
+                  size: 30,
+                ),
+                label: Text(
+                  _durationSessionRunning
+                      ? l10n.get('pause')
+                      : (_workSecondsRemaining > 0 ||
+                                restSeconds > 0 ||
+                                _warmupSecondsRemaining > 0
+                            ? l10n.get('resumeWorkout')
+                            : l10n.get('startWorkout')),
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ),
+          if (current.durationBased &&
+              !_durationSessionRunning &&
+              _workSecondsRemaining == 0 &&
+              restSeconds == 0 &&
+              _warmupSecondsRemaining == 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: SizedBox(
+                height: 56,
+                child: OutlinedButton.icon(
+                  onPressed: currentDurationSeconds > 0
+                      ? _logDurationSetAlreadyCompleted
+                      : null,
+                  icon: const Icon(Icons.check_circle_outline, size: 24),
+                  label: Text(
+                    l10n.get('alreadyCompleted'),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: isDark
+                        ? Colors.teal.shade200
+                        : Colors.teal.shade700,
+                    side: BorderSide(
+                      color: isDark
+                          ? Colors.teal.shade300
+                          : Colors.teal.shade400,
+                      width: 2,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           if (current.durationBased &&
               (_durationSessionRunning ||
                   _workSecondsRemaining > 0 ||
@@ -7760,10 +8202,12 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
             ),
           ),
           const SizedBox(height: 16),
-          // Logged sets for this exercise
-          if (logs
-              .where((l) => l.exerciseId == current.exercise.id)
-              .isNotEmpty) ...[
+          // Logged sets for this exercise (duration-based only; strength sets
+          // show their completed state inline in _buildSetRowsSection)
+          if (current.durationBased &&
+              logs
+                  .where((l) => l.exerciseId == current.exercise.id)
+                  .isNotEmpty) ...[
             Text(
               l10n.get('completedSets'),
               style: TextStyle(
@@ -7833,11 +8277,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                         borderRadius: BorderRadius.circular(12),
                         child: InkWell(
                           onTap: canEditWeight
-                              ? () => _editCompletedSetWeight(
-                                    l10n,
-                                    log,
-                                    logIndex,
-                                  )
+                              ? () =>
+                                    _editCompletedSetWeight(l10n, log, logIndex)
                               : null,
                           borderRadius: BorderRadius.circular(12),
                           child: Container(
@@ -7862,6 +8303,305 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
             ],
           ],
         ],
+      ),
+    );
+  }
+
+  /// All set rows for a strength (non-duration-based) exercise: one row per
+  /// planned set, pre-filled from history, plus an "Add Set" affordance.
+  Widget _buildSetRowsSection(AppLocalizations l10n, TemplateExercise current) {
+    _ensureRowCache(current);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+    final id = current.exercise.id;
+    final weights = _pendingSetWeights[id]!;
+    final reps = _pendingSetReps[id]!;
+    final edited = _pendingSetEdited[id]!;
+    final rowCount = weights.length;
+    final loggedBySetNumber = <int, ExerciseLog>{
+      for (final log in logs.where((l) => l.exerciseId == id))
+        log.setNumber: log,
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Center(
+          child: _WeightUnitSegmentedToggle(
+            selectedUnit: _weightUnit,
+            kgLabel: l10n.get('weightShort'),
+            lbsLabel: l10n.get('weightShortLbs'),
+            onUnitSelected: (unit) => unawaited(_setWeightUnit(unit)),
+            isDark: isDark,
+          ),
+        ),
+        const SizedBox(height: 14),
+        for (var setNumber = 1; setNumber <= rowCount; setNumber++) ...[
+          _buildSetRow(
+            l10n,
+            current,
+            setNumber: setNumber,
+            loggedEntry: loggedBySetNumber[setNumber],
+            pendingWeight: weights[setNumber - 1],
+            pendingReps: reps[setNumber - 1],
+            isEdited: edited[setNumber - 1],
+            isDark: isDark,
+            colorScheme: colorScheme,
+          ),
+          const SizedBox(height: 10),
+        ],
+        SizedBox(
+          height: 52,
+          child: OutlinedButton.icon(
+            onPressed: () => _addExtraSetRow(current),
+            icon: const Icon(Icons.add, size: 22),
+            label: Text(
+              l10n.get('addSet'),
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: colorScheme.primary,
+              side: BorderSide(color: colorScheme.primary, width: 2),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// One set row: weight + reps (tap either to edit), and a tick on the right
+  /// that logs the row's current values and starts rest. Once logged, the row
+  /// switches to a completed look (matching the app's existing green-tinted
+  /// completed-set style) and its values/tick reflect the actual logged set.
+  Widget _buildSetRow(
+    AppLocalizations l10n,
+    TemplateExercise current, {
+    required int setNumber,
+    required ExerciseLog? loggedEntry,
+    required double pendingWeight,
+    required int pendingReps,
+    required bool isEdited,
+    required bool isDark,
+    required ColorScheme colorScheme,
+  }) {
+    final id = current.exercise.id;
+    final log = loggedEntry;
+    final isCompleted = log != null;
+    final displayWeight = log?.weight ?? pendingWeight;
+    final displayReps = log?.reps ?? pendingReps;
+    final weightLabel = _isAssistedPullUp(current.exercise.name)
+        ? (_weightUnit == 'lbs'
+              ? l10n.get('minusWeightLbs')
+              : l10n.get('minusWeightKg'))
+        : (_weightUnit == 'lbs' ? l10n.get('weightLbs') : l10n.get('weight'));
+
+    Color valueColor() {
+      if (isCompleted) return isDark ? Colors.white : Colors.green.shade800;
+      if (isEdited) return isDark ? Colors.white : Colors.black87;
+      return isDark ? Colors.grey.shade500 : Colors.grey.shade500;
+    }
+
+    Widget valueBox({
+      required String label,
+      required String valueText,
+      required VoidCallback onTap,
+    }) {
+      return Expanded(
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Column(
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: isCompleted
+                      ? Colors.transparent
+                      : (isDark
+                            ? Colors.black.withValues(alpha: 0.18)
+                            : Colors.white),
+                  borderRadius: BorderRadius.circular(14),
+                  border: isCompleted
+                      ? null
+                      : Border.all(
+                          color: isDark
+                              ? Colors.grey.shade700
+                              : Colors.grey.shade300,
+                          width: 1.5,
+                        ),
+                ),
+                child: Text(
+                  valueText,
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: valueColor(),
+                    fontStyle: (!isCompleted && !isEdited)
+                        ? FontStyle.italic
+                        : FontStyle.normal,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    void editWeight() {
+      if (isCompleted) {
+        final logIndex = logs.indexWhere(
+          (l) => l.exerciseId == id && l.setNumber == setNumber,
+        );
+        if (logIndex != -1) {
+          _editCompletedSetWeight(l10n, logs[logIndex], logIndex);
+        }
+        return;
+      }
+      _showNumberInputDialog(
+        context: context,
+        title: weightLabel,
+        currentValue: _kgToDisplay(pendingWeight),
+        isInteger: false,
+        accentColor: Colors.orange,
+        onSave: (value) => setState(() {
+          _pendingSetWeights[id]![setNumber - 1] = _displayToKg(value);
+          _pendingSetEdited[id]![setNumber - 1] = true;
+        }),
+      );
+    }
+
+    void editReps() {
+      if (isCompleted) {
+        final logIndex = logs.indexWhere(
+          (l) => l.exerciseId == id && l.setNumber == setNumber,
+        );
+        if (logIndex != -1) {
+          _editCompletedSetReps(l10n, logs[logIndex], logIndex);
+        }
+        return;
+      }
+      _showNumberInputDialog(
+        context: context,
+        title: l10n.reps,
+        currentValue: pendingReps.toDouble(),
+        isInteger: true,
+        accentColor: colorScheme.primary,
+        onSave: (value) => setState(() {
+          _pendingSetReps[id]![setNumber - 1] = value.toInt();
+          _pendingSetEdited[id]![setNumber - 1] = true;
+        }),
+      );
+    }
+
+    final row = Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isCompleted
+                ? (isDark ? Colors.green.shade700 : Colors.green.shade600)
+                : colorScheme.primary.withValues(alpha: isDark ? 0.35 : 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            '$setNumber',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: isCompleted
+                  ? Colors.white
+                  : (isDark ? Colors.white : colorScheme.primary),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        valueBox(
+          label: weightLabel,
+          valueText: _formatWeightDisplay(displayWeight),
+          onTap: editWeight,
+        ),
+        const SizedBox(width: 10),
+        valueBox(label: l10n.reps, valueText: '$displayReps', onTap: editReps),
+        const SizedBox(width: 12),
+        if (isCompleted)
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: isDark ? Colors.green.shade600 : Colors.green.shade500,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.check, color: Colors.white, size: 28),
+          )
+        else
+          Tooltip(
+            message: l10n.get('logSet'),
+            child: Material(
+              color: Colors.green.withValues(alpha: 0.35),
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: displayReps > 0
+                    ? () => _completeSetRow(current, setNumber)
+                    : null,
+                child: const SizedBox(
+                  width: 52,
+                  height: 52,
+                  child: Icon(Icons.check, color: Colors.white, size: 28),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+
+    return Semantics(
+      label:
+          '${l10n.get('set')} $setNumber, ${_formatWeightDisplay(displayWeight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}, $displayReps ${l10n.reps}'
+          '${isCompleted ? ', ${l10n.get('completedSets')}' : ''}',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isCompleted
+              ? (isDark
+                    ? Colors.green.shade900.withValues(alpha: 0.4)
+                    : Colors.green.shade50)
+              : (isDark ? const Color(0xFF1A2634) : Colors.white),
+          borderRadius: BorderRadius.circular(18),
+          border: isCompleted
+              ? Border.all(
+                  color: isDark ? Colors.green.shade700 : Colors.green.shade300,
+                  width: 1.5,
+                )
+              : null,
+          boxShadow: isCompleted
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+        ),
+        child: row,
       ),
     );
   }
@@ -8132,8 +8872,7 @@ class _HistoryCard extends StatelessWidget {
                       ...logs.map((log) {
                         final String line;
                         if (log.isDurationSet) {
-                          var detail =
-                              formatDurationMmSs(log.durationSeconds!);
+                          var detail = formatDurationMmSs(log.durationSeconds!);
                           if (log.weight > 0) {
                             detail +=
                                 ' × ${_formatWeightDisplay(log.weight)} ${weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}';
@@ -8333,39 +9072,7 @@ class StatisticsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-
-    // Calculate statistics
-    final totalWorkouts = history.length;
-    final totalDuration = history.fold<int>(
-      0,
-      (sum, s) => sum + s.durationSeconds,
-    );
-    final totalReps = history.fold<int>(
-      0,
-      (sum, s) => sum + s.logs.fold<int>(0, (s2, l) => s2 + l.reps),
-    );
-
-    // Workouts this week
-    final now = DateTime.now();
-    final weekStart = now.subtract(Duration(days: now.weekday - 1));
-    final workoutsThisWeek = history
-        .where((s) => s.startTime.isAfter(weekStart))
-        .length;
-
-    // Most common exercises
-    final exerciseCounts = <String, int>{};
-    for (final session in history) {
-      for (final log in session.logs) {
-        if (log.isDurationSet) continue;
-        exerciseCounts[log.exerciseName] =
-            (exerciseCounts[log.exerciseName] ?? 0) + log.reps;
-      }
-    }
-    final topExercises = exerciseCounts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
@@ -8379,12 +9086,17 @@ class StatisticsPage extends StatelessWidget {
         centerTitle: true,
       ),
       body: SafeArea(
-        child: history.isEmpty
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _ConsistencyCalendarEntryCard(history: history),
+              const SizedBox(height: 24),
+              if (history.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
                         Icons.bar_chart,
@@ -8411,134 +9123,95 @@ class StatisticsPage extends StatelessWidget {
                       ),
                     ],
                   ),
+                )
+              else
+                // Progress Chart Section
+                _ProgressChartSection(history: history, weightUnit: weightUnit),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Entry point card on the Statistics tab that opens the Consistency
+/// Calendar. Shown regardless of whether [history] is empty — a user should
+/// be able to set up tracked-exercise lists before logging any workouts.
+class _ConsistencyCalendarEntryCard extends StatelessWidget {
+  final List<WorkoutSession> history;
+
+  const _ConsistencyCalendarEntryCard({required this.history});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Material(
+      color: isDark ? const Color(0xFF1A2634) : Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      elevation: isDark ? 0 : 2,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ConsistencyCalendarPage(history: history),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
                 ),
-              )
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                child: Icon(
+                  Icons.calendar_month,
+                  color: colorScheme.primary,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Overview stats
                     Text(
-                      l10n.get('overview'),
-                      style: const TextStyle(
-                        fontSize: 22,
+                      l10n.get('consistencyCalendar'),
+                      style: TextStyle(
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _StatCard(
-                            icon: Icons.fitness_center,
-                            value: '$totalWorkouts',
-                            label: l10n.get('totalWorkouts'),
-                            color: Colors.blue,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _StatCard(
-                            icon: Icons.calendar_today,
-                            value: '$workoutsThisWeek',
-                            label: l10n.get('thisWeek'),
-                            color: Colors.green,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _StatCard(
-                            icon: Icons.timer,
-                            value: '${(totalDuration / 60).round()}',
-                            label: l10n.get('totalMinutes'),
-                            color: Colors.orange,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _StatCard(
-                            icon: Icons.repeat,
-                            value: '$totalReps',
-                            label: l10n.get('totalReps'),
-                            color: Colors.purple,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 32),
-                    // Top exercises
-                    if (topExercises.isNotEmpty) ...[
-                      Text(
-                        l10n.get('topExercises'),
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n.get('consistencyCalendarSubtitle'),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
                       ),
-                      const SizedBox(height: 16),
-                      ...topExercises
-                          .take(5)
-                          .map(
-                            (entry) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: isDark
-                                      ? const Color(0xFF1A2634)
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.fitness_center,
-                                      color: colorScheme.primary,
-                                      size: 28,
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Text(
-                                        l10n.localizeExerciseName(entry.key),
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: isDark
-                                              ? Colors.white
-                                              : Colors.black87,
-                                        ),
-                                      ),
-                                    ),
-                                    Text(
-                                      '${entry.value} ${l10n.reps}',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: isDark
-                                            ? Colors.grey.shade400
-                                            : Colors.grey.shade600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                    ],
-                    const SizedBox(height: 32),
-                    // Progress Chart Section
-                    _ProgressChartSection(
-                      history: history,
-                      weightUnit: weightUnit,
                     ),
                   ],
                 ),
               ),
+              Icon(
+                Icons.chevron_right,
+                size: 26,
+                color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -8651,9 +9324,7 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
     dataPoints.sort((a, b) => a.date.compareTo(b.date));
     final rangeStart = _timeRangeStart;
     if (rangeStart == null) return dataPoints;
-    return dataPoints
-        .where((p) => !p.date.isBefore(rangeStart))
-        .toList();
+    return dataPoints.where((p) => !p.date.isBefore(rangeStart)).toList();
   }
 
   bool get _hasDataOutsideTimeRange {
@@ -8832,9 +9503,8 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                     child: _ToggleButton(
                       label: l10n.get('progressOneWeek'),
                       isSelected: timeRange == ProgressTimeRange.week,
-                      onTap: () => setState(
-                        () => timeRange = ProgressTimeRange.week,
-                      ),
+                      onTap: () =>
+                          setState(() => timeRange = ProgressTimeRange.week),
                       fontSize: 18,
                     ),
                   ),
@@ -8843,9 +9513,8 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                     child: _ToggleButton(
                       label: l10n.get('progressOneMonth'),
                       isSelected: timeRange == ProgressTimeRange.month,
-                      onTap: () => setState(
-                        () => timeRange = ProgressTimeRange.month,
-                      ),
+                      onTap: () =>
+                          setState(() => timeRange = ProgressTimeRange.month),
                       fontSize: 18,
                     ),
                   ),
@@ -8858,9 +9527,8 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                     child: _ToggleButton(
                       label: l10n.get('progressOneYear'),
                       isSelected: timeRange == ProgressTimeRange.year,
-                      onTap: () => setState(
-                        () => timeRange = ProgressTimeRange.year,
-                      ),
+                      onTap: () =>
+                          setState(() => timeRange = ProgressTimeRange.year),
                       fontSize: 18,
                     ),
                   ),
@@ -8869,9 +9537,8 @@ class _ProgressChartSectionState extends State<_ProgressChartSection> {
                     child: _ToggleButton(
                       label: l10n.get('progressAllTime'),
                       isSelected: timeRange == ProgressTimeRange.all,
-                      onTap: () => setState(
-                        () => timeRange = ProgressTimeRange.all,
-                      ),
+                      onTap: () =>
+                          setState(() => timeRange = ProgressTimeRange.all),
                       fontSize: 18,
                     ),
                   ),
@@ -9327,65 +9994,6 @@ class _LegendItem extends StatelessWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final String label;
-  final MaterialColor color;
-
-  const _StatCard({
-    required this.icon,
-    required this.value,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1A2634) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.grey.shade200,
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-      ),
-      child: Column(
-        children: [
-          Icon(icon, size: 36, color: isDark ? color.shade300 : color.shade600),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: isDark ? color.shade300 : color.shade700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // ============== REUSABLE WIDGETS ==============
 
 /// Large kg / lbs toggle for the active workout weight card.
@@ -9407,10 +10015,7 @@ class _WeightUnitSegmentedToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    const labelStyle = TextStyle(
-      fontSize: 20,
-      fontWeight: FontWeight.bold,
-    );
+    const labelStyle = TextStyle(fontSize: 20, fontWeight: FontWeight.bold);
 
     return SizedBox(
       width: 240,
@@ -9434,7 +10039,10 @@ class _WeightUnitSegmentedToggle extends StatelessWidget {
           }),
         ),
         segments: [
-          ButtonSegment(value: 'kg', label: Text(kgLabel, style: labelStyle)),
+          ButtonSegment(
+            value: 'kg',
+            label: Text(kgLabel, style: labelStyle),
+          ),
           ButtonSegment(
             value: 'lbs',
             label: Text(lbsLabel, style: labelStyle),
@@ -10155,6 +10763,10 @@ class _SettingsPageState extends State<SettingsPage> {
       // Gather all data
       final templatesJson = prefs.getString('workout_templates');
       final historyJson = prefs.getString('workout_history');
+      final consistencyListsJson = prefs.getString(kConsistencyListsPrefsKey);
+      final consistencySelectedListId = prefs.getString(
+        kConsistencySelectedListPrefsKey,
+      );
 
       if ((templatesJson == null || templatesJson.isEmpty) &&
           (historyJson == null || historyJson.isEmpty)) {
@@ -10179,6 +10791,11 @@ class _SettingsPageState extends State<SettingsPage> {
         'templates': templatesJson != null ? jsonDecode(templatesJson) : [],
         'history': historyJson != null ? jsonDecode(historyJson) : [],
         'defaultRestSeconds': prefs.getInt('default_rest_seconds') ?? 60,
+        'consistencyLists':
+            (consistencyListsJson != null && consistencyListsJson.isNotEmpty)
+            ? jsonDecode(consistencyListsJson)
+            : [],
+        'consistencySelectedListId': ?consistencySelectedListId,
       };
 
       // Create temporary file
@@ -10334,6 +10951,21 @@ class _SettingsPageState extends State<SettingsPage> {
       final importedRest = backupData['defaultRestSeconds'];
       if (importedRest is int) {
         await prefs.setInt('default_rest_seconds', importedRest.clamp(30, 600));
+      }
+      // Restore Consistency Calendar lists if present in backup
+      final importedConsistencyLists = backupData['consistencyLists'];
+      if (importedConsistencyLists is List) {
+        await prefs.setString(
+          kConsistencyListsPrefsKey,
+          jsonEncode(importedConsistencyLists),
+        );
+      }
+      final importedSelectedListId = backupData['consistencySelectedListId'];
+      if (importedSelectedListId is String) {
+        await prefs.setString(
+          kConsistencySelectedListPrefsKey,
+          importedSelectedListId,
+        );
       }
 
       if (context.mounted) {
@@ -10588,6 +11220,1891 @@ class _ThemeOptionTile extends StatelessWidget {
           ? Icon(Icons.check_circle, size: 32, color: colorScheme.primary)
           : null,
       onTap: onTap,
+    );
+  }
+}
+
+// ============== CONSISTENCY CALENDAR ==============
+
+class ConsistencyCalendarPage extends StatefulWidget {
+  final List<WorkoutSession> history;
+
+  const ConsistencyCalendarPage({super.key, required this.history});
+
+  @override
+  State<ConsistencyCalendarPage> createState() =>
+      _ConsistencyCalendarPageState();
+}
+
+class _ConsistencyCalendarPageState extends State<ConsistencyCalendarPage> {
+  List<ConsistencyExerciseList> _lists = [];
+  String? _selectedListId;
+  DateTime _anchor = DateTime.now();
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    var lists = <ConsistencyExerciseList>[];
+    final raw = prefs.getString(kConsistencyListsPrefsKey);
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw) as List<dynamic>;
+        lists = decoded
+            .map(
+              (e) =>
+                  ConsistencyExerciseList.fromJson(e as Map<String, dynamic>),
+            )
+            .toList();
+      } catch (_) {
+        lists = [];
+      }
+    }
+    final storedSelectedId = prefs.getString(kConsistencySelectedListPrefsKey);
+    if (!mounted) return;
+    setState(() {
+      _lists = lists;
+      _selectedListId = lists.any((l) => l.id == storedSelectedId)
+          ? storedSelectedId
+          : (lists.isNotEmpty ? lists.first.id : null);
+      _loading = false;
+    });
+  }
+
+  Future<void> _saveLists() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      kConsistencyListsPrefsKey,
+      jsonEncode(_lists.map((l) => l.toJson()).toList()),
+    );
+  }
+
+  Future<void> _saveSelectedListId() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_selectedListId == null) {
+      await prefs.remove(kConsistencySelectedListPrefsKey);
+    } else {
+      await prefs.setString(kConsistencySelectedListPrefsKey, _selectedListId!);
+    }
+  }
+
+  ConsistencyExerciseList? get _selectedList {
+    for (final l in _lists) {
+      if (l.id == _selectedListId) return l;
+    }
+    return null;
+  }
+
+  void _selectList(String id) {
+    setState(() {
+      _selectedListId = id;
+      _anchor = DateTime.now();
+    });
+    unawaited(_saveSelectedListId());
+  }
+
+  void _updateSelectedList(ConsistencyExerciseList updated) {
+    setState(() {
+      final index = _lists.indexWhere((l) => l.id == updated.id);
+      if (index != -1) _lists[index] = updated;
+    });
+    unawaited(_saveLists());
+  }
+
+  Future<void> _createList(String name) async {
+    final list = ConsistencyExerciseList(
+      id: 'cl_${DateTime.now().millisecondsSinceEpoch}',
+      name: name,
+    );
+    setState(() {
+      _lists.add(list);
+      _selectedListId = list.id;
+      _anchor = DateTime.now();
+    });
+    await _saveLists();
+    await _saveSelectedListId();
+  }
+
+  Future<void> _renameList(String id, String name) async {
+    setState(() {
+      final index = _lists.indexWhere((l) => l.id == id);
+      if (index != -1) _lists[index] = _lists[index].copyWith(name: name);
+    });
+    await _saveLists();
+  }
+
+  Future<void> _deleteList(String id) async {
+    setState(() {
+      _lists.removeWhere((l) => l.id == id);
+      if (_selectedListId == id) {
+        _selectedListId = _lists.isNotEmpty ? _lists.first.id : null;
+      }
+    });
+    await _saveLists();
+    await _saveSelectedListId();
+  }
+
+  Future<void> _showListNameDialog({
+    String? existingName,
+    required ValueChanged<String> onSave,
+  }) async {
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final controller = TextEditingController(text: existingName ?? '');
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          existingName == null ? l10n.get('newList') : l10n.get('renameList'),
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: TextStyle(
+            fontSize: 20,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+          decoration: InputDecoration(
+            labelText: l10n.get('listName'),
+            hintText: l10n.get('listNameHint'),
+            border: const OutlineInputBorder(),
+          ),
+          textCapitalization: TextCapitalization.words,
+          onSubmitted: (_) {
+            final name = controller.text.trim();
+            if (name.isEmpty) return;
+            Navigator.pop(ctx);
+            onSave(name);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.cancel, style: const TextStyle(fontSize: 18)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final name = controller.text.trim();
+              if (name.isEmpty) return;
+              Navigator.pop(ctx);
+              onSave(name);
+            },
+            child: Text(
+              l10n.get('save'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteList(ConsistencyExerciseList list) async {
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          l10n.get('deleteList'),
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+        ),
+        content: Text(
+          '${l10n.get('deleteWorkoutConfirm')} "${list.name}"?\n\n${l10n.get('deleteListWarning')}',
+          style: TextStyle(
+            fontSize: 18,
+            color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel, style: const TextStyle(fontSize: 18)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              l10n.get('deleteList'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await _deleteList(list.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Semantics(
+          header: true,
+          child: Text(
+            l10n.get('consistencyCalendar'),
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _lists.isEmpty
+            ? _buildEmptyState(l10n, colorScheme)
+            : _buildContent(l10n, isDark, colorScheme),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(AppLocalizations l10n, ColorScheme colorScheme) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.calendar_month,
+              size: 80,
+              color: colorScheme.primary.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              l10n.get('noListsYet'),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              l10n.get('createFirstListHint'),
+              style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: () => _showListNameDialog(onSave: _createList),
+                icon: const Icon(Icons.add, size: 26),
+                label: Text(
+                  l10n.get('newList'),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(
+    AppLocalizations l10n,
+    bool isDark,
+    ColorScheme colorScheme,
+  ) {
+    final list = _selectedList!;
+    final range = computeConsistencyRange(
+      anchor: _anchor,
+      mode: list.viewMode,
+      startWeekday: list.startWeekday,
+    );
+    final gridDays = list.viewMode == ConsistencyViewMode.month
+        ? computeConsistencyMonthGridDays(_anchor, list.startWeekday)
+        : range.days;
+    final setsByDay = buildConsistencySetsByDay(
+      history: widget.history,
+      trackedExercises: list.exercises,
+    );
+    final cellHeight = list.viewMode == ConsistencyViewMode.month ? 64.0 : 96.0;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildListSelectorRow(l10n, isDark, colorScheme, list),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (ctx) => _ManageExercisesSheet(
+                  list: list,
+                  history: widget.history,
+                  onChanged: _updateSelectedList,
+                ),
+              ),
+              icon: Icon(Icons.edit_note, size: 22, color: colorScheme.primary),
+              label: Text(
+                l10n.get('manageExercises'),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.primary,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _ConsistencyViewModeToggle(
+            selected: list.viewMode,
+            onChanged: (mode) {
+              setState(() => _anchor = DateTime.now());
+              _updateSelectedList(list.copyWith(viewMode: mode));
+            },
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _pickWeekStartDay(list),
+                  icon: const Icon(Icons.event_repeat, size: 18),
+                  label: Text(
+                    '${l10n.get('weekStartsOn')}: ${_consistencyWeekdayName(list.startWeekday)}',
+                    style: const TextStyle(fontSize: 14),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: list.showSetCounts,
+            onChanged: (v) =>
+                _updateSelectedList(list.copyWith(showSetCounts: v)),
+            title: Text(
+              l10n.get('showSetCounts'),
+              style: TextStyle(
+                fontSize: 15,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                onPressed: () => _stepRange(list, forward: false),
+                icon: const Icon(Icons.chevron_left, size: 30),
+              ),
+              Expanded(
+                child: Text(
+                  _rangeHeaderText(list, range),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => _stepRange(list, forward: true),
+                icon: const Icon(Icons.chevron_right, size: 30),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (list.exercises.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Text(
+                l10n.get('noExercisesInList'),
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+              ),
+            )
+          else ...[
+            _ConsistencyCalendarGrid(
+              days: gridDays,
+              rangeStart: range.start,
+              rangeEnd: range.end,
+              exercises: list.exercises,
+              setsByDay: setsByDay,
+              showSetCounts: list.showSetCounts,
+              cellHeight: cellHeight,
+              startWeekday: list.startWeekday,
+              onSegmentTap: (day, exercise) =>
+                  _openExerciseDetail(exercise, list),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              l10n.get('legend'),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final exercise in list.exercises)
+              _LegendRow(
+                exercise: exercise,
+                onTap: () => _openExerciseDetail(exercise, list),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _stepRange(ConsistencyExerciseList list, {required bool forward}) {
+    setState(() {
+      _anchor = nextConsistencyAnchor(_anchor, list.viewMode, forward: forward);
+    });
+  }
+
+  String _rangeHeaderText(
+    ConsistencyExerciseList list,
+    ConsistencyDateRange range,
+  ) {
+    if (list.viewMode == ConsistencyViewMode.month) {
+      return DateFormat('MMMM yyyy').format(_anchor);
+    }
+    return '${DateFormat('MMM d').format(range.start)} – '
+        '${DateFormat('MMM d, yyyy').format(range.end)}';
+  }
+
+  Future<void> _pickWeekStartDay(ConsistencyExerciseList list) async {
+    final chosen = await showConsistencyWeekStartPicker(
+      context,
+      list.startWeekday,
+    );
+    if (chosen != null) {
+      setState(() => _anchor = DateTime.now());
+      _updateSelectedList(list.copyWith(startWeekday: chosen));
+    }
+  }
+
+  void _openExerciseDetail(
+    TrackedExercise exercise,
+    ConsistencyExerciseList list,
+  ) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _ExerciseDetailPage(
+          exercise: exercise,
+          history: widget.history,
+          defaultViewMode: list.viewMode,
+          defaultStartWeekday: list.startWeekday,
+          defaultShowSetCounts: list.showSetCounts,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListSelectorRow(
+    AppLocalizations l10n,
+    bool isDark,
+    ColorScheme colorScheme,
+    ConsistencyExerciseList selected,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final l in _lists) ...[
+                  ChoiceChip(
+                    label: Text(
+                      l.name,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: l.id == selected.id
+                            ? Colors.white
+                            : (isDark ? Colors.white : Colors.black87),
+                      ),
+                    ),
+                    selected: l.id == selected.id,
+                    selectedColor: colorScheme.primary,
+                    backgroundColor: isDark
+                        ? const Color(0xFF232F3E)
+                        : Colors.grey.shade200,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    onSelected: (_) => _selectList(l.id),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ],
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: l10n.get('newList'),
+          onPressed: () => _showListNameDialog(onSave: _createList),
+          icon: Icon(
+            Icons.add_circle_outline,
+            size: 28,
+            color: colorScheme.primary,
+          ),
+        ),
+        PopupMenuButton<String>(
+          icon: Icon(
+            Icons.more_vert,
+            size: 26,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+          onSelected: (action) {
+            if (action == 'rename') {
+              _showListNameDialog(
+                existingName: selected.name,
+                onSave: (name) => _renameList(selected.id, name),
+              );
+            } else if (action == 'delete') {
+              _confirmDeleteList(selected);
+            }
+          },
+          itemBuilder: (ctx) => [
+            PopupMenuItem(
+              value: 'rename',
+              child: Text(
+                l10n.get('renameList'),
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'delete',
+              child: Text(
+                l10n.get('deleteList'),
+                style: const TextStyle(fontSize: 16, color: Colors.red),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Localized full weekday name for weekday 1 (Monday) .. 7 (Sunday), matching
+/// [DateTime.weekday]. Uses a fixed reference week (Jan 1, 2024 was a Monday)
+/// so it works for any weekday number without a real date in hand.
+String _consistencyWeekdayName(int weekday) =>
+    DateFormat('EEEE').format(DateTime(2024, 1, weekday));
+
+/// Localized short weekday name (e.g. "Mon"), same convention as
+/// [_consistencyWeekdayName].
+String _consistencyWeekdayShortName(int weekday) =>
+    DateFormat('E').format(DateTime(2024, 1, weekday));
+
+/// Renders a 7-column grid of [days] (a multiple of 7 — one row per week) as
+/// a weekday header plus one [_ConsistencyDayCell] per day. Used both for a
+/// list's full multi-exercise calendar and (with a single-item [exercises])
+/// an individual exercise's detail calendar.
+class _ConsistencyCalendarGrid extends StatelessWidget {
+  final List<DateTime> days;
+  final DateTime rangeStart;
+  final DateTime rangeEnd;
+  final List<TrackedExercise> exercises;
+  final Map<DateTime, Map<String, int>> setsByDay;
+  final bool showSetCounts;
+  final double cellHeight;
+  final int startWeekday;
+  final void Function(DateTime day, TrackedExercise exercise)? onSegmentTap;
+
+  const _ConsistencyCalendarGrid({
+    required this.days,
+    required this.rangeStart,
+    required this.rangeEnd,
+    required this.exercises,
+    required this.setsByDay,
+    required this.showSetCounts,
+    required this.cellHeight,
+    required this.startWeekday,
+    this.onSegmentTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pageBackground = Theme.of(context).scaffoldBackgroundColor;
+    final weekRows = <Widget>[];
+    for (var i = 0; i < days.length; i += 7) {
+      final weekDays = days.sublist(i, (i + 7).clamp(0, days.length));
+      weekRows.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            children: [
+              for (final day in weekDays)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: _ConsistencyDayCell(
+                      day: day,
+                      height: cellHeight,
+                      dimmed: day.isBefore(rangeStart) || day.isAfter(rangeEnd),
+                      exercises: exercises,
+                      setsForDay: setsByDay[_dateOnly(day)] ?? const {},
+                      showSetCounts: showSetCounts,
+                      pageBackground: pageBackground,
+                      onSegmentTap: onSegmentTap == null
+                          ? null
+                          : (ex) => onSegmentTap!(day, ex),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            for (var i = 0; i < 7; i++)
+              Expanded(
+                child: Center(
+                  child: Text(
+                    _consistencyWeekdayShortName(
+                      ((startWeekday - 1 + i) % 7) + 1,
+                    ),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ...weekRows,
+      ],
+    );
+  }
+}
+
+/// One day's cell: a day-number label plus a row of equal-width colored
+/// segments, one per tracked exercise done that day (in list order), each
+/// tappable on its own. Segment opacity reflects sets-done vs target
+/// ([segmentOpacity]); an optional sets-done number overlay uses a
+/// contrast-safe color ([segmentOverlayTextColor]). Exercises with 0 sets
+/// that day contribute no segment at all.
+class _ConsistencyDayCell extends StatelessWidget {
+  final DateTime day;
+  final double height;
+  final bool dimmed;
+  final List<TrackedExercise> exercises;
+  final Map<String, int> setsForDay;
+  final bool showSetCounts;
+  final Color pageBackground;
+  final void Function(TrackedExercise exercise)? onSegmentTap;
+
+  const _ConsistencyDayCell({
+    required this.day,
+    required this.height,
+    required this.dimmed,
+    required this.exercises,
+    required this.setsForDay,
+    required this.showSetCounts,
+    required this.pageBackground,
+    this.onSegmentTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final active = exercises
+        .where((e) => (setsForDay[e.exerciseName] ?? 0) > 0)
+        .toList();
+    final emptyColor = isDark ? const Color(0xFF232F3E) : Colors.grey.shade100;
+
+    return Opacity(
+      opacity: dimmed ? 0.35 : 1.0,
+      child: Container(
+        height: height,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 2),
+              child: Text(
+                '${day.day}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
+              ),
+            ),
+            Expanded(
+              child: active.isEmpty
+                  ? Container(color: emptyColor)
+                  : Row(
+                      children: [
+                        for (final exercise in active)
+                          Expanded(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: onSegmentTap == null
+                                  ? null
+                                  : () => onSegmentTap!(exercise),
+                              child: Builder(
+                                builder: (context) {
+                                  final setsDone =
+                                      setsForDay[exercise.exerciseName] ?? 0;
+                                  final base =
+                                      kConsistencyColorPalette[exercise
+                                          .colorIndex];
+                                  final opacity = segmentOpacity(
+                                    setsDone: setsDone,
+                                    targetSetsPerDay: exercise.targetSetsPerDay,
+                                  );
+                                  return Container(
+                                    color: base.withValues(alpha: opacity),
+                                    alignment: Alignment.center,
+                                    child: showSetCounts
+                                        ? Text(
+                                            '$setsDone',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: segmentOverlayTextColor(
+                                                base: base,
+                                                opacity: opacity,
+                                                pageBackground: pageBackground,
+                                              ),
+                                            ),
+                                          )
+                                        : null,
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet for adding/reordering/removing tracked exercises in a
+/// [ConsistencyExerciseList], and jumping into color/target-sets editing for
+/// each. Calls [onChanged] with the updated list after every mutation so the
+/// caller can persist it immediately (mirrors ActiveWorkoutPage's
+/// persist-after-every-change convention rather than a single final save).
+class _ManageExercisesSheet extends StatefulWidget {
+  final ConsistencyExerciseList list;
+  final List<WorkoutSession> history;
+  final ValueChanged<ConsistencyExerciseList> onChanged;
+
+  const _ManageExercisesSheet({
+    required this.list,
+    required this.history,
+    required this.onChanged,
+  });
+
+  @override
+  State<_ManageExercisesSheet> createState() => _ManageExercisesSheetState();
+}
+
+class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
+  late List<TrackedExercise> _exercises;
+  final TextEditingController _nameController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _exercises = List.of(widget.list.exercises);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void _commit() {
+    widget.onChanged(widget.list.copyWith(exercises: List.of(_exercises)));
+  }
+
+  List<String> _historyExerciseNames() {
+    final names = <String>{};
+    for (final session in widget.history) {
+      for (final log in session.logs) {
+        names.add(log.exerciseName);
+      }
+    }
+    return names.toList()..sort();
+  }
+
+  List<String> _suggestions(String query) {
+    if (query.trim().isEmpty) return [];
+    final q = query.trim().toLowerCase();
+    final already = _exercises
+        .map((e) => e.exerciseName.trim().toLowerCase())
+        .toSet();
+    final all = <String>{...kCommonExerciseNames, ..._historyExerciseNames()};
+    final matches =
+        all
+            .where(
+              (name) =>
+                  name.toLowerCase().contains(q) &&
+                  !already.contains(name.trim().toLowerCase()),
+            )
+            .toList()
+          ..sort();
+    return matches.take(8).toList();
+  }
+
+  void _addExercise(String name) {
+    if (_exercises.length >= ConsistencyExerciseList.maxExercises) return;
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    final alreadyTracked = _exercises.any(
+      (e) => e.exerciseName.trim().toLowerCase() == trimmed.toLowerCase(),
+    );
+    if (alreadyTracked) return;
+    setState(() {
+      _exercises.add(
+        TrackedExercise(
+          id: 'te_${DateTime.now().millisecondsSinceEpoch}',
+          exerciseName: trimmed,
+          colorIndex: nextAvailableConsistencyColorIndex(_exercises),
+        ),
+      );
+      _nameController.clear();
+    });
+    _commit();
+  }
+
+  void _removeExercise(int index) {
+    setState(() => _exercises.removeAt(index));
+    _commit();
+  }
+
+  void _reorder(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) newIndex--;
+      final item = _exercises.removeAt(oldIndex);
+      _exercises.insert(newIndex, item);
+    });
+    _commit();
+  }
+
+  Future<void> _pickColor(int index) async {
+    final chosen = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _ExerciseColorPickerSheet(
+        selectedIndex: _exercises[index].colorIndex,
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    setState(
+      () => _exercises[index] = _exercises[index].copyWith(colorIndex: chosen),
+    );
+    _commit();
+  }
+
+  Future<void> _editTargetSets(int index) async {
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final controller = TextEditingController(
+      text: '${_exercises[index].targetSetsPerDay}',
+    );
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          l10n.get('targetSetsPerDay'),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.cancel, style: const TextStyle(fontSize: 18)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final value = int.tryParse(controller.text.trim());
+              if (value == null || value < 0) return;
+              Navigator.pop(ctx);
+              setState(
+                () => _exercises[index] = _exercises[index].copyWith(
+                  targetSetsPerDay: value,
+                ),
+              );
+              _commit();
+            },
+            child: Text(
+              l10n.get('save'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  l10n.get('manageExercises'),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  children: [
+                    if (_exercises.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Text(
+                          l10n.get('noExercisesInList'),
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey.shade600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    else
+                      ReorderableListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _exercises.length,
+                        onReorder: _reorder,
+                        itemBuilder: (context, index) {
+                          final te = _exercises[index];
+                          final color = kConsistencyColorPalette[te.colorIndex];
+                          return Padding(
+                            key: ValueKey(te.id),
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Material(
+                              color: isDark
+                                  ? const Color(0xFF232F3E)
+                                  : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(14),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                child: Row(
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () => _pickColor(index),
+                                      child: Container(
+                                        width: 36,
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          color: color,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: isDark
+                                                ? Colors.white24
+                                                : Colors.black12,
+                                            width: 2,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        l10n.localizeExerciseName(
+                                          te.exerciseName,
+                                        ),
+                                        style: TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark
+                                              ? Colors.white
+                                              : Colors.black87,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    GestureDetector(
+                                      onTap: () => _editTargetSets(index),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: color.withValues(alpha: 0.16),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${te.targetSetsPerDay}/${l10n.get('day')}',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: color,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      onPressed: () => _removeExercise(index),
+                                      icon: Icon(
+                                        Icons.close,
+                                        size: 22,
+                                        color: Colors.grey.shade500,
+                                      ),
+                                    ),
+                                    ReorderableDragStartListener(
+                                      index: index,
+                                      child: Icon(
+                                        Icons.drag_handle,
+                                        size: 24,
+                                        color: isDark
+                                            ? Colors.grey.shade400
+                                            : Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    const SizedBox(height: 16),
+                    if (_exercises.length <
+                        ConsistencyExerciseList.maxExercises) ...[
+                      TextField(
+                        controller: _nameController,
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: l10n.get('addToList'),
+                          hintText: l10n.get('exerciseNameHint'),
+                          border: const OutlineInputBorder(),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.add),
+                            onPressed: () => _addExercise(_nameController.text),
+                          ),
+                        ),
+                        textCapitalization: TextCapitalization.words,
+                        onChanged: (_) => setState(() {}),
+                        onSubmitted: _addExercise,
+                      ),
+                      Builder(
+                        builder: (context) {
+                          final suggestions = _suggestions(
+                            _nameController.text,
+                          );
+                          if (suggestions.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const SizedBox(height: 8),
+                              ...suggestions.map(
+                                (name) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Material(
+                                    color: isDark
+                                        ? const Color(0xFF232F3E)
+                                        : Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: InkWell(
+                                      onTap: () => _addExercise(name),
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 14,
+                                        ),
+                                        child: Text(
+                                          l10n.localizeExerciseName(name),
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            color: isDark
+                                                ? Colors.white
+                                                : Colors.black87,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ] else
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Text(
+                          l10n.get('maxExercisesReached'),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.orange.shade700,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Bottom sheet: pick one of the 14 [kConsistencyColorPalette] swatches.
+/// Pops with the chosen index, or null if dismissed.
+class _ExerciseColorPickerSheet extends StatelessWidget {
+  final int selectedIndex;
+
+  const _ExerciseColorPickerSheet({required this.selectedIndex});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            l10n.get('chooseColor'),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            alignment: WrapAlignment.center,
+            children: [
+              for (var i = 0; i < kConsistencyColorPalette.length; i++)
+                GestureDetector(
+                  onTap: () => Navigator.pop(context, i),
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: kConsistencyColorPalette[i],
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: i == selectedIndex
+                            ? (isDark ? Colors.white : Colors.black87)
+                            : Colors.transparent,
+                        width: 3,
+                      ),
+                    ),
+                    child: i == selectedIndex
+                        ? const Icon(Icons.check, color: Colors.white, size: 28)
+                        : null,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+/// Week / fortnight / month selector, shared by the list calendar and the
+/// single-exercise detail calendar so both browse the same way.
+class _ConsistencyViewModeToggle extends StatelessWidget {
+  final ConsistencyViewMode selected;
+  final ValueChanged<ConsistencyViewMode> onChanged;
+
+  const _ConsistencyViewModeToggle({
+    required this.selected,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+    const labelStyle = TextStyle(fontSize: 14, fontWeight: FontWeight.bold);
+    return SegmentedButton<ConsistencyViewMode>(
+      style: ButtonStyle(
+        minimumSize: WidgetStateProperty.all(const Size(0, 48)),
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return colorScheme.primary;
+          return isDark ? const Color(0xFF232F3E) : Colors.grey.shade200;
+        }),
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return Colors.white;
+          return isDark ? Colors.white : Colors.black87;
+        }),
+      ),
+      showSelectedIcon: false,
+      segments: [
+        ButtonSegment(
+          value: ConsistencyViewMode.week,
+          label: Text(l10n.get('viewWeek'), style: labelStyle),
+        ),
+        ButtonSegment(
+          value: ConsistencyViewMode.fortnight,
+          label: Text(l10n.get('viewFortnight'), style: labelStyle),
+        ),
+        ButtonSegment(
+          value: ConsistencyViewMode.month,
+          label: Text(l10n.get('viewMonth'), style: labelStyle),
+        ),
+      ],
+      selected: {selected},
+      onSelectionChanged: (selection) => onChanged(selection.first),
+    );
+  }
+}
+
+/// Bottom sheet listing the 7 weekdays; pops with the chosen weekday
+/// (1=Mon..7=Sun) or null if dismissed. Shared by the list calendar's and the
+/// exercise detail calendar's week-start setting.
+Future<int?> showConsistencyWeekStartPicker(BuildContext context, int current) {
+  final l10n = AppLocalizations.of(context)!;
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final colorScheme = Theme.of(context).colorScheme;
+  return showModalBottomSheet<int>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) => Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                l10n.get('weekStartsOn'),
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (var weekday = 1; weekday <= 7; weekday++)
+              ListTile(
+                title: Text(
+                  _consistencyWeekdayName(weekday),
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                trailing: weekday == current
+                    ? Icon(Icons.check, color: colorScheme.primary)
+                    : null,
+                onTap: () => Navigator.pop(ctx, weekday),
+              ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// One legend row: color swatch + exercise name, tappable to open the
+/// exercise's detail page (mirrors tapping the exercise's segment on the
+/// calendar itself).
+class _LegendRow extends StatelessWidget {
+  final TrackedExercise exercise;
+  final VoidCallback onTap;
+
+  const _LegendRow({required this.exercise, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = kConsistencyColorPalette[exercise.colorIndex];
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(
+          children: [
+            Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                l10n.localizeExerciseName(exercise.exerciseName),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              size: 20,
+              color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One calendar day's logged sets for a single exercise, across every
+/// session on that day.
+class _ExerciseDetailEntry {
+  final DateTime day;
+  final List<ExerciseLog> logs;
+
+  const _ExerciseDetailEntry({required this.day, required this.logs});
+
+  int get setsDone => logs.length;
+}
+
+/// Every day (across all of [history], not just the visible range) that
+/// [exerciseName] was logged, newest first. Matching is case-insensitive and
+/// trimmed, same convention as [buildConsistencySetsByDay].
+List<_ExerciseDetailEntry> _buildExerciseDetailHistory(
+  List<WorkoutSession> history,
+  String exerciseName,
+) {
+  final matchKey = exerciseName.trim().toLowerCase();
+  final byDay = <DateTime, List<ExerciseLog>>{};
+  for (final session in history) {
+    for (final log in session.logs) {
+      if (log.exerciseName.trim().toLowerCase() != matchKey) continue;
+      final day = _dateOnly(log.timestamp);
+      byDay.putIfAbsent(day, () => []).add(log);
+    }
+  }
+  final entries =
+      byDay.entries
+          .map((e) => _ExerciseDetailEntry(day: e.key, logs: e.value))
+          .toList()
+        ..sort((a, b) => b.day.compareTo(a.day));
+  return entries;
+}
+
+/// Full-screen drill-down for one tracked exercise: its own single-exercise
+/// calendar (independent view-mode/week-start/show-counts state, defaulted
+/// from the parent list but browsable on its own), summary totals, and a
+/// complete chronological list of every day it was logged with per-day
+/// set/rep (or duration) detail.
+class _ExerciseDetailPage extends StatefulWidget {
+  final TrackedExercise exercise;
+  final List<WorkoutSession> history;
+  final ConsistencyViewMode defaultViewMode;
+  final int defaultStartWeekday;
+  final bool defaultShowSetCounts;
+
+  const _ExerciseDetailPage({
+    required this.exercise,
+    required this.history,
+    required this.defaultViewMode,
+    required this.defaultStartWeekday,
+    required this.defaultShowSetCounts,
+  });
+
+  @override
+  State<_ExerciseDetailPage> createState() => _ExerciseDetailPageState();
+}
+
+class _ExerciseDetailPageState extends State<_ExerciseDetailPage> {
+  late DateTime _anchor;
+  late ConsistencyViewMode _viewMode;
+  late int _startWeekday;
+  late bool _showSetCounts;
+
+  @override
+  void initState() {
+    super.initState();
+    _anchor = DateTime.now();
+    _viewMode = widget.defaultViewMode;
+    _startWeekday = widget.defaultStartWeekday;
+    _showSetCounts = widget.defaultShowSetCounts;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = kConsistencyColorPalette[widget.exercise.colorIndex];
+
+    final range = computeConsistencyRange(
+      anchor: _anchor,
+      mode: _viewMode,
+      startWeekday: _startWeekday,
+    );
+    final gridDays = _viewMode == ConsistencyViewMode.month
+        ? computeConsistencyMonthGridDays(_anchor, _startWeekday)
+        : range.days;
+    final setsByDay = buildConsistencySetsByDay(
+      history: widget.history,
+      trackedExercises: [widget.exercise],
+    );
+    final cellHeight = _viewMode == ConsistencyViewMode.month ? 56.0 : 80.0;
+
+    final entries = _buildExerciseDetailHistory(
+      widget.history,
+      widget.exercise.exerciseName,
+    );
+    final totalTimesDone = entries.length;
+    final totalSets = entries.fold<int>(0, (sum, e) => sum + e.setsDone);
+    final allLogs = entries.expand((e) => e.logs).toList();
+    final totalReps = allLogs
+        .where((l) => !l.isDurationSet)
+        .fold<int>(0, (sum, l) => sum + l.reps);
+    final totalDurationSeconds = allLogs
+        .where((l) => l.isDurationSet)
+        .fold<int>(0, (sum, l) => sum + (l.durationSeconds ?? 0));
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                l10n.localizeExerciseName(widget.exercise.exerciseName),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _DetailStatTile(
+                    label: l10n.get('timesDone'),
+                    value: '$totalTimesDone',
+                    color: color,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _DetailStatTile(
+                    label: l10n.get('totalSets'),
+                    value: '$totalSets',
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+            if (totalDurationSeconds > 0) ...[
+              const SizedBox(height: 12),
+              _DetailStatTile(
+                label: l10n.get('totalDuration'),
+                value: formatDurationMmSs(totalDurationSeconds),
+                color: color,
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              _DetailStatTile(
+                label: l10n.get('totalReps'),
+                value: '$totalReps',
+                color: color,
+              ),
+            ],
+            const SizedBox(height: 20),
+            _ConsistencyViewModeToggle(
+              selected: _viewMode,
+              onChanged: (mode) => setState(() {
+                _viewMode = mode;
+                _anchor = DateTime.now();
+              }),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final chosen = await showConsistencyWeekStartPicker(
+                        context,
+                        _startWeekday,
+                      );
+                      if (chosen != null) {
+                        setState(() {
+                          _startWeekday = chosen;
+                          _anchor = DateTime.now();
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.event_repeat, size: 18),
+                    label: Text(
+                      '${l10n.get('weekStartsOn')}: ${_consistencyWeekdayName(_startWeekday)}',
+                      style: const TextStyle(fontSize: 14),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _showSetCounts,
+              onChanged: (v) => setState(() => _showSetCounts = v),
+              title: Text(
+                l10n.get('showSetCounts'),
+                style: TextStyle(
+                  fontSize: 15,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  onPressed: () => setState(() {
+                    _anchor = nextConsistencyAnchor(
+                      _anchor,
+                      _viewMode,
+                      forward: false,
+                    );
+                  }),
+                  icon: const Icon(Icons.chevron_left, size: 30),
+                ),
+                Expanded(
+                  child: Text(
+                    _viewMode == ConsistencyViewMode.month
+                        ? DateFormat('MMMM yyyy').format(_anchor)
+                        : '${DateFormat('MMM d').format(range.start)} – '
+                              '${DateFormat('MMM d, yyyy').format(range.end)}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => setState(() {
+                    _anchor = nextConsistencyAnchor(
+                      _anchor,
+                      _viewMode,
+                      forward: true,
+                    );
+                  }),
+                  icon: const Icon(Icons.chevron_right, size: 30),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _ConsistencyCalendarGrid(
+              days: gridDays,
+              rangeStart: range.start,
+              rangeEnd: range.end,
+              exercises: [widget.exercise],
+              setsByDay: setsByDay,
+              showSetCounts: _showSetCounts,
+              cellHeight: cellHeight,
+              startWeekday: _startWeekday,
+            ),
+            const SizedBox(height: 24),
+            Text(
+              l10n.get('pastHistory'),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (entries.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Text(
+                  l10n.get('noHistoryForExercise'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                ),
+              )
+            else
+              for (final entry in entries)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Material(
+                    color: isDark
+                        ? const Color(0xFF1A2634)
+                        : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              DateFormat('MMM d, yyyy').format(entry.day),
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            _formatDetailEntrySummary(entry, l10n),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDetailEntrySummary(
+    _ExerciseDetailEntry entry,
+    AppLocalizations l10n,
+  ) {
+    final sorted = List<ExerciseLog>.from(entry.logs)
+      ..sort((a, b) => a.setNumber.compareTo(b.setNumber));
+    if (sorted.any((l) => l.isDurationSet)) {
+      final durations = sorted
+          .map((l) => formatDurationMmSs(l.durationSeconds ?? 0))
+          .join(', ');
+      return durations;
+    }
+    final reps = sorted.map((l) => '${l.reps}').join(', ');
+    return '$reps ${l10n.reps}';
+  }
+}
+
+/// Small stat card for the exercise detail page's summary totals.
+class _DetailStatTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _DetailStatTile({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isDark ? 0.18 : 0.12),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 }

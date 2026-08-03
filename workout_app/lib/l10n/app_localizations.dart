@@ -292,6 +292,7 @@ class AppLocalizations {
     'durationTracksWeightDesc':
         'Also log weight each set (e.g. farmer\'s carry, weighted walk)',
     'endSetEarly': 'End set now',
+    'alreadyCompleted': 'Already Done',
     'holdTime': 'Hold / carry time',
     'durationHint': 'e.g. 0:30 or 1:00',
     'invalidDuration': 'Enter a valid time (e.g. 0:30, 1:00, or 90 seconds)',
@@ -328,6 +329,7 @@ class AppLocalizations {
     'resumeRestTimer': 'Resume rest',
     'setsRemainingLabel': 'sets remaining',
     'logSet': 'Log Set',
+    'addSet': 'Add Set',
     'nextExercise': 'Next Exercise',
     'finishWorkout': 'Finish Workout',
     'draftResumeTitle': 'Resume workout?',
@@ -487,7 +489,8 @@ class AppLocalizations {
     'shoulderWorkoutTemplateDesc': 'Resistance Band - 5 shoulder exercises',
     'fiveShoulderExercises': '5 shoulder exercises',
     'beginnerUpperBodyDay': 'Beginner Upper Body Day',
-    'beginnerUpperBodyDayDesc': 'Chest, shoulders, back, and arms — 6 exercises, 3×10',
+    'beginnerUpperBodyDayDesc':
+        'Chest, shoulders, back, and arms — 6 exercises, 3×10',
     'beginnerLegsDay': 'Beginner Legs Day',
     'beginnerLegsDayDesc': 'Lower body starter — 4 exercises, 3×10',
     'previousData': 'Previous data',
@@ -561,6 +564,37 @@ class AppLocalizations {
     'confirmImport': 'Import and Replace',
     'invalidBackupFile': 'Invalid backup file',
     'backupFileShared': 'Backup file ready to share',
+
+    // Consistency Calendar
+    'consistencyCalendar': 'Consistency Calendar',
+    'consistencyCalendarSubtitle':
+        'See which exercises you\'re keeping up with',
+    'noListsYet': 'No lists yet',
+    'createFirstListHint': 'Create a list to start tracking your exercises',
+    'newList': 'New List',
+    'renameList': 'Rename List',
+    'deleteList': 'Delete List',
+    'deleteListWarning':
+        'This won\'t delete your workout history, just this list and its settings.',
+    'listName': 'List Name',
+    'listNameHint': 'e.g., List A',
+    'addToList': 'Add Exercise',
+    'maxExercisesReached': 'You can track up to 14 exercises per list',
+    'noExercisesInList':
+        'Add exercises to this list to see them on the calendar',
+    'chooseColor': 'Choose Color',
+    'targetSetsPerDay': 'Target sets per day',
+    'day': 'day',
+    'viewWeek': 'Week',
+    'viewFortnight': 'Fortnight',
+    'viewMonth': 'Month',
+    'weekStartsOn': 'Week starts on',
+    'showSetCounts': 'Show set counts on calendar',
+    'legend': 'Legend',
+    'timesDone': 'Times done',
+    'totalSets': 'Total sets',
+    'totalDuration': 'Total time',
+    'noHistoryForExercise': 'No history yet for this exercise',
   };
 
   // Chinese Traditional strings
@@ -613,6 +647,7 @@ class AppLocalizations {
     'durationTracksWeight': '記錄重量',
     'durationTracksWeightDesc': '每組同時記錄重量（例如農夫走路、負重行走）',
     'endSetEarly': '提前結束本組',
+    'alreadyCompleted': '已經完成',
     'holdTime': '維持／負重時間',
     'durationHint': '例如 0:30 或 1:00',
     'invalidDuration': '請輸入有效時間（如 0:30、1:00 或 90 秒）',
@@ -621,12 +656,10 @@ class AppLocalizations {
     'warmup': '暖身',
     'warmupOff': '關閉',
     'warmupBeforeHold': '維持前暖身',
-    'warmupBeforeHoldSubtitle':
-        '第一次計時開始前會先倒數暖身時間，可先站穩準備。',
+    'warmupBeforeHoldSubtitle': '第一次計時開始前會先倒數暖身時間，可先站穩準備。',
     'warmupSubtitle': '倒數為零後開始計時維持',
     'holdTimeRemaining': '剩餘時間 — 再堅持一下',
-    'restBetweenSetsStretchHint':
-        '伸展與活動度動作常不需要長休息，可依身體感受選擇。',
+    'restBetweenSetsStretchHint': '伸展與活動度動作常不需要長休息，可依身體感受選擇。',
     'restOptionDefault': '使用預設休息時間',
     'restOptionDefaultSub': '與「設定」中的休息計時相同（{time}）',
     'restOptionNoRest': '不休息',
@@ -649,6 +682,7 @@ class AppLocalizations {
     'resumeRestTimer': '繼續休息',
     'setsRemainingLabel': '組剩餘',
     'logSet': '記錄這組',
+    'addSet': '新增組數',
     'nextExercise': '下一個動作',
     'finishWorkout': '完成運動',
     'draftResumeTitle': '要繼續運動嗎？',
@@ -807,8 +841,7 @@ class AppLocalizations {
     // Settings
     'settings': '設定',
     'timerBeepVolume': '計時提示音量',
-    'timerBeepVolumeDesc':
-        '適用於休息、暖身與維持倒數提示音。設為 0 則靜音。',
+    'timerBeepVolumeDesc': '適用於休息、暖身與維持倒數提示音。設為 0 則靜音。',
     'previewTimerBeep': '試聽提示音',
     'appearance': '外觀',
     'theme': '主題',
@@ -873,6 +906,34 @@ class AppLocalizations {
     'confirmImport': '匯入並取代',
     'invalidBackupFile': '無效的備份檔案',
     'backupFileShared': '備份檔案已準備好分享',
+
+    // Consistency Calendar
+    'consistencyCalendar': '持續力日曆',
+    'consistencyCalendarSubtitle': '查看您持續進行了哪些運動',
+    'noListsYet': '還沒有清單',
+    'createFirstListHint': '建立一個清單開始追蹤您的運動',
+    'newList': '新增清單',
+    'renameList': '重新命名清單',
+    'deleteList': '刪除清單',
+    'deleteListWarning': '這不會刪除您的運動紀錄，只會刪除此清單及其設定。',
+    'listName': '清單名稱',
+    'listNameHint': '例如：清單 A',
+    'addToList': '新增動作',
+    'maxExercisesReached': '每個清單最多可追蹤 14 個動作',
+    'noExercisesInList': '將動作加入這個清單即可顯示在日曆上',
+    'chooseColor': '選擇顏色',
+    'targetSetsPerDay': '每日目標組數',
+    'day': '天',
+    'viewWeek': '週',
+    'viewFortnight': '兩週',
+    'viewMonth': '月',
+    'weekStartsOn': '一週的開始',
+    'showSetCounts': '在日曆上顯示組數',
+    'legend': '圖例',
+    'timesDone': '完成次數',
+    'totalSets': '總組數',
+    'totalDuration': '總時長',
+    'noHistoryForExercise': '這個動作還沒有紀錄',
   };
 
   // Convenience getters for common strings

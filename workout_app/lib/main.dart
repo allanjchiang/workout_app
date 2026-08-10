@@ -8860,13 +8860,30 @@ class _HistoryCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        l10n.localizeExerciseName(exerciseName),
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              l10n.localizeExerciseName(exerciseName),
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            DateFormat.jm().format(logs.first.timestamp),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 10),
                       ...logs.map((log) {
@@ -12721,6 +12738,9 @@ class _ExerciseDetailEntry {
   const _ExerciseDetailEntry({required this.day, required this.logs});
 
   int get setsDone => logs.length;
+
+  DateTime get earliestTimestamp =>
+      logs.map((l) => l.timestamp).reduce((a, b) => a.isBefore(b) ? a : b);
 }
 
 /// Every day (across all of [history], not just the visible range) that
@@ -13017,13 +13037,33 @@ class _ExerciseDetailPageState extends State<_ExerciseDetailPage> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              DateFormat('MMM d, yyyy').format(entry.day),
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? Colors.white : Colors.black87,
-                              ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
+                              children: [
+                                Text(
+                                  DateFormat('MMM d, yyyy').format(entry.day),
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark
+                                        ? Colors.white
+                                        : Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  DateFormat.jm().format(
+                                    entry.earliestTimestamp,
+                                  ),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: isDark
+                                        ? Colors.grey.shade400
+                                        : Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           Text(

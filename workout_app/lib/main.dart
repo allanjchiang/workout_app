@@ -5078,10 +5078,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     final override = current.restAfterSetSeconds;
     final effective = (override ?? _defaultRestSeconds).clamp(0, 600);
     if (effective <= 0) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _scheduleScrollAfterRestEnds();
-      });
+      // No rest configured: leave the screen exactly where the user is
+      // looking rather than auto-scrolling right after they tap the tick.
       unawaited(_persistWorkoutDraft());
       return;
     }

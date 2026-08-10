@@ -12626,7 +12626,11 @@ Future<int?> showConsistencyWeekStartPicker(BuildContext context, int current) {
   return showModalBottomSheet<int>(
     context: context,
     backgroundColor: Colors.transparent,
+    isScrollControlled: true,
     builder: (ctx) => Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(ctx).size.height * 0.8,
+      ),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E2A3A) : Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -12657,20 +12661,29 @@ Future<int?> showConsistencyWeekStartPicker(BuildContext context, int current) {
               ),
             ),
             const SizedBox(height: 8),
-            for (var weekday = 1; weekday <= 7; weekday++)
-              ListTile(
-                title: Text(
-                  _consistencyWeekdayName(weekday),
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var weekday = 1; weekday <= 7; weekday++)
+                      ListTile(
+                        title: Text(
+                          _consistencyWeekdayName(weekday),
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        trailing: weekday == current
+                            ? Icon(Icons.check, color: colorScheme.primary)
+                            : null,
+                        onTap: () => Navigator.pop(ctx, weekday),
+                      ),
+                  ],
                 ),
-                trailing: weekday == current
-                    ? Icon(Icons.check, color: colorScheme.primary)
-                    : null,
-                onTap: () => Navigator.pop(ctx, weekday),
               ),
+            ),
             const SizedBox(height: 12),
           ],
         ),

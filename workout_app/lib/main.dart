@@ -12283,6 +12283,86 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
                   controller: scrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   children: [
+                    if (_exercises.length <
+                        ConsistencyExerciseList.maxExercises) ...[
+                      TextField(
+                        controller: _nameController,
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: l10n.get('addToList'),
+                          hintText: l10n.get('exerciseNameHint'),
+                          border: const OutlineInputBorder(),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.add),
+                            onPressed: () => _addExercise(_nameController.text),
+                          ),
+                        ),
+                        textCapitalization: TextCapitalization.words,
+                        onChanged: (_) => setState(() {}),
+                        onSubmitted: _addExercise,
+                      ),
+                      Builder(
+                        builder: (context) {
+                          final suggestions = _suggestions(
+                            _nameController.text,
+                          );
+                          if (suggestions.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const SizedBox(height: 8),
+                              ...suggestions.map(
+                                (name) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Material(
+                                    color: isDark
+                                        ? const Color(0xFF232F3E)
+                                        : Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: InkWell(
+                                      onTap: () => _addExercise(name),
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 14,
+                                        ),
+                                        child: Text(
+                                          l10n.localizeExerciseName(name),
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            color: isDark
+                                                ? Colors.white
+                                                : Colors.black87,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ] else
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Text(
+                          l10n.get('maxExercisesReached'),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.orange.shade700,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    const SizedBox(height: 16),
                     if (_exercises.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 24),
@@ -12399,86 +12479,6 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
                             ),
                           );
                         },
-                      ),
-                    const SizedBox(height: 16),
-                    if (_exercises.length <
-                        ConsistencyExerciseList.maxExercises) ...[
-                      TextField(
-                        controller: _nameController,
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
-                        decoration: InputDecoration(
-                          labelText: l10n.get('addToList'),
-                          hintText: l10n.get('exerciseNameHint'),
-                          border: const OutlineInputBorder(),
-                          suffixIcon: IconButton(
-                            icon: const Icon(Icons.add),
-                            onPressed: () => _addExercise(_nameController.text),
-                          ),
-                        ),
-                        textCapitalization: TextCapitalization.words,
-                        onChanged: (_) => setState(() {}),
-                        onSubmitted: _addExercise,
-                      ),
-                      Builder(
-                        builder: (context) {
-                          final suggestions = _suggestions(
-                            _nameController.text,
-                          );
-                          if (suggestions.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const SizedBox(height: 8),
-                              ...suggestions.map(
-                                (name) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 6),
-                                  child: Material(
-                                    color: isDark
-                                        ? const Color(0xFF232F3E)
-                                        : Colors.grey.shade100,
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: InkWell(
-                                      onTap: () => _addExercise(name),
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 14,
-                                        ),
-                                        child: Text(
-                                          l10n.localizeExerciseName(name),
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            color: isDark
-                                                ? Colors.white
-                                                : Colors.black87,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                    ] else
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Text(
-                          l10n.get('maxExercisesReached'),
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.orange.shade700,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
                       ),
                     const SizedBox(height: 24),
                   ],

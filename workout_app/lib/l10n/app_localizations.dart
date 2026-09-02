@@ -595,6 +595,40 @@ class AppLocalizations {
     'totalSets': 'Total sets',
     'totalDuration': 'Total time',
     'noHistoryForExercise': 'No history yet for this exercise',
+
+    // What's New (dev notes)
+    'devNotesTitle': 'What\'s New',
+    'devNotesNewFeatures': 'New Features',
+    'devNotesBugFixes': 'Bug Fixes',
+    'devNotesSupportTooltip': 'Support the developer',
+    'devNoteFeatureTimestamps':
+        'See exactly when each set was logged with new timestamps',
+    'devNoteFeatureStats':
+        'New stats and quality-of-life improvements throughout the app',
+    'devNoteFeatureCalendarSearchTop':
+        'The add-exercise search box in the Consistency Calendar now stays pinned to the top',
+    'devNoteFeatureDonate':
+        'A new optional way to support the developer with a small tip — right here on this screen',
+    'devNoteFixWeekStartOverflow':
+        'Fixed the "Week starts on" picker overflowing off the bottom of the screen',
+    'devNoteFixScrollJump':
+        'Fixed the screen jumping to the bottom right after logging a set when an exercise has no rest timer',
+    'devNoteFixBeepsPauseMusic':
+        'Workout beeps no longer pause your music, podcasts, or audiobooks',
+
+    // Donations (optional tip, no rewards)
+    'supportDeveloper': 'Support the Developer',
+    'supportDeveloperSubtitle':
+        'If you\'re enjoying the app, you can leave an optional tip below. It doesn\'t unlock anything — it just helps me keep building.',
+    'donationTierSmall': 'Small Tip',
+    'donationTierMedium': 'Medium Tip',
+    'donationTierLarge': 'Large Tip',
+    'donationThankYou': 'Thank you for your support!',
+    'donationFailed': 'Something went wrong with the purchase. Please try again.',
+    'donationUnavailable':
+        'In-app purchases aren\'t available on this device right now.',
+    'donationNoProducts':
+        'Support options aren\'t available yet. Please try again later.',
   };
 
   // Chinese Traditional strings
@@ -934,6 +968,33 @@ class AppLocalizations {
     'totalSets': '總組數',
     'totalDuration': '總時長',
     'noHistoryForExercise': '這個動作還沒有紀錄',
+
+    // What's New (dev notes)
+    'devNotesTitle': '最新消息',
+    'devNotesNewFeatures': '新功能',
+    'devNotesBugFixes': '問題修復',
+    'devNotesSupportTooltip': '支持開發者',
+    'devNoteFeatureTimestamps': '記錄每組動作的確切時間',
+    'devNoteFeatureStats': '新增統計數據與多項易用性改進',
+    'devNoteFeatureCalendarSearchTop':
+        '「持續日曆」新增動作的搜尋欄位現在會固定顯示在頂部',
+    'devNoteFeatureDonate': '新增可選擇的小額贊助方式，支持開發者——就在這個畫面上',
+    'devNoteFixWeekStartOverflow': '修正「一週的開始」選擇畫面在螢幕底部溢出的問題',
+    'devNoteFixScrollJump':
+        '修正在沒有設定休息計時器的動作中記錄一組後，畫面會跳到底部的問題',
+    'devNoteFixBeepsPauseMusic': '運動提示音不會再暫停您的音樂、Podcast 或有聲書',
+
+    // Donations (optional tip, no rewards)
+    'supportDeveloper': '支持開發者',
+    'supportDeveloperSubtitle':
+        '如果您喜歡這個應用程式，可以在下方留下自由樂捐的小費。這不會解鎖任何功能，只是幫助我持續開發。',
+    'donationTierSmall': '小額贊助',
+    'donationTierMedium': '中額贊助',
+    'donationTierLarge': '大額贊助',
+    'donationThankYou': '感謝您的支持！',
+    'donationFailed': '購買時發生問題，請再試一次。',
+    'donationUnavailable': '此裝置目前無法使用應用程式內購買功能。',
+    'donationNoProducts': '贊助選項目前尚未提供，請稍後再試。',
   };
 
   // Convenience getters for common strings

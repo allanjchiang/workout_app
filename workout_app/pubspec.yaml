@@ -44,6 +44,8 @@ dependencies:
   file_picker: ^8.0.0
   path_provider: ^2.1.2
   vibration: ^3.1.6
+  package_info_plus: ^9.0.1
+  in_app_purchase: ^3.3.0
 
 # Pin path_provider_foundation to avoid objective_c.framework with wrong
 # arm64 slice (simulator) and minimum OS version issues when distributing to App Store.

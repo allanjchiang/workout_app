@@ -14,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:vibration/vibration.dart';
 import 'package:intl/intl.dart';
 import 'l10n/app_localizations.dart';
+import 'dev_notes.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1350,6 +1351,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       if (!mounted) return;
       await _ensureDefaultTemplateAndMigrate();
       if (mounted) await _offerWorkoutDraftResumeIfNeeded();
+      if (mounted) await maybeShowDevNotesDialog(context);
     });
   }
 

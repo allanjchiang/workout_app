@@ -1861,6 +1861,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         history: history,
         weightUnit: _weightUnit,
         templates: templates,
+        onUpdateTemplate: _updateTemplate,
       ),
       SettingsPage(
         weightUnit: _weightUnit,
@@ -9129,12 +9130,14 @@ class StatisticsPage extends StatelessWidget {
   final List<WorkoutSession> history;
   final String weightUnit;
   final List<WorkoutTemplate> templates;
+  final ValueChanged<WorkoutTemplate>? onUpdateTemplate;
 
   const StatisticsPage({
     super.key,
     required this.history,
     this.weightUnit = 'kg',
     this.templates = const [],
+    this.onUpdateTemplate,
   });
 
   @override
@@ -9162,6 +9165,7 @@ class StatisticsPage extends StatelessWidget {
               _ConsistencyCalendarEntryCard(
                 history: history,
                 templates: templates,
+                onUpdateTemplate: onUpdateTemplate,
               ),
               const SizedBox(height: 24),
               if (history.isEmpty)
@@ -9212,10 +9216,12 @@ class StatisticsPage extends StatelessWidget {
 class _ConsistencyCalendarEntryCard extends StatelessWidget {
   final List<WorkoutSession> history;
   final List<WorkoutTemplate> templates;
+  final ValueChanged<WorkoutTemplate>? onUpdateTemplate;
 
   const _ConsistencyCalendarEntryCard({
     required this.history,
     this.templates = const [],
+    this.onUpdateTemplate,
   });
 
   @override
@@ -9233,8 +9239,11 @@ class _ConsistencyCalendarEntryCard extends StatelessWidget {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                ConsistencyCalendarPage(history: history, templates: templates),
+            builder: (_) => ConsistencyCalendarPage(
+              history: history,
+              templates: templates,
+              onUpdateTemplate: onUpdateTemplate,
+            ),
           ),
         ),
         child: Padding(
@@ -11305,11 +11314,13 @@ class _ThemeOptionTile extends StatelessWidget {
 class ConsistencyCalendarPage extends StatefulWidget {
   final List<WorkoutSession> history;
   final List<WorkoutTemplate> templates;
+  final ValueChanged<WorkoutTemplate>? onUpdateTemplate;
 
   const ConsistencyCalendarPage({
     super.key,
     required this.history,
     this.templates = const [],
+    this.onUpdateTemplate,
   });
 
   @override
@@ -11656,6 +11667,7 @@ class _ConsistencyCalendarPageState extends State<ConsistencyCalendarPage> {
                   history: widget.history,
                   templates: widget.templates,
                   onChanged: _updateSelectedList,
+                  onUpdateTemplate: widget.onUpdateTemplate,
                 ),
               ),
               icon: Icon(Icons.edit_note, size: 22, color: colorScheme.primary),
@@ -12138,12 +12150,14 @@ class _ManageExercisesSheet extends StatefulWidget {
   final List<WorkoutSession> history;
   final List<WorkoutTemplate> templates;
   final ValueChanged<ConsistencyExerciseList> onChanged;
+  final ValueChanged<WorkoutTemplate>? onUpdateTemplate;
 
   const _ManageExercisesSheet({
     required this.list,
     required this.history,
     this.templates = const [],
     required this.onChanged,
+    this.onUpdateTemplate,
   });
 
   @override
@@ -12339,6 +12353,97 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
         ],
       ),
     );
+  }
+
+  /// The current [WorkoutTemplate] this tracked entry matches (by name, same
+  /// convention as everywhere else), or null if it's since been deleted from
+  /// My Workouts.
+  WorkoutTemplate? _matchingTemplate(String trackedName) {
+    final key = trackedName.trim().toLowerCase();
+    for (final t in widget.templates) {
+      if (t.name.trim().toLowerCase() == key) return t;
+    }
+    return null;
+  }
+
+  /// Renames the actual [WorkoutTemplate] (so My Workouts and future logged
+  /// sessions use the new name too, via [ValueChanged<WorkoutTemplate>]
+  /// onUpdateTemplate) and updates this tracked entry's matched name to
+  /// match. If the underlying template was deleted elsewhere, falls back to
+  /// renaming just this tracked entry.
+  Future<void> _renameTemplate(int index) async {
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final controller = TextEditingController(
+      text: _exercises[index].exerciseName,
+    );
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          l10n.get('renameWorkoutTemplate'),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: TextStyle(
+            fontSize: 18,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+          decoration: InputDecoration(
+            labelText: l10n.get('workoutTemplate'),
+            border: const OutlineInputBorder(),
+          ),
+          textCapitalization: TextCapitalization.words,
+          onSubmitted: (_) => Navigator.pop(ctx),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              controller.clear();
+              Navigator.pop(ctx);
+            },
+            child: Text(l10n.cancel, style: const TextStyle(fontSize: 18)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              l10n.get('save'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    ).then((_) {
+      final trimmed = controller.text.trim();
+      if (trimmed.isEmpty) return;
+      final current = _exercises[index];
+      if (trimmed.toLowerCase() == current.exerciseName.trim().toLowerCase()) {
+        return;
+      }
+      final collides = _exercises.asMap().entries.any(
+        (e) =>
+            e.key != index &&
+            e.value.exerciseName.trim().toLowerCase() == trimmed.toLowerCase(),
+      );
+      if (collides) return;
+
+      final matched = _matchingTemplate(current.exerciseName);
+      if (matched != null) {
+        widget.onUpdateTemplate?.call(matched.copyWith(name: trimmed));
+      }
+      setState(
+        () => _exercises[index] = current.copyWith(exerciseName: trimmed),
+      );
+      _commit();
+    });
   }
 
   @override
@@ -12686,6 +12791,20 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
+                                    if (te.kind == TrackedItemKind.template)
+                                      IconButton(
+                                        onPressed: () => _renameTemplate(index),
+                                        icon: Icon(
+                                          Icons.edit,
+                                          size: 20,
+                                          color: isDark
+                                              ? Colors.grey.shade400
+                                              : Colors.grey.shade600,
+                                        ),
+                                        tooltip: l10n.get(
+                                          'renameWorkoutTemplate',
+                                        ),
+                                      ),
                                     GestureDetector(
                                       onTap: () => _editTargetSets(index),
                                       child: Container(

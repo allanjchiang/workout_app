@@ -591,6 +591,7 @@ class AppLocalizations {
         'You don\'t have any workout templates yet. Create one in My Workouts to track it here.',
     'allTemplatesTracked':
         'All your workout templates are already being tracked in this list.',
+    'renameWorkoutTemplate': 'Rename Workout Template',
     'noHistoryForTemplate': 'No history yet for this workout',
     'day': 'day',
     'viewWeek': 'Week',
@@ -971,6 +972,7 @@ class AppLocalizations {
     'chooseTemplateToTrack': '選擇要追蹤的運動範本',
     'noTemplatesToTrackHint': '您還沒有任何運動範本。請先在「我的運動」建立一個範本，才能在這裡追蹤。',
     'allTemplatesTracked': '您的所有運動範本都已經加入這個清單追蹤了。',
+    'renameWorkoutTemplate': '重新命名運動範本',
     'noHistoryForTemplate': '這個運動還沒有紀錄',
     'day': '天',
     'viewWeek': '週',

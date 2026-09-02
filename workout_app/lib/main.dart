@@ -6945,7 +6945,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          l10n.get('setsRemainingLabel'),
+                          l10n.get(
+                            setsN == 1
+                                ? 'setRemainingLabelSingular'
+                                : 'setsRemainingLabel',
+                          ),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 22,
@@ -8043,40 +8047,52 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                               if (inActiveWorkHold &&
                                   !inDurationWarmup &&
                                   current.durationBased)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 16),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.baseline,
-                                    textBaseline: TextBaseline.alphabetic,
-                                    children: [
-                                      Text(
-                                        '${_durationPlannedSetsRemaining(current)}',
-                                        style: TextStyle(
-                                          fontSize: (mqSize.shortestSide * 0.11)
-                                              .clamp(42.0, 58.0),
-                                          fontWeight: FontWeight.w800,
-                                          height: 1.05,
-                                          color: Colors.white,
-                                          fontFeatures: const [
-                                            FontFeature.tabularFigures(),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Text(
-                                        l10n.get('setsRemainingLabel'),
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white.withValues(
-                                            alpha: 0.92,
+                                Builder(
+                                  builder: (context) {
+                                    final durationSetsRemaining =
+                                        _durationPlannedSetsRemaining(current);
+                                    return Padding(
+                                      padding: const EdgeInsets.only(top: 16),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.baseline,
+                                        textBaseline: TextBaseline.alphabetic,
+                                        children: [
+                                          Text(
+                                            '$durationSetsRemaining',
+                                            style: TextStyle(
+                                              fontSize:
+                                                  (mqSize.shortestSide * 0.11)
+                                                      .clamp(42.0, 58.0),
+                                              fontWeight: FontWeight.w800,
+                                              height: 1.05,
+                                              color: Colors.white,
+                                              fontFeatures: const [
+                                                FontFeature.tabularFigures(),
+                                              ],
+                                            ),
                                           ),
-                                        ),
+                                          const SizedBox(width: 10),
+                                          Text(
+                                            l10n.get(
+                                              durationSetsRemaining == 1
+                                                  ? 'setRemainingLabelSingular'
+                                                  : 'setsRemainingLabel',
+                                            ),
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white.withValues(
+                                                alpha: 0.92,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
+                                    );
+                                  },
                                 ),
                             ],
                           ),

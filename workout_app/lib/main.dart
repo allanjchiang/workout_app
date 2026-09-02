@@ -934,12 +934,16 @@ enum TrackedItemKind { exercise, template }
 /// One item tracked inside a [ConsistencyExerciseList]: either a single
 /// exercise or a whole workout template ([kind]). Identity is by
 /// [exerciseName] (trimmed, matched case-insensitively) — for
-/// [TrackedItemKind.exercise] against [ExerciseLog.exerciseName]; for
-/// [TrackedItemKind.template] against [WorkoutSession.templateName]. Neither
-/// exercises nor templates have a stable cross-history id (a template can be
-/// edited/recreated; see [Exercise.id]), so, like everywhere else, matching
-/// is by name. The field keeps the name `exerciseName` for both kinds to
-/// avoid touching every call site in this file — read it as "matched name".
+/// [TrackedItemKind.exercise] against [ExerciseLog.exerciseName]. Exercises
+/// have no stable cross-history id (see [Exercise.id]), so, like everywhere
+/// else, matching is by name. The field keeps the name `exerciseName` for
+/// both kinds to avoid touching every call site in this file — read it as
+/// "matched name". For [TrackedItemKind.template], matching instead prefers
+/// [templateId] against [WorkoutSession.templateId] when present — a
+/// template's id is stable across renames, unlike its name, so this is what
+/// keeps a renamed template's history (including sessions logged under its
+/// old name) still matching. [exerciseName] is used as a name-based fallback
+/// only for entries persisted before [templateId] existed.
 class TrackedExercise {
   final String id;
   final String exerciseName;
@@ -957,12 +961,19 @@ class TrackedExercise {
   /// done).
   final int targetSetsPerDay;
 
+  /// kind=template only: the underlying [WorkoutTemplate.id], used for
+  /// rename-proof matching. Null for kind=exercise, and for template entries
+  /// persisted before this field existed (until backfilled — see
+  /// [_ConsistencyCalendarPageState._backfillTemplateIds]).
+  final String? templateId;
+
   const TrackedExercise({
     required this.id,
     required this.exerciseName,
     required this.colorIndex,
     this.kind = TrackedItemKind.exercise,
     this.targetSetsPerDay = 1,
+    this.templateId,
   });
 
   Map<String, dynamic> toJson() => {
@@ -971,6 +982,7 @@ class TrackedExercise {
     'colorIndex': colorIndex,
     'kind': kind.name,
     'targetSetsPerDay': targetSetsPerDay,
+    if (templateId != null) 'templateId': templateId,
   };
 
   factory TrackedExercise.fromJson(Map<String, dynamic> json) =>
@@ -986,6 +998,7 @@ class TrackedExercise {
           orElse: () => TrackedItemKind.exercise,
         ),
         targetSetsPerDay: json['targetSetsPerDay'] as int? ?? 1,
+        templateId: json['templateId'] as String?,
       );
 
   TrackedExercise copyWith({
@@ -994,12 +1007,14 @@ class TrackedExercise {
     int? colorIndex,
     TrackedItemKind? kind,
     int? targetSetsPerDay,
+    String? templateId,
   }) => TrackedExercise(
     id: id ?? this.id,
     exerciseName: exerciseName ?? this.exerciseName,
     colorIndex: colorIndex ?? this.colorIndex,
     kind: kind ?? this.kind,
     targetSetsPerDay: targetSetsPerDay ?? this.targetSetsPerDay,
+    templateId: templateId ?? this.templateId,
   );
 }
 
@@ -1207,10 +1222,14 @@ List<DateTime> computeConsistencyMonthGridDays(
 /// since a session can span midnight); one [ExerciseLog] row = one set.
 /// Template entries are grouped by [WorkoutSession.startTime] — a session is
 /// one atomic unit, so it contributes one completion to the day it started.
-/// Both kinds are summed across sessions on the same day. Matching is
-/// case-insensitive/trimmed against [TrackedExercise.exerciseName] —
-/// [ExerciseLog.exerciseName] for kind=exercise, [WorkoutSession.templateName]
-/// for kind=template.
+/// Both kinds are summed across sessions on the same day. Exercise matching
+/// is case-insensitive/trimmed against [ExerciseLog.exerciseName]. Template
+/// matching prefers [TrackedExercise.templateId] against
+/// [WorkoutSession.templateId] (stable across renames, so a renamed
+/// template's full history — including sessions logged under its old name —
+/// still matches); entries without a stored id (pre-dating that field) fall
+/// back to case-insensitive/trimmed name matching against
+/// [WorkoutSession.templateName].
 Map<DateTime, Map<String, int>> buildConsistencySetsByDay({
   required List<WorkoutSession> history,
   required List<TrackedExercise> trackedExercises,
@@ -1220,17 +1239,30 @@ Map<DateTime, Map<String, int>> buildConsistencySetsByDay({
       if (te.kind == TrackedItemKind.exercise)
         te.exerciseName.trim().toLowerCase(): te.exerciseName,
   };
-  final wantedTemplates = <String, String>{
+  final wantedTemplatesById = <String, String>{
     for (final te in trackedExercises)
-      if (te.kind == TrackedItemKind.template)
+      if (te.kind == TrackedItemKind.template &&
+          te.templateId != null &&
+          te.templateId!.isNotEmpty)
+        te.templateId!: te.exerciseName,
+  };
+  final wantedTemplatesByName = <String, String>{
+    for (final te in trackedExercises)
+      if (te.kind == TrackedItemKind.template &&
+          (te.templateId == null || te.templateId!.isEmpty))
         te.exerciseName.trim().toLowerCase(): te.exerciseName,
   };
   final result = <DateTime, Map<String, int>>{};
-  if (wantedExercises.isEmpty && wantedTemplates.isEmpty) return result;
+  if (wantedExercises.isEmpty &&
+      wantedTemplatesById.isEmpty &&
+      wantedTemplatesByName.isEmpty) {
+    return result;
+  }
   for (final session in history) {
-    if (wantedTemplates.isNotEmpty) {
+    if (wantedTemplatesById.isNotEmpty || wantedTemplatesByName.isNotEmpty) {
       final trackedTemplateName =
-          wantedTemplates[session.templateName.trim().toLowerCase()];
+          wantedTemplatesById[session.templateId] ??
+          wantedTemplatesByName[session.templateName.trim().toLowerCase()];
       if (trackedTemplateName != null) {
         final day = _dateOnly(session.startTime);
         final dayMap = result.putIfAbsent(day, () => <String, int>{});
@@ -11357,6 +11389,12 @@ class _ConsistencyCalendarPageState extends State<ConsistencyCalendarPage> {
         lists = [];
       }
     }
+    if (_backfillTemplateIds(lists)) {
+      await prefs.setString(
+        kConsistencyListsPrefsKey,
+        jsonEncode(lists.map((l) => l.toJson()).toList()),
+      );
+    }
     final storedSelectedId = prefs.getString(kConsistencySelectedListPrefsKey);
     if (!mounted) return;
     setState(() {
@@ -11366,6 +11404,44 @@ class _ConsistencyCalendarPageState extends State<ConsistencyCalendarPage> {
           : (lists.isNotEmpty ? lists.first.id : null);
       _loading = false;
     });
+  }
+
+  /// One-time migration for template-kind entries tracked before
+  /// [TrackedExercise.templateId] existed: backfills it by matching the
+  /// entry's current name against [widget.templates]. Needed so matching
+  /// (which now prefers the stable id — see [buildConsistencySetsByDay])
+  /// keeps working for lists set up before this field was added, including
+  /// across a subsequent rename. Mutates [lists] in place; returns whether
+  /// anything changed.
+  bool _backfillTemplateIds(List<ConsistencyExerciseList> lists) {
+    if (widget.templates.isEmpty) return false;
+    final idByName = <String, String>{
+      for (final t in widget.templates) t.name.trim().toLowerCase(): t.id,
+    };
+    var changed = false;
+    for (var i = 0; i < lists.length; i++) {
+      var listChanged = false;
+      final updated = <TrackedExercise>[];
+      for (final te in lists[i].exercises) {
+        final needsId =
+            te.kind == TrackedItemKind.template &&
+            (te.templateId == null || te.templateId!.isEmpty);
+        final foundId = needsId
+            ? idByName[te.exerciseName.trim().toLowerCase()]
+            : null;
+        if (foundId != null) {
+          updated.add(te.copyWith(templateId: foundId));
+          listChanged = true;
+        } else {
+          updated.add(te);
+        }
+      }
+      if (listChanged) {
+        lists[i] = lists[i].copyWith(exercises: updated);
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   Future<void> _saveLists() async {
@@ -12261,6 +12337,7 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
           exerciseName: trimmed,
           colorIndex: nextAvailableConsistencyColorIndex(_exercises),
           kind: TrackedItemKind.template,
+          templateId: template.id,
         ),
       );
     });
@@ -12355,11 +12432,17 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
     );
   }
 
-  /// The current [WorkoutTemplate] this tracked entry matches (by name, same
-  /// convention as everywhere else), or null if it's since been deleted from
-  /// My Workouts.
-  WorkoutTemplate? _matchingTemplate(String trackedName) {
-    final key = trackedName.trim().toLowerCase();
+  /// The current [WorkoutTemplate] this tracked entry matches — by
+  /// [TrackedExercise.templateId] when present, else by name (for entries
+  /// that predate that field) — or null if it's since been deleted from My
+  /// Workouts.
+  WorkoutTemplate? _matchingTemplate(TrackedExercise trackedItem) {
+    if (trackedItem.templateId != null && trackedItem.templateId!.isNotEmpty) {
+      for (final t in widget.templates) {
+        if (t.id == trackedItem.templateId) return t;
+      }
+    }
+    final key = trackedItem.exerciseName.trim().toLowerCase();
     for (final t in widget.templates) {
       if (t.name.trim().toLowerCase() == key) return t;
     }
@@ -12435,12 +12518,15 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
       );
       if (collides) return;
 
-      final matched = _matchingTemplate(current.exerciseName);
+      final matched = _matchingTemplate(current);
       if (matched != null) {
         widget.onUpdateTemplate?.call(matched.copyWith(name: trimmed));
       }
       setState(
-        () => _exercises[index] = current.copyWith(exerciseName: trimmed),
+        () => _exercises[index] = current.copyWith(
+          exerciseName: trimmed,
+          templateId: matched?.id ?? current.templateId,
+        ),
       );
       _commit();
     });
@@ -13173,18 +13259,22 @@ class _TemplateDetailEntry {
 }
 
 /// Every day (across all of [history], not just the visible range)
-/// [templateName] was completed, newest first. Matching is
-/// case-insensitive/trimmed against [WorkoutSession.templateName], same
-/// convention as [buildConsistencySetsByDay], bucketed by
+/// [trackedItem] was completed, newest first. Matching follows the same
+/// id-first-then-name convention as [buildConsistencySetsByDay], bucketed by
 /// [WorkoutSession.startTime] (a session is one atomic unit).
 List<_TemplateDetailEntry> _buildTemplateDetailHistory(
   List<WorkoutSession> history,
-  String templateName,
+  TrackedExercise trackedItem,
 ) {
-  final matchKey = templateName.trim().toLowerCase();
+  final hasId =
+      trackedItem.templateId != null && trackedItem.templateId!.isNotEmpty;
+  final matchKey = trackedItem.exerciseName.trim().toLowerCase();
   final byDay = <DateTime, List<WorkoutSession>>{};
   for (final session in history) {
-    if (session.templateName.trim().toLowerCase() != matchKey) continue;
+    final matches = hasId
+        ? session.templateId == trackedItem.templateId
+        : session.templateName.trim().toLowerCase() == matchKey;
+    if (!matches) continue;
     final day = _dateOnly(session.startTime);
     byDay.putIfAbsent(day, () => []).add(session);
   }
@@ -13263,10 +13353,7 @@ class _ExerciseDetailPageState extends State<_ExerciseDetailPage> {
             widget.exercise.exerciseName,
           );
     final templateEntries = isTemplateKind
-        ? _buildTemplateDetailHistory(
-            widget.history,
-            widget.exercise.exerciseName,
-          )
+        ? _buildTemplateDetailHistory(widget.history, widget.exercise)
         : const <_TemplateDetailEntry>[];
     final totalTimesDone = isTemplateKind
         ? templateEntries.length

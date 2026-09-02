@@ -928,10 +928,18 @@ const List<String> kExerciseIconKeys = [
 /// the next range.
 enum ConsistencyViewMode { week, fortnight, month }
 
-/// One exercise tracked inside a [ConsistencyExerciseList]. Identity is by
-/// [exerciseName] (trimmed, matched case-insensitively against
-/// [ExerciseLog.exerciseName]) — the app has no stable cross-history exercise
-/// id (see [Exercise.id]), so, like everywhere else, matching is by name.
+/// What a [TrackedExercise] entry represents on the Consistency Calendar.
+enum TrackedItemKind { exercise, template }
+
+/// One item tracked inside a [ConsistencyExerciseList]: either a single
+/// exercise or a whole workout template ([kind]). Identity is by
+/// [exerciseName] (trimmed, matched case-insensitively) — for
+/// [TrackedItemKind.exercise] against [ExerciseLog.exerciseName]; for
+/// [TrackedItemKind.template] against [WorkoutSession.templateName]. Neither
+/// exercises nor templates have a stable cross-history id (a template can be
+/// edited/recreated; see [Exercise.id]), so, like everywhere else, matching
+/// is by name. The field keeps the name `exerciseName` for both kinds to
+/// avoid touching every call site in this file — read it as "matched name".
 class TrackedExercise {
   final String id;
   final String exerciseName;
@@ -939,14 +947,21 @@ class TrackedExercise {
   /// Index into [kConsistencyColorPalette].
   final int colorIndex;
 
-  /// Sets of this exercise expected per day it's done. 0 = no target (any
-  /// set logged that day counts as fully done).
+  /// Whether this entry tracks a single exercise or a whole workout
+  /// template. Defaults to [TrackedItemKind.exercise] when absent from
+  /// persisted JSON (data saved before this field existed).
+  final TrackedItemKind kind;
+
+  /// Sets (kind=exercise) or completions (kind=template) expected per day
+  /// it's done. 0 = no target (any activity logged that day counts as fully
+  /// done).
   final int targetSetsPerDay;
 
   const TrackedExercise({
     required this.id,
     required this.exerciseName,
     required this.colorIndex,
+    this.kind = TrackedItemKind.exercise,
     this.targetSetsPerDay = 1,
   });
 
@@ -954,6 +969,7 @@ class TrackedExercise {
     'id': id,
     'exerciseName': exerciseName,
     'colorIndex': colorIndex,
+    'kind': kind.name,
     'targetSetsPerDay': targetSetsPerDay,
   };
 
@@ -965,6 +981,10 @@ class TrackedExercise {
           0,
           kConsistencyColorPalette.length - 1,
         ),
+        kind: TrackedItemKind.values.firstWhere(
+          (k) => k.name == json['kind'],
+          orElse: () => TrackedItemKind.exercise,
+        ),
         targetSetsPerDay: json['targetSetsPerDay'] as int? ?? 1,
       );
 
@@ -972,11 +992,13 @@ class TrackedExercise {
     String? id,
     String? exerciseName,
     int? colorIndex,
+    TrackedItemKind? kind,
     int? targetSetsPerDay,
   }) => TrackedExercise(
     id: id ?? this.id,
     exerciseName: exerciseName ?? this.exerciseName,
     colorIndex: colorIndex ?? this.colorIndex,
+    kind: kind ?? this.kind,
     targetSetsPerDay: targetSetsPerDay ?? this.targetSetsPerDay,
   );
 }
@@ -1179,28 +1201,51 @@ List<DateTime> computeConsistencyMonthGridDays(
 
 // ---- Aggregation + opacity/contrast ----
 
-/// Sets logged per calendar day per tracked exercise, across all of
-/// [history]. Grouped by each [ExerciseLog.timestamp] (not
-/// [WorkoutSession.startTime], since a session can span midnight) and summed
-/// across sessions on the same day. One [ExerciseLog] row = one set. Matching
-/// is case-insensitive/trimmed against [TrackedExercise.exerciseName].
+/// Sets (kind=exercise) or completed sessions (kind=template) logged per
+/// calendar day per tracked item, across all of [history]. Exercise entries
+/// are grouped by each [ExerciseLog.timestamp] (not [WorkoutSession.startTime],
+/// since a session can span midnight); one [ExerciseLog] row = one set.
+/// Template entries are grouped by [WorkoutSession.startTime] — a session is
+/// one atomic unit, so it contributes one completion to the day it started.
+/// Both kinds are summed across sessions on the same day. Matching is
+/// case-insensitive/trimmed against [TrackedExercise.exerciseName] —
+/// [ExerciseLog.exerciseName] for kind=exercise, [WorkoutSession.templateName]
+/// for kind=template.
 Map<DateTime, Map<String, int>> buildConsistencySetsByDay({
   required List<WorkoutSession> history,
   required List<TrackedExercise> trackedExercises,
 }) {
-  final wanted = <String, String>{
+  final wantedExercises = <String, String>{
     for (final te in trackedExercises)
-      te.exerciseName.trim().toLowerCase(): te.exerciseName,
+      if (te.kind == TrackedItemKind.exercise)
+        te.exerciseName.trim().toLowerCase(): te.exerciseName,
+  };
+  final wantedTemplates = <String, String>{
+    for (final te in trackedExercises)
+      if (te.kind == TrackedItemKind.template)
+        te.exerciseName.trim().toLowerCase(): te.exerciseName,
   };
   final result = <DateTime, Map<String, int>>{};
-  if (wanted.isEmpty) return result;
+  if (wantedExercises.isEmpty && wantedTemplates.isEmpty) return result;
   for (final session in history) {
-    for (final log in session.logs) {
-      final trackedName = wanted[log.exerciseName.trim().toLowerCase()];
-      if (trackedName == null) continue;
-      final day = _dateOnly(log.timestamp);
-      final dayMap = result.putIfAbsent(day, () => <String, int>{});
-      dayMap[trackedName] = (dayMap[trackedName] ?? 0) + 1;
+    if (wantedTemplates.isNotEmpty) {
+      final trackedTemplateName =
+          wantedTemplates[session.templateName.trim().toLowerCase()];
+      if (trackedTemplateName != null) {
+        final day = _dateOnly(session.startTime);
+        final dayMap = result.putIfAbsent(day, () => <String, int>{});
+        dayMap[trackedTemplateName] = (dayMap[trackedTemplateName] ?? 0) + 1;
+      }
+    }
+    if (wantedExercises.isNotEmpty) {
+      for (final log in session.logs) {
+        final trackedName =
+            wantedExercises[log.exerciseName.trim().toLowerCase()];
+        if (trackedName == null) continue;
+        final day = _dateOnly(log.timestamp);
+        final dayMap = result.putIfAbsent(day, () => <String, int>{});
+        dayMap[trackedName] = (dayMap[trackedName] ?? 0) + 1;
+      }
     }
   }
   return result;
@@ -1812,7 +1857,11 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         weightUnit: _weightUnit,
         onDeleteSession: _deleteSession,
       ),
-      StatisticsPage(history: history, weightUnit: _weightUnit),
+      StatisticsPage(
+        history: history,
+        weightUnit: _weightUnit,
+        templates: templates,
+      ),
       SettingsPage(
         weightUnit: _weightUnit,
         onWeightUnitChanged: () async {
@@ -9079,11 +9128,13 @@ class _StatItem extends StatelessWidget {
 class StatisticsPage extends StatelessWidget {
   final List<WorkoutSession> history;
   final String weightUnit;
+  final List<WorkoutTemplate> templates;
 
   const StatisticsPage({
     super.key,
     required this.history,
     this.weightUnit = 'kg',
+    this.templates = const [],
   });
 
   @override
@@ -9108,7 +9159,10 @@ class StatisticsPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _ConsistencyCalendarEntryCard(history: history),
+              _ConsistencyCalendarEntryCard(
+                history: history,
+                templates: templates,
+              ),
               const SizedBox(height: 24),
               if (history.isEmpty)
                 Padding(
@@ -9157,8 +9211,12 @@ class StatisticsPage extends StatelessWidget {
 /// be able to set up tracked-exercise lists before logging any workouts.
 class _ConsistencyCalendarEntryCard extends StatelessWidget {
   final List<WorkoutSession> history;
+  final List<WorkoutTemplate> templates;
 
-  const _ConsistencyCalendarEntryCard({required this.history});
+  const _ConsistencyCalendarEntryCard({
+    required this.history,
+    this.templates = const [],
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -9175,7 +9233,8 @@ class _ConsistencyCalendarEntryCard extends StatelessWidget {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => ConsistencyCalendarPage(history: history),
+            builder: (_) =>
+                ConsistencyCalendarPage(history: history, templates: templates),
           ),
         ),
         child: Padding(
@@ -11245,8 +11304,13 @@ class _ThemeOptionTile extends StatelessWidget {
 
 class ConsistencyCalendarPage extends StatefulWidget {
   final List<WorkoutSession> history;
+  final List<WorkoutTemplate> templates;
 
-  const ConsistencyCalendarPage({super.key, required this.history});
+  const ConsistencyCalendarPage({
+    super.key,
+    required this.history,
+    this.templates = const [],
+  });
 
   @override
   State<ConsistencyCalendarPage> createState() =>
@@ -11590,6 +11654,7 @@ class _ConsistencyCalendarPageState extends State<ConsistencyCalendarPage> {
                 builder: (ctx) => _ManageExercisesSheet(
                   list: list,
                   history: widget.history,
+                  templates: widget.templates,
                   onChanged: _updateSelectedList,
                 ),
               ),
@@ -12071,11 +12136,13 @@ class _ConsistencyDayCell extends StatelessWidget {
 class _ManageExercisesSheet extends StatefulWidget {
   final ConsistencyExerciseList list;
   final List<WorkoutSession> history;
+  final List<WorkoutTemplate> templates;
   final ValueChanged<ConsistencyExerciseList> onChanged;
 
   const _ManageExercisesSheet({
     required this.list,
     required this.history,
+    this.templates = const [],
     required this.onChanged,
   });
 
@@ -12086,6 +12153,7 @@ class _ManageExercisesSheet extends StatefulWidget {
 class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
   late List<TrackedExercise> _exercises;
   final TextEditingController _nameController = TextEditingController();
+  TrackedItemKind _addMode = TrackedItemKind.exercise;
 
   @override
   void initState() {
@@ -12153,6 +12221,38 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
     _commit();
   }
 
+  /// Workout templates not yet tracked in this list (matched by name,
+  /// same convention as [TrackedExercise.exerciseName] dedupe).
+  List<WorkoutTemplate> _availableTemplates() {
+    final already = _exercises
+        .map((e) => e.exerciseName.trim().toLowerCase())
+        .toSet();
+    return widget.templates
+        .where((t) => !already.contains(t.name.trim().toLowerCase()))
+        .toList();
+  }
+
+  void _addTemplate(WorkoutTemplate template) {
+    if (_exercises.length >= ConsistencyExerciseList.maxExercises) return;
+    final trimmed = template.name.trim();
+    if (trimmed.isEmpty) return;
+    final alreadyTracked = _exercises.any(
+      (e) => e.exerciseName.trim().toLowerCase() == trimmed.toLowerCase(),
+    );
+    if (alreadyTracked) return;
+    setState(() {
+      _exercises.add(
+        TrackedExercise(
+          id: 'te_${DateTime.now().millisecondsSinceEpoch}',
+          exerciseName: trimmed,
+          colorIndex: nextAvailableConsistencyColorIndex(_exercises),
+          kind: TrackedItemKind.template,
+        ),
+      );
+    });
+    _commit();
+  }
+
   void _removeExercise(int index) {
     setState(() => _exercises.removeAt(index));
     _commit();
@@ -12194,7 +12294,9 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
         backgroundColor: isDark ? const Color(0xFF1E2A3A) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          l10n.get('targetSetsPerDay'),
+          _exercises[index].kind == TrackedItemKind.template
+              ? l10n.get('targetTimesPerDay')
+              : l10n.get('targetSetsPerDay'),
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -12243,6 +12345,7 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.85,
@@ -12285,71 +12388,208 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
                   children: [
                     if (_exercises.length <
                         ConsistencyExerciseList.maxExercises) ...[
-                      TextField(
-                        controller: _nameController,
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
-                        decoration: InputDecoration(
-                          labelText: l10n.get('addToList'),
-                          hintText: l10n.get('exerciseNameHint'),
-                          border: const OutlineInputBorder(),
-                          suffixIcon: IconButton(
-                            icon: const Icon(Icons.add),
-                            onPressed: () => _addExercise(_nameController.text),
+                      SegmentedButton<TrackedItemKind>(
+                        style: ButtonStyle(
+                          minimumSize: WidgetStateProperty.all(
+                            const Size(0, 48),
                           ),
+                          backgroundColor: WidgetStateProperty.resolveWith((
+                            states,
+                          ) {
+                            if (states.contains(WidgetState.selected)) {
+                              return colorScheme.primary;
+                            }
+                            return isDark
+                                ? const Color(0xFF232F3E)
+                                : Colors.grey.shade200;
+                          }),
+                          foregroundColor: WidgetStateProperty.resolveWith((
+                            states,
+                          ) {
+                            if (states.contains(WidgetState.selected)) {
+                              return Colors.white;
+                            }
+                            return isDark ? Colors.white : Colors.black87;
+                          }),
                         ),
-                        textCapitalization: TextCapitalization.words,
-                        onChanged: (_) => setState(() {}),
-                        onSubmitted: _addExercise,
+                        showSelectedIcon: false,
+                        segments: [
+                          ButtonSegment(
+                            value: TrackedItemKind.exercise,
+                            label: Text(l10n.get('exercise')),
+                            icon: const Icon(Icons.fitness_center, size: 18),
+                          ),
+                          ButtonSegment(
+                            value: TrackedItemKind.template,
+                            label: Text(l10n.get('workoutTemplate')),
+                            icon: const Icon(Icons.list_alt, size: 18),
+                          ),
+                        ],
+                        selected: {_addMode},
+                        onSelectionChanged: (selection) =>
+                            setState(() => _addMode = selection.first),
                       ),
-                      Builder(
-                        builder: (context) {
-                          final suggestions = _suggestions(
-                            _nameController.text,
-                          );
-                          if (suggestions.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const SizedBox(height: 8),
-                              ...suggestions.map(
-                                (name) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 6),
-                                  child: Material(
-                                    color: isDark
-                                        ? const Color(0xFF232F3E)
-                                        : Colors.grey.shade100,
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: InkWell(
-                                      onTap: () => _addExercise(name),
+                      const SizedBox(height: 12),
+                      if (_addMode == TrackedItemKind.exercise) ...[
+                        TextField(
+                          controller: _nameController,
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: l10n.get('addToList'),
+                            hintText: l10n.get('exerciseNameHint'),
+                            border: const OutlineInputBorder(),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.add),
+                              onPressed: () =>
+                                  _addExercise(_nameController.text),
+                            ),
+                          ),
+                          textCapitalization: TextCapitalization.words,
+                          onChanged: (_) => setState(() {}),
+                          onSubmitted: _addExercise,
+                        ),
+                        Builder(
+                          builder: (context) {
+                            final suggestions = _suggestions(
+                              _nameController.text,
+                            );
+                            if (suggestions.isEmpty) {
+                              return const SizedBox.shrink();
+                            }
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const SizedBox(height: 8),
+                                ...suggestions.map(
+                                  (name) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: Material(
+                                      color: isDark
+                                          ? const Color(0xFF232F3E)
+                                          : Colors.grey.shade100,
                                       borderRadius: BorderRadius.circular(12),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 14,
-                                        ),
-                                        child: Text(
-                                          l10n.localizeExerciseName(name),
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            color: isDark
-                                                ? Colors.white
-                                                : Colors.black87,
+                                      child: InkWell(
+                                        onTap: () => _addExercise(name),
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 14,
+                                          ),
+                                          child: Text(
+                                            l10n.localizeExerciseName(name),
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              color: isDark
+                                                  ? Colors.white
+                                                  : Colors.black87,
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
+                              ],
+                            );
+                          },
+                        ),
+                      ] else ...[
+                        Text(
+                          l10n.get('chooseTemplateToTrack'),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Builder(
+                          builder: (context) {
+                            if (widget.templates.isEmpty) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                child: Text(
+                                  l10n.get('noTemplatesToTrackHint'),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              );
+                            }
+                            final available = _availableTemplates();
+                            if (available.isEmpty) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                child: Text(
+                                  l10n.get('allTemplatesTracked'),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              );
+                            }
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                for (final template in available)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: Material(
+                                      color: isDark
+                                          ? const Color(0xFF232F3E)
+                                          : Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: InkWell(
+                                        onTap: () => _addTemplate(template),
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 14,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.list_alt,
+                                                size: 20,
+                                                color: colorScheme.primary,
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Text(
+                                                  l10n.localizeWorkoutTemplateName(
+                                                    template.name,
+                                                  ),
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    color: isDark
+                                                        ? Colors.white
+                                                        : Colors.black87,
+                                                  ),
+                                                ),
+                                              ),
+                                              const Icon(Icons.add, size: 20),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
                     ] else
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -12417,11 +12657,25 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
                                       ),
                                     ),
                                     const SizedBox(width: 12),
+                                    Icon(
+                                      te.kind == TrackedItemKind.template
+                                          ? Icons.list_alt
+                                          : Icons.fitness_center,
+                                      size: 16,
+                                      color: isDark
+                                          ? Colors.grey.shade400
+                                          : Colors.grey.shade600,
+                                    ),
+                                    const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        l10n.localizeExerciseName(
-                                          te.exerciseName,
-                                        ),
+                                        te.kind == TrackedItemKind.template
+                                            ? l10n.localizeWorkoutTemplateName(
+                                                te.exerciseName,
+                                              )
+                                            : l10n.localizeExerciseName(
+                                                te.exerciseName,
+                                              ),
                                         style: TextStyle(
                                           fontSize: 17,
                                           fontWeight: FontWeight.w600,
@@ -12721,7 +12975,9 @@ class _LegendRow extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                l10n.localizeExerciseName(exercise.exerciseName),
+                exercise.kind == TrackedItemKind.template
+                    ? l10n.localizeWorkoutTemplateName(exercise.exerciseName)
+                    : l10n.localizeExerciseName(exercise.exerciseName),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -12775,6 +13031,47 @@ List<_ExerciseDetailEntry> _buildExerciseDetailHistory(
   final entries =
       byDay.entries
           .map((e) => _ExerciseDetailEntry(day: e.key, logs: e.value))
+          .toList()
+        ..sort((a, b) => b.day.compareTo(a.day));
+  return entries;
+}
+
+/// One calendar day's completed sessions for a single tracked workout
+/// template, across every session on that day.
+class _TemplateDetailEntry {
+  final DateTime day;
+  final List<WorkoutSession> sessions;
+
+  const _TemplateDetailEntry({required this.day, required this.sessions});
+
+  int get timesDone => sessions.length;
+
+  int get totalDurationSeconds =>
+      sessions.fold(0, (sum, s) => sum + s.durationSeconds);
+
+  DateTime get earliestTimestamp =>
+      sessions.map((s) => s.startTime).reduce((a, b) => a.isBefore(b) ? a : b);
+}
+
+/// Every day (across all of [history], not just the visible range)
+/// [templateName] was completed, newest first. Matching is
+/// case-insensitive/trimmed against [WorkoutSession.templateName], same
+/// convention as [buildConsistencySetsByDay], bucketed by
+/// [WorkoutSession.startTime] (a session is one atomic unit).
+List<_TemplateDetailEntry> _buildTemplateDetailHistory(
+  List<WorkoutSession> history,
+  String templateName,
+) {
+  final matchKey = templateName.trim().toLowerCase();
+  final byDay = <DateTime, List<WorkoutSession>>{};
+  for (final session in history) {
+    if (session.templateName.trim().toLowerCase() != matchKey) continue;
+    final day = _dateOnly(session.startTime);
+    byDay.putIfAbsent(day, () => []).add(session);
+  }
+  final entries =
+      byDay.entries
+          .map((e) => _TemplateDetailEntry(day: e.key, sessions: e.value))
           .toList()
         ..sort((a, b) => b.day.compareTo(a.day));
   return entries;
@@ -12839,19 +13136,55 @@ class _ExerciseDetailPageState extends State<_ExerciseDetailPage> {
     );
     final cellHeight = _viewMode == ConsistencyViewMode.month ? 56.0 : 80.0;
 
-    final entries = _buildExerciseDetailHistory(
-      widget.history,
-      widget.exercise.exerciseName,
+    final isTemplateKind = widget.exercise.kind == TrackedItemKind.template;
+    final exerciseEntries = isTemplateKind
+        ? const <_ExerciseDetailEntry>[]
+        : _buildExerciseDetailHistory(
+            widget.history,
+            widget.exercise.exerciseName,
+          );
+    final templateEntries = isTemplateKind
+        ? _buildTemplateDetailHistory(
+            widget.history,
+            widget.exercise.exerciseName,
+          )
+        : const <_TemplateDetailEntry>[];
+    final totalTimesDone = isTemplateKind
+        ? templateEntries.length
+        : exerciseEntries.length;
+    final totalSets = exerciseEntries.fold<int>(
+      0,
+      (sum, e) => sum + e.setsDone,
     );
-    final totalTimesDone = entries.length;
-    final totalSets = entries.fold<int>(0, (sum, e) => sum + e.setsDone);
-    final allLogs = entries.expand((e) => e.logs).toList();
+    final allLogs = exerciseEntries.expand((e) => e.logs).toList();
     final totalReps = allLogs
         .where((l) => !l.isDurationSet)
         .fold<int>(0, (sum, l) => sum + l.reps);
-    final totalDurationSeconds = allLogs
-        .where((l) => l.isDurationSet)
-        .fold<int>(0, (sum, l) => sum + (l.durationSeconds ?? 0));
+    final totalDurationSeconds = isTemplateKind
+        ? templateEntries.fold<int>(0, (sum, e) => sum + e.totalDurationSeconds)
+        : allLogs
+              .where((l) => l.isDurationSet)
+              .fold<int>(0, (sum, l) => sum + (l.durationSeconds ?? 0));
+
+    final displayEntries = isTemplateKind
+        ? templateEntries
+              .map(
+                (e) => (
+                  day: e.day,
+                  time: e.earliestTimestamp,
+                  summary: _formatTemplateDetailEntrySummary(e),
+                ),
+              )
+              .toList()
+        : exerciseEntries
+              .map(
+                (e) => (
+                  day: e.day,
+                  time: e.earliestTimestamp,
+                  summary: _formatDetailEntrySummary(e, l10n),
+                ),
+              )
+              .toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -12866,7 +13199,11 @@ class _ExerciseDetailPageState extends State<_ExerciseDetailPage> {
             const SizedBox(width: 10),
             Flexible(
               child: Text(
-                l10n.localizeExerciseName(widget.exercise.exerciseName),
+                isTemplateKind
+                    ? l10n.localizeWorkoutTemplateName(
+                        widget.exercise.exerciseName,
+                      )
+                    : l10n.localizeExerciseName(widget.exercise.exerciseName),
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -12882,39 +13219,61 @@ class _ExerciseDetailPageState extends State<_ExerciseDetailPage> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _DetailStatTile(
-                    label: l10n.get('timesDone'),
-                    value: '$totalTimesDone',
-                    color: color,
+            if (isTemplateKind) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: _DetailStatTile(
+                      label: l10n.get('timesDone'),
+                      value: '$totalTimesDone',
+                      color: color,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _DetailStatTile(
-                    label: l10n.get('totalSets'),
-                    value: '$totalSets',
-                    color: color,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _DetailStatTile(
+                      label: l10n.get('totalDuration'),
+                      value: formatDurationMmSs(totalDurationSeconds),
+                      color: color,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            if (totalDurationSeconds > 0) ...[
-              const SizedBox(height: 12),
-              _DetailStatTile(
-                label: l10n.get('totalDuration'),
-                value: formatDurationMmSs(totalDurationSeconds),
-                color: color,
+                ],
               ),
             ] else ...[
-              const SizedBox(height: 12),
-              _DetailStatTile(
-                label: l10n.get('totalReps'),
-                value: '$totalReps',
-                color: color,
+              Row(
+                children: [
+                  Expanded(
+                    child: _DetailStatTile(
+                      label: l10n.get('timesDone'),
+                      value: '$totalTimesDone',
+                      color: color,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _DetailStatTile(
+                      label: l10n.get('totalSets'),
+                      value: '$totalSets',
+                      color: color,
+                    ),
+                  ),
+                ],
               ),
+              if (totalDurationSeconds > 0) ...[
+                const SizedBox(height: 12),
+                _DetailStatTile(
+                  label: l10n.get('totalDuration'),
+                  value: formatDurationMmSs(totalDurationSeconds),
+                  color: color,
+                ),
+              ] else ...[
+                const SizedBox(height: 12),
+                _DetailStatTile(
+                  label: l10n.get('totalReps'),
+                  value: '$totalReps',
+                  color: color,
+                ),
+              ],
             ],
             const SizedBox(height: 20),
             _ConsistencyViewModeToggle(
@@ -13024,17 +13383,21 @@ class _ExerciseDetailPageState extends State<_ExerciseDetailPage> {
               ),
             ),
             const SizedBox(height: 8),
-            if (entries.isEmpty)
+            if (displayEntries.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Text(
-                  l10n.get('noHistoryForExercise'),
+                  l10n.get(
+                    isTemplateKind
+                        ? 'noHistoryForTemplate'
+                        : 'noHistoryForExercise',
+                  ),
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
                 ),
               )
             else
-              for (final entry in entries)
+              for (final entry in displayEntries)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Material(
@@ -13066,9 +13429,7 @@ class _ExerciseDetailPageState extends State<_ExerciseDetailPage> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  DateFormat.jm().format(
-                                    entry.earliestTimestamp,
-                                  ),
+                                  DateFormat.jm().format(entry.time),
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: isDark
@@ -13080,7 +13441,7 @@ class _ExerciseDetailPageState extends State<_ExerciseDetailPage> {
                             ),
                           ),
                           Text(
-                            _formatDetailEntrySummary(entry, l10n),
+                            entry.summary,
                             style: TextStyle(
                               fontSize: 14,
                               color: isDark
@@ -13113,6 +13474,14 @@ class _ExerciseDetailPageState extends State<_ExerciseDetailPage> {
     }
     final reps = sorted.map((l) => '${l.reps}').join(', ');
     return '$reps ${l10n.reps}';
+  }
+
+  /// Comma-joined session durations for a template detail entry, mirroring
+  /// [_formatDetailEntrySummary]'s duration-set formatting.
+  String _formatTemplateDetailEntrySummary(_TemplateDetailEntry entry) {
+    final sorted = List<WorkoutSession>.from(entry.sessions)
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+    return sorted.map((s) => formatDurationMmSs(s.durationSeconds)).join(', ');
   }
 }
 

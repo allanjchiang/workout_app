@@ -465,7 +465,7 @@ class AppLocalizations {
     'saveButtonDisabled': 'Save button disabled, add reps first',
 
     // Exercise management
-    'manageExercises': 'Manage Exercises',
+    'manageExercises': 'Manage Exercises & Workouts',
     'customExercise': 'Custom',
     'defaultExercise': 'Default',
     'confirmDeleteExercise': 'Delete this exercise?',
@@ -579,11 +579,19 @@ class AppLocalizations {
     'listName': 'List Name',
     'listNameHint': 'e.g., List A',
     'addToList': 'Add Exercise',
-    'maxExercisesReached': 'You can track up to 14 exercises per list',
+    'maxExercisesReached': 'You can track up to 14 items per list',
     'noExercisesInList':
-        'Add exercises to this list to see them on the calendar',
+        'Add exercises or workout templates to this list to see them on the calendar',
     'chooseColor': 'Choose Color',
     'targetSetsPerDay': 'Target sets per day',
+    'targetTimesPerDay': 'Target times per day',
+    'workoutTemplate': 'Workout Template',
+    'chooseTemplateToTrack': 'Choose a workout template to track',
+    'noTemplatesToTrackHint':
+        'You don\'t have any workout templates yet. Create one in My Workouts to track it here.',
+    'allTemplatesTracked':
+        'All your workout templates are already being tracked in this list.',
+    'noHistoryForTemplate': 'No history yet for this workout',
     'day': 'day',
     'viewWeek': 'Week',
     'viewFortnight': 'Fortnight',
@@ -624,7 +632,8 @@ class AppLocalizations {
     'donationTierMedium': 'Medium Tip',
     'donationTierLarge': 'Large Tip',
     'donationThankYou': 'Thank you for your support!',
-    'donationFailed': 'Something went wrong with the purchase. Please try again.',
+    'donationFailed':
+        'Something went wrong with the purchase. Please try again.',
     'donationUnavailable':
         'In-app purchases aren\'t available on this device right now.',
     'donationNoProducts':
@@ -843,7 +852,7 @@ class AppLocalizations {
     'saveButtonDisabled': '儲存按鈕已停用，請先新增次數',
 
     // Exercise management
-    'manageExercises': '管理動作',
+    'manageExercises': '管理動作與運動範本',
     'customExercise': '自訂',
     'defaultExercise': '預設',
     'confirmDeleteExercise': '確定刪除這個動作？',
@@ -953,10 +962,16 @@ class AppLocalizations {
     'listName': '清單名稱',
     'listNameHint': '例如：清單 A',
     'addToList': '新增動作',
-    'maxExercisesReached': '每個清單最多可追蹤 14 個動作',
-    'noExercisesInList': '將動作加入這個清單即可顯示在日曆上',
+    'maxExercisesReached': '每個清單最多可追蹤 14 個項目',
+    'noExercisesInList': '將動作或運動範本加入這個清單即可顯示在日曆上',
     'chooseColor': '選擇顏色',
     'targetSetsPerDay': '每日目標組數',
+    'targetTimesPerDay': '每日目標次數',
+    'workoutTemplate': '運動範本',
+    'chooseTemplateToTrack': '選擇要追蹤的運動範本',
+    'noTemplatesToTrackHint': '您還沒有任何運動範本。請先在「我的運動」建立一個範本，才能在這裡追蹤。',
+    'allTemplatesTracked': '您的所有運動範本都已經加入這個清單追蹤了。',
+    'noHistoryForTemplate': '這個運動還沒有紀錄',
     'day': '天',
     'viewWeek': '週',
     'viewFortnight': '兩週',
@@ -976,12 +991,10 @@ class AppLocalizations {
     'devNotesSupportTooltip': '支持開發者',
     'devNoteFeatureTimestamps': '記錄每組動作的確切時間',
     'devNoteFeatureStats': '新增統計數據與多項易用性改進',
-    'devNoteFeatureCalendarSearchTop':
-        '「持續日曆」新增動作的搜尋欄位現在會固定顯示在頂部',
+    'devNoteFeatureCalendarSearchTop': '「持續日曆」新增動作的搜尋欄位現在會固定顯示在頂部',
     'devNoteFeatureDonate': '新增可選擇的小額贊助方式，支持開發者——就在這個畫面上',
     'devNoteFixWeekStartOverflow': '修正「一週的開始」選擇畫面在螢幕底部溢出的問題',
-    'devNoteFixScrollJump':
-        '修正在沒有設定休息計時器的動作中記錄一組後，畫面會跳到底部的問題',
+    'devNoteFixScrollJump': '修正在沒有設定休息計時器的動作中記錄一組後，畫面會跳到底部的問題',
     'devNoteFixBeepsPauseMusic': '運動提示音不會再暫停您的音樂、Podcast 或有聲書',
 
     // Donations (optional tip, no rewards)

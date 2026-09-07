@@ -13,17 +13,21 @@ import 'l10n/app_localizations.dart';
 /// version nobody has updated into yet, never shows a popup.
 const List<DevNoteRelease> kDevNoteReleases = [
   DevNoteRelease(
-    version: '1.16.2',
+    version: '1.15.3',
     featureKeys: [
       'devNoteFeatureTimestamps',
       'devNoteFeatureStats',
       'devNoteFeatureCalendarSearchTop',
+      'devNoteFeatureTemplateTracking',
+      'devNoteFeatureRenameTrackedTemplate',
       'devNoteFeatureDonate',
     ],
     fixKeys: [
       'devNoteFixWeekStartOverflow',
       'devNoteFixScrollJump',
       'devNoteFixBeepsPauseMusic',
+      'devNoteFixTemplateRenameHistory',
+      'devNoteFixSingularSetRemaining',
     ],
   ),
 ];
@@ -81,13 +85,11 @@ Future<void> maybeShowDevNotesDialog(BuildContext context) async {
     return;
   }
 
-  final releases =
-      kDevNoteReleases.where((r) {
-        if (!r.hasNotes) return false;
-        return compareAppVersions(r.version, lastSeen) > 0 &&
-            compareAppVersions(r.version, currentVersion) <= 0;
-      }).toList()
-        ..sort((a, b) => compareAppVersions(a.version, b.version));
+  final releases = kDevNoteReleases.where((r) {
+    if (!r.hasNotes) return false;
+    return compareAppVersions(r.version, lastSeen) > 0 &&
+        compareAppVersions(r.version, currentVersion) <= 0;
+  }).toList()..sort((a, b) => compareAppVersions(a.version, b.version));
 
   await prefs.setString(_lastSeenVersionPrefsKey, currentVersion);
 

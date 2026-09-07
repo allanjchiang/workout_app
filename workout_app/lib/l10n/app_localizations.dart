@@ -617,6 +617,10 @@ class AppLocalizations {
         'New stats and quality-of-life improvements throughout the app',
     'devNoteFeatureCalendarSearchTop':
         'The add-exercise search box in the Consistency Calendar now stays pinned to the top',
+    'devNoteFeatureTemplateTracking':
+        'Track whole workout templates in the Consistency Calendar, not just individual exercises',
+    'devNoteFeatureRenameTrackedTemplate':
+        'Rename a tracked workout template right from the Consistency Calendar — it updates everywhere, including My Workouts',
     'devNoteFeatureDonate':
         'A new optional way to support the developer with a small tip — right here on this screen',
     'devNoteFixWeekStartOverflow':
@@ -625,6 +629,10 @@ class AppLocalizations {
         'Fixed the screen jumping to the bottom right after logging a set when an exercise has no rest timer',
     'devNoteFixBeepsPauseMusic':
         'Workout beeps no longer pause your music, podcasts, or audiobooks',
+    'devNoteFixTemplateRenameHistory':
+        'Fixed renaming a workout template disconnecting it from its past history in the Consistency Calendar',
+    'devNoteFixSingularSetRemaining':
+        'Fixed the rest timer showing "1 sets remaining" instead of "1 set remaining"',
 
     // Donations (optional tip, no rewards)
     'supportDeveloper': 'Support the Developer',
@@ -996,10 +1004,16 @@ class AppLocalizations {
     'devNoteFeatureTimestamps': '記錄每組動作的確切時間',
     'devNoteFeatureStats': '新增統計數據與多項易用性改進',
     'devNoteFeatureCalendarSearchTop': '「持續日曆」新增動作的搜尋欄位現在會固定顯示在頂部',
+    'devNoteFeatureTemplateTracking': '「持續日曆」現在可以追蹤整個運動範本，不只是個別動作',
+    'devNoteFeatureRenameTrackedTemplate':
+        '可直接在「持續日曆」重新命名已追蹤的運動範本——「我的運動」等所有地方都會同步更新',
     'devNoteFeatureDonate': '新增可選擇的小額贊助方式，支持開發者——就在這個畫面上',
     'devNoteFixWeekStartOverflow': '修正「一週的開始」選擇畫面在螢幕底部溢出的問題',
     'devNoteFixScrollJump': '修正在沒有設定休息計時器的動作中記錄一組後，畫面會跳到底部的問題',
     'devNoteFixBeepsPauseMusic': '運動提示音不會再暫停您的音樂、Podcast 或有聲書',
+    'devNoteFixTemplateRenameHistory': '修正重新命名運動範本後，「持續日曆」會遺失該範本過往紀錄的問題',
+    'devNoteFixSingularSetRemaining':
+        '修正英文介面在只剩 1 組時顯示「1 sets remaining」的文法錯誤，現在會正確顯示「1 set remaining」',
 
     // Donations (optional tip, no rewards)
     'supportDeveloper': '支持開發者',

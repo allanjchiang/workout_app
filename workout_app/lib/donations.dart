@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 
 import 'l10n/app_localizations.dart';
 
@@ -112,6 +114,13 @@ class _DonationSheetState extends State<_DonationSheet> {
           break;
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
+          if (Platform.isAndroid) {
+            // Google Play won't allow repurchasing a consumable until it's
+            // explicitly consumed; completePurchase() alone only acknowledges it.
+            await _iap
+                .getPlatformAddition<InAppPurchaseAndroidPlatformAddition>()
+                .consumePurchase(purchase);
+          }
           if (mounted) {
             setState(() => _purchasingId = null);
             _showMessage(

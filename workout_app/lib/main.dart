@@ -15,6 +15,7 @@ import 'package:vibration/vibration.dart';
 import 'package:intl/intl.dart';
 import 'l10n/app_localizations.dart';
 import 'dev_notes.dart';
+import 'donations.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -10694,6 +10695,41 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 trailing: const Icon(Icons.chevron_right, size: 32),
                 onTap: () => _showAboutDialog(context, l10n),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A2634) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: isDark
+                    ? null
+                    : [
+                        BoxShadow(
+                          color: Colors.grey.shade200,
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                minVerticalPadding: 20,
+                leading: Icon(
+                  Icons.favorite_outline,
+                  size: 32,
+                  color: colorScheme.primary,
+                ),
+                title: Text(
+                  l10n.get('supportDeveloper'),
+                  style: const TextStyle(fontSize: 20),
+                ),
+                subtitle: Text(l10n.get('supportDeveloperSubtitle')),
+                trailing: const Icon(Icons.chevron_right, size: 32),
+                onTap: () => showDonationSheet(context),
               ),
             ),
             const SizedBox(height: 24),

@@ -65,7 +65,8 @@ class _DonationSheetState extends State<_DonationSheet> {
     _subscription = _iap.purchaseStream.listen(
       _onPurchaseUpdate,
       onDone: () => _subscription?.cancel(),
-      onError: (_) {},
+      onError: (error) =>
+          debugPrint('Donation purchase stream error: $error'),
     );
     unawaited(_init());
   }
@@ -117,9 +118,19 @@ class _DonationSheetState extends State<_DonationSheet> {
           if (Platform.isAndroid) {
             // Google Play won't allow repurchasing a consumable until it's
             // explicitly consumed; completePurchase() alone only acknowledges it.
-            await _iap
-                .getPlatformAddition<InAppPurchaseAndroidPlatformAddition>()
-                .consumePurchase(purchase);
+            try {
+              await _iap
+                  .getPlatformAddition<InAppPurchaseAndroidPlatformAddition>()
+                  .consumePurchase(purchase);
+            } catch (e) {
+              // The purchase still succeeded, so we still thank the user
+              // below; but log this so a repeat-purchase failure can be
+              // traced back to a failed consume rather than looking silent.
+              debugPrint(
+                'Failed to consume donation purchase '
+                '${purchase.productID}: $e',
+              );
+            }
           }
           if (mounted) {
             setState(() => _purchasingId = null);

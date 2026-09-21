@@ -54,7 +54,13 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Install alongside the release app instead of replacing it
+            applicationIdSuffix = ".debug"
+            resValue("string", "app_name", "BWT Debug")
+        }
         release {
+            resValue("string", "app_name", "Big Workout Tracker")
             // Use release signing config for production builds
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")

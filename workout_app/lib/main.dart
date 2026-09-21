@@ -3967,6 +3967,20 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     unawaited(_persistWorkoutDraft());
   }
 
+  /// Next set row (1-based) not yet logged for [ex], or null if none/no rows.
+  int? _nextUnloggedSetNumber(TemplateExercise ex) {
+    final id = ex.exercise.id;
+    final reps = _pendingSetReps[id];
+    if (reps == null) return null;
+    final logged = {
+      for (final l in logs.where((l) => l.exerciseId == id)) l.setNumber,
+    };
+    for (var n = 1; n <= reps.length; n++) {
+      if (!logged.contains(n)) return reps[n - 1] > 0 ? n : null;
+    }
+    return null;
+  }
+
   /// Past workout sessions that contain logs for this exercise (newest first). Matches by exercise name so history is shared across templates.
   List<MapEntry<WorkoutSession, List<ExerciseLog>>> _getPastSessionsForExercise(
     String exerciseName,
@@ -6746,6 +6760,51 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     return '$minutes:${secs.toString().padLeft(2, '0')}';
   }
 
+  /// Exercise name as the screen heading. For TalkBack it also reports set
+  /// progress and offers a "Log next set" shortcut in the actions menu.
+  Widget _buildAppBarTitle(AppLocalizations l10n) {
+    final hasExercise =
+        _orderedExercises.isNotEmpty &&
+        currentExerciseIndex >= 0 &&
+        currentExerciseIndex < _orderedExercises.length;
+    final title = hasExercise
+        ? l10n.localizeExerciseName(
+            _orderedExercises[currentExerciseIndex].exercise.name,
+          )
+        : l10n.localizeWorkoutTemplateName(widget.template.name);
+    final text = Text(
+      title,
+      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+    if (!hasExercise) return text;
+
+    final current = _orderedExercises[currentExerciseIndex];
+    final id = current.exercise.id;
+    final total = _pendingSetReps[id]?.length;
+    final done = logs.where((l) => l.exerciseId == id).length;
+    final nextSet = _nextUnloggedSetNumber(current);
+    final progress = total == null
+        ? null
+        : l10n
+              .get('setsLoggedProgress')
+              .replaceAll('{done}', '$done')
+              .replaceAll('{total}', '$total');
+    return Semantics(
+      header: true,
+      excludeSemantics: true,
+      label: progress == null ? title : '$title, $progress',
+      customSemanticsActions: nextSet == null
+          ? null
+          : {
+              CustomSemanticsAction(label: l10n.get('logNextSet')): () =>
+                  _completeSetRow(current, nextSet),
+            },
+      child: text,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -6762,18 +6821,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(
-            (_orderedExercises.isNotEmpty &&
-                    currentExerciseIndex >= 0 &&
-                    currentExerciseIndex < _orderedExercises.length)
-                ? l10n.localizeExerciseName(
-                    _orderedExercises[currentExerciseIndex].exercise.name,
-                  )
-                : l10n.localizeWorkoutTemplateName(widget.template.name),
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+          title: _buildAppBarTitle(l10n),
           leading: IconButton(
             onPressed: _confirmExit,
             icon: const Icon(Icons.close, size: 28),

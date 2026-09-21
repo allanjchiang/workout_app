@@ -319,6 +319,8 @@ class AppLocalizations {
 
     // Active workout
     'endWorkoutButton': 'End workout',
+    'setsLoggedProgress': '{done} of {total} sets logged',
+    'logNextSet': 'Log next set',
     'decreaseWeight': 'Decrease weight',
     'increaseWeight': 'Increase weight',
     'changeColor': 'Change color',
@@ -740,6 +742,8 @@ class AppLocalizations {
 
     // Active workout
     'endWorkoutButton': '結束運動',
+    'setsLoggedProgress': '已記錄 {done} / {total} 組',
+    'logNextSet': '記錄下一組',
     'decreaseWeight': '減少重量',
     'increaseWeight': '增加重量',
     'changeColor': '更改顏色',

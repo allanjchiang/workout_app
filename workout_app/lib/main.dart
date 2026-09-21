@@ -8892,6 +8892,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
           ),
           child: Text(
             '$setNumber',
+            semanticsLabel: '${l10n.get('set')} $setNumber',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.bold,

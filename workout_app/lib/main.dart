@@ -4,7 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart'
-    show CustomSemanticsAction, OrdinalSortKey;
+    show CustomSemanticsAction, OrdinalSortKey, SemanticsService;
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -3965,6 +3965,47 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     });
     _startRestTimer();
     unawaited(_persistWorkoutDraft());
+    final l10n = AppLocalizations.of(context)!;
+    _announce(
+      [
+        l10n.get('setLoggedAnnounce').replaceAll('{n}', '$setNumber'),
+        if (isResting)
+          l10n.get('restingSecondsLeft').replaceAll('{s}', '$restSeconds'),
+      ].join('. '),
+    );
+  }
+
+  /// Speaks [message] through the screen reader (no-op if it is off).
+  void _announce(String message) {
+    if (!mounted) return;
+    unawaited(
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        message,
+        Directionality.of(context),
+      ),
+    );
+  }
+
+  /// Spoken summary for the workout heading: progress, what is next, and rest.
+  void _announceStatus(AppLocalizations l10n, TemplateExercise current) {
+    final id = current.exercise.id;
+    final total = _pendingSetReps[id]?.length;
+    final done = logs.where((l) => l.exerciseId == id).length;
+    final parts = <String>[
+      if (total != null)
+        l10n
+            .get('setsLoggedProgress')
+            .replaceAll('{done}', '$done')
+            .replaceAll('{total}', '$total'),
+      if (isResting)
+        l10n.get('restingSecondsLeft').replaceAll('{s}', '$restSeconds')
+      else if (_nextUnloggedSetNumber(current) case final n?)
+        l10n.get('nextSetNumber').replaceAll('{n}', '$n')
+      else if (total != null && done >= total)
+        l10n.get('allSetsLogged'),
+    ];
+    if (parts.isNotEmpty) _announce(parts.join('. '));
   }
 
   /// Next set row (1-based) not yet logged for [ex], or null if none/no rows.
@@ -6795,6 +6836,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       header: true,
       excludeSemantics: true,
       label: progress == null ? title : '$title, $progress',
+      onTap: () => _announceStatus(l10n, current),
       customSemanticsActions: nextSet == null
           ? null
           : {
@@ -8912,7 +8954,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     return Semantics(
       explicitChildNodes: true,
       label:
-          '${l10n.get('set')} $setNumber, ${_formatWeightDisplay(displayWeight)} ${_weightUnit == 'lbs' ? l10n.get('weightShortLbs') : l10n.get('weightShort')}, $displayReps ${l10n.reps}'
+          '${l10n.get('set')} $setNumber, ${_formatWeightDisplay(displayWeight)} ${_weightUnit == 'lbs' ? l10n.get('pounds') : l10n.get('kilograms')}, $displayReps ${l10n.reps}'
           '${isCompleted ? ', ${l10n.get('completedSets')}' : ''}',
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -10414,11 +10456,19 @@ class _WeightUnitSegmentedToggle extends StatelessWidget {
         segments: [
           ButtonSegment(
             value: 'kg',
-            label: Text(kgLabel, style: labelStyle),
+            label: Text(
+              kgLabel,
+              style: labelStyle,
+              semanticsLabel: AppLocalizations.of(context)!.get('kilograms'),
+            ),
           ),
           ButtonSegment(
             value: 'lbs',
-            label: Text(lbsLabel, style: labelStyle),
+            label: Text(
+              lbsLabel,
+              style: labelStyle,
+              semanticsLabel: AppLocalizations.of(context)!.get('pounds'),
+            ),
           ),
         ],
         selected: {selectedUnit},
@@ -11568,6 +11618,9 @@ class _WeightUnitOption extends StatelessWidget {
                   children: [
                     Text(
                       unit,
+                      semanticsLabel: AppLocalizations.of(
+                        context,
+                      )!.get(unit == 'lbs' ? 'pounds' : 'kilograms'),
                       style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.bold,
@@ -11578,13 +11631,15 @@ class _WeightUnitOption extends StatelessWidget {
                       overflow: TextOverflow.visible,
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: isDark
-                            ? Colors.grey.shade400
-                            : Colors.grey.shade600,
+                    ExcludeSemantics(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade600,
+                        ),
                       ),
                     ),
                   ],

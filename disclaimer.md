@@ -72,7 +72,7 @@ We reserve the right to modify this disclaimer at any time. Changes will be indi
 
 If you have any questions about this disclaimer, please contact us at:
 
-**Email:** allanchiangviolin@gmail.com
+**Email:** allan@logicphile.com
 
 ---
 

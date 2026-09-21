@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart' show OrdinalSortKey;
+import 'package:flutter/semantics.dart'
+    show CustomSemanticsAction, OrdinalSortKey;
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -2367,10 +2368,10 @@ class _TemplateCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // No explicit label: the name and exercise-count Texts below already
+    // provide it, and adding one made TalkBack read it twice.
     return Semantics(
       button: true,
-      label:
-          '${l10n.localizeWorkoutTemplateName(template.name)}, ${template.exercises.length} ${l10n.get('exercises')}',
       child: Material(
         color: isDark ? const Color(0xFF1A2634) : Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -2813,6 +2814,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
+                                tooltip: l10n.get('decreaseSets'),
                                 visualDensity: VisualDensity.compact,
                                 onPressed: () {
                                   if (sets > 1) {
@@ -2834,6 +2836,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                                 ),
                               ),
                               IconButton(
+                                tooltip: l10n.get('increaseSets'),
                                 visualDensity: VisualDensity.compact,
                                 onPressed: () => setDialogState(() => sets++),
                                 icon: const Icon(Icons.add_circle_outline),
@@ -2851,6 +2854,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             IconButton(
+                              tooltip: l10n.get('decreaseHoldTime'),
                               visualDensity: VisualDensity.compact,
                               onPressed: () => setDialogState(
                                 () => targetDurationSeconds =
@@ -2858,7 +2862,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                               ),
                               icon: const Icon(Icons.remove_circle_outline),
                             ),
-                            GestureDetector(
+                            Semantics(button: true, child: GestureDetector(
                               onTap: () => showDurationEntryDialog(
                                 context: context,
                                 l10n: l10n,
@@ -2899,8 +2903,9 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                                   ),
                                 ),
                               ),
-                            ),
+                            )),
                             IconButton(
+                              tooltip: l10n.get('increaseHoldTime'),
                               visualDensity: VisualDensity.compact,
                               onPressed: () => setDialogState(
                                 () => targetDurationSeconds =
@@ -2947,6 +2952,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
+                                      tooltip: l10n.get('decreaseSets'),
                                       visualDensity: VisualDensity.compact,
                                       onPressed: () {
                                         if (sets > 1) {
@@ -2970,6 +2976,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                                       ),
                                     ),
                                     IconButton(
+                                      tooltip: l10n.get('increaseSets'),
                                       visualDensity: VisualDensity.compact,
                                       onPressed: () =>
                                           setDialogState(() => sets++),
@@ -2999,6 +3006,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
+                                      tooltip: l10n.get('decreaseReps'),
                                       visualDensity: VisualDensity.compact,
                                       onPressed: () {
                                         if (targetReps > 1) {
@@ -3022,6 +3030,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                                       ),
                                     ),
                                     IconButton(
+                                      tooltip: l10n.get('increaseReps'),
                                       visualDensity: VisualDensity.compact,
                                       onPressed: () =>
                                           setDialogState(() => targetReps++),
@@ -3088,6 +3097,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
+                            tooltip: l10n.get('decreaseRest'),
                             visualDensity: VisualDensity.compact,
                             onPressed: customRestSec <= 30
                                 ? null
@@ -3108,6 +3118,7 @@ class _TemplateEditorPageState extends State<TemplateEditorPage> {
                             ),
                           ),
                           IconButton(
+                            tooltip: l10n.get('increaseRest'),
                             visualDensity: VisualDensity.compact,
                             onPressed: customRestSec >= 600
                                 ? null
@@ -3545,6 +3556,7 @@ class _ExerciseListItem extends StatelessWidget {
               tooltip: l10n.get('editExercise'),
             ),
           IconButton(
+            tooltip: l10n.get('deleteExercise'),
             onPressed: onDelete,
             icon: Icon(Icons.delete, color: Colors.red.shade600, size: 28),
           ),
@@ -5507,6 +5519,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       IconButton(
+                        tooltip: l10n.get('decreaseHoldTime'),
                         onPressed: () => setDialogState(
                           () => targetDurationSeconds =
                               (targetDurationSeconds - 5).clamp(1, 86400),
@@ -5514,7 +5527,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                         icon: const Icon(Icons.remove_circle_outline),
                         iconSize: 36,
                       ),
-                      GestureDetector(
+                      Semantics(button: true, child: GestureDetector(
                         onTap: () => showDurationEntryDialog(
                           context: ctx,
                           l10n: l10n,
@@ -5548,8 +5561,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                             ),
                           ),
                         ),
-                      ),
+                      )),
                       IconButton(
+                        tooltip: l10n.get('increaseHoldTime'),
                         onPressed: () => setDialogState(
                           () => targetDurationSeconds =
                               (targetDurationSeconds + 5).clamp(1, 86400),
@@ -5600,6 +5614,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       IconButton(
+                        tooltip: l10n.get('decreaseWarmup'),
                         onPressed: () => setDialogState(
                           () =>
                               warmupSeconds = (warmupSeconds - 5).clamp(0, 600),
@@ -5607,7 +5622,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                         icon: const Icon(Icons.remove_circle_outline),
                         iconSize: 36,
                       ),
-                      GestureDetector(
+                      Semantics(button: true, child: GestureDetector(
                         onTap: () => showDurationEntryDialog(
                           context: ctx,
                           l10n: l10n,
@@ -5631,8 +5646,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                             textAlign: TextAlign.center,
                           ),
                         ),
-                      ),
+                      )),
                       IconButton(
+                        tooltip: l10n.get('increaseWarmup'),
                         onPressed: () => setDialogState(
                           () =>
                               warmupSeconds = (warmupSeconds + 5).clamp(0, 600),
@@ -5673,6 +5689,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       IconButton(
+                        tooltip: l10n.get('decreaseSets'),
                         onPressed: () {
                           if (sets > 1) {
                             setDialogState(() => sets--);
@@ -5693,6 +5710,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                         ),
                       ),
                       IconButton(
+                        tooltip: l10n.get('increaseSets'),
                         onPressed: () => setDialogState(() => sets++),
                         icon: const Icon(Icons.add_circle_outline),
                         iconSize: 36,
@@ -5739,6 +5757,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         IconButton(
+                          tooltip: l10n.get('decreaseRest'),
                           onPressed: customRestSec <= 0
                               ? null
                               : () => setDialogState(
@@ -5748,7 +5767,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                           icon: const Icon(Icons.remove_circle_outline),
                           iconSize: 36,
                         ),
-                        GestureDetector(
+                        Semantics(button: true, child: GestureDetector(
                           onTap: () => showDurationEntryDialog(
                             context: ctx,
                             l10n: l10n,
@@ -5769,8 +5788,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                               ),
                             ),
                           ),
-                        ),
+                        )),
                         IconButton(
+                          tooltip: l10n.get('increaseRest'),
                           onPressed: customRestSec >= 600
                               ? null
                               : () => setDialogState(
@@ -5809,7 +5829,19 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     runSpacing: 8,
                     children: List.generate(presetSeconds.length, (i) {
                       final sec = presetSeconds[i];
-                      return GestureDetector(
+                      return Semantics(
+ customSemanticsActions: {
+ CustomSemanticsAction(label: l10n.get('edit')): () => showDurationEntryDialog(
+                          context: ctx,
+                          l10n: l10n,
+                          currentSeconds: sec,
+                          accentColor: primary,
+                          onSave: (newSec) => setDialogState(
+                            () => presetSeconds[i] = newSec.clamp(1, 600),
+                          ),
+                        ),
+ },
+ child: GestureDetector(
                         onLongPress: () => showDurationEntryDialog(
                           context: ctx,
                           l10n: l10n,
@@ -5826,7 +5858,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                           }),
                           child: Text(formatDurationMmSs(sec)),
                         ),
-                      );
+                      ));
                     }),
                   ),
                 ],
@@ -6172,6 +6204,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       IconButton(
+                        tooltip: l10n.get('decreaseSets'),
                         onPressed: () {
                           if (sets > 1) {
                             setDialogState(() => sets--);
@@ -6195,6 +6228,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                         ),
                       ),
                       IconButton(
+                        tooltip: l10n.get('increaseSets'),
                         onPressed: () => setDialogState(() => sets++),
                         icon: const Icon(Icons.add_circle_outline),
                         iconSize: 36,
@@ -6265,6 +6299,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         IconButton(
+                          tooltip: l10n.get('decreaseHoldTime'),
                           onPressed: () => setDialogState(
                             () => targetDurationSeconds =
                                 (targetDurationSeconds - 5).clamp(1, 86400),
@@ -6275,7 +6310,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                             minimumSize: const Size(minTap, minTap),
                           ),
                         ),
-                        GestureDetector(
+                        Semantics(button: true, child: GestureDetector(
                           onTap: () => showDurationEntryDialog(
                             context: ctx,
                             l10n: l10n,
@@ -6309,8 +6344,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                               ),
                             ),
                           ),
-                        ),
+                        )),
                         IconButton(
+                          tooltip: l10n.get('increaseHoldTime'),
                           onPressed: () => setDialogState(
                             () => targetDurationSeconds =
                                 (targetDurationSeconds + 5).clamp(1, 86400),
@@ -6366,6 +6402,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         IconButton(
+                          tooltip: l10n.get('decreaseReps'),
                           onPressed: () {
                             if (targetReps > 1) {
                               setDialogState(() => targetReps--);
@@ -6389,6 +6426,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                           ),
                         ),
                         IconButton(
+                          tooltip: l10n.get('increaseReps'),
                           onPressed: () => setDialogState(() => targetReps++),
                           icon: const Icon(Icons.add_circle_outline),
                           iconSize: 36,
@@ -6446,6 +6484,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         IconButton(
+                          tooltip: l10n.get('decreaseRest'),
                           onPressed: customRestSec <= 30
                               ? null
                               : () => setDialogState(
@@ -6470,6 +6509,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                           ),
                         ),
                         IconButton(
+                          tooltip: l10n.get('increaseRest'),
                           onPressed: customRestSec >= 600
                               ? null
                               : () => setDialogState(
@@ -6737,6 +6777,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
           leading: IconButton(
             onPressed: _confirmExit,
             icon: const Icon(Icons.close, size: 28),
+            tooltip: l10n.get('endWorkoutButton'),
           ),
           actions: [
             // Workout duration timer
@@ -6813,7 +6854,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                   color: restSeconds <= 10 ? Colors.red : colorScheme.primary,
                 ),
                 const SizedBox(width: 12),
-                GestureDetector(
+                Semantics(button: true, child: GestureDetector(
                   onTap: () => showDurationEntryDialog(
                     context: context,
                     l10n: l10n,
@@ -6832,7 +6873,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                           : colorScheme.primary,
                     ),
                   ),
-                ),
+                )),
                 if (showSetsInline) ...[
                   const SizedBox(width: 12),
                   Text(
@@ -6969,7 +7010,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                         ),
                       ],
                       const SizedBox(height: 24),
-                      GestureDetector(
+                      Semantics(button: true, child: GestureDetector(
                         onTap: () => showDurationEntryDialog(
                           context: context,
                           l10n: l10n,
@@ -6992,7 +7033,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                             ),
                           ),
                         ),
-                      ),
+                      )),
                       if (restCountdownActive || restCountdownPausedUi) ...[
                         const SizedBox(height: 12),
                         Center(
@@ -7774,6 +7815,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                           child: Row(
                             children: [
                               _LargeRoundButton(
+                                label: l10n.get('decreaseWeight'),
                                 icon: Icons.remove,
                                 color: Colors.orange.shade400,
                                 onPressed: currentWeight > 0
@@ -7781,7 +7823,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                     : null,
                               ),
                               Expanded(
-                                child: GestureDetector(
+                                child: Semantics(button: true, child: GestureDetector(
                                   onTap: () => _showNumberInputDialog(
                                     context: context,
                                     title:
@@ -7873,9 +7915,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                       ),
                                     ],
                                   ),
-                                ),
+                                )),
                               ),
                               _LargeRoundButton(
+                                label: l10n.get('increaseWeight'),
                                 icon: Icons.add,
                                 color: Colors.green.shade400,
                                 onPressed: () =>
@@ -7977,7 +8020,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              GestureDetector(
+                              Semantics(button: true, child: GestureDetector(
                                 onTap: _durationSessionRunning
                                     ? null
                                     : () => showDurationEntryDialog(
@@ -8206,7 +8249,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                                       ),
                                   ],
                                 ),
-                              ),
+                              )),
                             ],
                           ),
                         ),
@@ -10344,27 +10387,36 @@ class _LargeRoundButton extends StatelessWidget {
   final IconData icon;
   final Color color;
   final VoidCallback? onPressed;
+  final String label;
 
   const _LargeRoundButton({
     required this.icon,
     required this.color,
     required this.onPressed,
+    required this.label,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: color,
-      shape: const CircleBorder(),
-      elevation: 4,
-      child: InkWell(
-        onTap: onPressed,
-        customBorder: const CircleBorder(),
-        child: Container(
-          width: 64,
-          height: 64,
-          alignment: Alignment.center,
-          child: Icon(icon, size: 36, color: Colors.white),
+    return Semantics(
+      button: true,
+      enabled: onPressed != null,
+      label: label,
+      onTap: onPressed,
+      excludeSemantics: true,
+      child: Material(
+        color: color,
+        shape: const CircleBorder(),
+        elevation: 4,
+        child: InkWell(
+          onTap: onPressed,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 64,
+            height: 64,
+            alignment: Alignment.center,
+            child: Icon(icon, size: 36, color: Colors.white),
+          ),
         ),
       ),
     );
@@ -11999,6 +12051,7 @@ class _ConsistencyCalendarPageState extends State<ConsistencyCalendarPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
+                tooltip: l10n.get('previousPeriod'),
                 onPressed: () => _stepRange(list, forward: false),
                 icon: const Icon(Icons.chevron_left, size: 30),
               ),
@@ -12014,6 +12067,7 @@ class _ConsistencyCalendarPageState extends State<ConsistencyCalendarPage> {
                 ),
               ),
               IconButton(
+                tooltip: l10n.get('nextPeriod'),
                 onPressed: () => _stepRange(list, forward: true),
                 icon: const Icon(Icons.chevron_right, size: 30),
               ),
@@ -12833,6 +12887,7 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
                             hintText: l10n.get('exerciseNameHint'),
                             border: const OutlineInputBorder(),
                             suffixIcon: IconButton(
+                              tooltip: l10n.get('add'),
                               icon: const Icon(Icons.add),
                               onPressed: () =>
                                   _addExercise(_nameController.text),
@@ -13030,7 +13085,11 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
                                 ),
                                 child: Row(
                                   children: [
-                                    GestureDetector(
+                                    Semantics(
+ button: true,
+ label: l10n.get('changeColor'),
+ excludeSemantics: true,
+ child: GestureDetector(
                                       onTap: () => _pickColor(index),
                                       child: Container(
                                         width: 36,
@@ -13046,7 +13105,7 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
                                           ),
                                         ),
                                       ),
-                                    ),
+                                    )),
                                     const SizedBox(width: 12),
                                     Icon(
                                       te.kind == TrackedItemKind.template
@@ -13091,7 +13150,7 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
                                           'renameWorkoutTemplate',
                                         ),
                                       ),
-                                    GestureDetector(
+                                    Semantics(button: true, child: GestureDetector(
                                       onTap: () => _editTargetSets(index),
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(
@@ -13113,8 +13172,9 @@ class _ManageExercisesSheetState extends State<_ManageExercisesSheet> {
                                           ),
                                         ),
                                       ),
-                                    ),
+                                    )),
                                     IconButton(
+                                      tooltip: l10n.get('remove'),
                                       onPressed: () => _removeExercise(index),
                                       icon: Icon(
                                         Icons.close,
@@ -13196,7 +13256,12 @@ class _ExerciseColorPickerSheet extends StatelessWidget {
             alignment: WrapAlignment.center,
             children: [
               for (var i = 0; i < kConsistencyColorPalette.length; i++)
-                GestureDetector(
+                Semantics(
+ button: true,
+ selected: i == selectedIndex,
+ label: '${l10n.get('colorLabel')} ${i + 1}',
+ excludeSemantics: true,
+ child: GestureDetector(
                   onTap: () => Navigator.pop(context, i),
                   child: Container(
                     width: 56,
@@ -13215,7 +13280,7 @@ class _ExerciseColorPickerSheet extends StatelessWidget {
                         ? const Icon(Icons.check, color: Colors.white, size: 28)
                         : null,
                   ),
-                ),
+                )),
             ],
           ),
           const SizedBox(height: 12),
@@ -13733,6 +13798,7 @@ class _ExerciseDetailPageState extends State<_ExerciseDetailPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 IconButton(
+                  tooltip: l10n.get('previousPeriod'),
                   onPressed: () => setState(() {
                     _anchor = nextConsistencyAnchor(
                       _anchor,
@@ -13757,6 +13823,7 @@ class _ExerciseDetailPageState extends State<_ExerciseDetailPage> {
                   ),
                 ),
                 IconButton(
+                  tooltip: l10n.get('nextPeriod'),
                   onPressed: () => setState(() {
                     _anchor = nextConsistencyAnchor(
                       _anchor,

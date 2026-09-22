@@ -126,6 +126,7 @@ class AppLocalizations {
     const replacements = <String, String>{
       '運': '运',
       '動': '动',
+      '誌': '志',
       '蹤': '踪',
       '器': '器',
       '歷': '历',
@@ -676,7 +677,7 @@ class AppLocalizations {
   // Chinese Traditional strings
   static const Map<String, String> _zhHantStrings = {
     // App title
-    'appTitle': '運動追蹤器',
+    'appTitle': '運動日誌',
     'shoulderWorkout': '肩部運動',
 
     // Navigation

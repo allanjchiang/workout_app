@@ -9,145 +9,148 @@ Workout Tracker
 
 ### Short Description (80 chars max)
 ```
-Track your resistance band shoulder exercises with a simple rest timer.
+Log sets, reps, weight, and rest time for any workout. Private, no account.
 ```
 
 ### Full Description (4000 chars max)
 ```
-Workout Tracker is a simple, accessible app designed to help you track your resistance band shoulder exercises. Perfect for beginners and anyone who wants an easy way to log their workouts without complexity.
+Workout Tracker is a simple, accessible app for building your own workout templates, logging every set, and tracking your progress over time. Works for weight training, resistance bands, stretching, and home workouts alike.
 
-🟡 YELLOW BAND EXERCISES
-Track 5 essential shoulder exercises designed for the lightest (yellow) resistance band:
-• Shoulder Press
-• Lateral Raise
-• Front Raise
-• Reverse Fly
-• Shrugs
+📋 CUSTOM WORKOUT TEMPLATES
+• Build your own templates and arrange exercises in any order
+• Choose from a large built-in exercise library covering chest, back, shoulders, arms, legs, and core
+• Add your own custom exercises with an icon of your choice
+• Long-press and drag to reorder
 
-📊 SIMPLE REP TRACKING
-• Large, easy-to-tap buttons to count your reps
-• See your last recorded reps for each exercise
-• Save your workout with one tap
+📊 LOG EVERY SET
+• Track sets, reps, and weight (kg/lbs), including assisted weight
+• Log timed exercises (planks, farmer's carries) with an optional warm-up countdown
+• See your last recorded result for each exercise at a glance
+• Unfinished workouts are saved as a draft so you can pick up where you left off
 
 ⏱️ REST TIMER
-• Automatic 1-minute rest timer starts after saving
-• Audio notification when rest time is over
-• Never lose track of your rest periods
+• Automatic rest countdown starts after each set
+• Set a custom rest time per exercise, or skip it entirely
+• Audio notification when rest time is over, with adjustable volume
+
+📈 PROGRESS CHARTS & STATS
+• See reps and weight over time for any exercise
+• Estimated 1-rep max (Est. 1RM)
+• Overview stats: total workouts, this week's workouts, total time, total reps
+• View by 1 week, 1 month, 1 year, or all time
+
+🗓️ CONSISTENCY CALENDAR
+• Create lists to track specific exercises or whole workout templates
+• View progress by week, fortnight, or month
+• Set a daily target for sets or times done
 
 ♿ ACCESSIBILITY
 • Full screen reader support (VoiceOver & TalkBack)
-• Large text and buttons for easy visibility
-• High contrast design
-• Designed with elderly users in mind
+• Large buttons and high-contrast design
+• Designed with elderly and low-vision users in mind
 
 🔒 YOUR PRIVACY MATTERS
 • All data stored locally on YOUR device
 • No account required
 • No internet connection needed
 • We do NOT collect, transmit, or sell your data
-• Export or delete your data anytime
-
-📤 DATA CONTROL
-• Export your workout history to share or backup
-• Delete all data with one tap
-• You own your data completely
+• Export your data as a backup, or delete it all anytime
 
 🌏 LANGUAGES
 • English
 • Chinese Traditional (繁體中文)
+• Chinese Simplified (简体中文)
 
 ⚠️ IMPORTANT DISCLAIMERS
-• This app is for informational and tracking purposes only
-• Consult a healthcare professional before starting any exercise program
-• Not intended to diagnose, treat, cure, or prevent any medical condition
-• Use at your own risk
+This app is for informational and tracking purposes only. Consult a healthcare professional before starting any exercise program. Not intended to diagnose, treat, cure, or prevent any medical condition. Use at your own risk.
 
 📖 OPEN SOURCE
 This app is open source and licensed under the MIT License. View all third-party licenses within the app.
 
-Perfect for:
-• Beginners starting resistance band training
-• Seniors looking for a simple workout tracker
-• Anyone who wants to track shoulder exercises
-• Users who value privacy and simplicity
-
-Download now and start tracking your shoulder workouts today!
+Good for:
+• Anyone who wants a structured way to log weight training or stretching
+• Fitness enthusiasts who want a simple, flexible rest timer
+• Users who value data privacy and don't want to be tracked
+• Anyone who wants to track workout consistency and progress over time
 ```
 
 ---
 
 ## Chinese Traditional (zh-TW)
 
+> Updated 2026-09-22 to match the current app (general workout log, not just the
+> original 5-exercise yellow-band template) and the live Play Store app name
+> "運動日誌". See note below the English section about the app-name mismatch
+> across the launcher icon, in-app title, and this listing.
+
 ### App Name (30 chars max)
 ```
-運動追蹤器
+運動日誌
 ```
 
 ### Short Description (80 chars max)
 ```
-使用簡單的休息計時器追蹤您的彈力帶肩部運動。
+記錄重訓與伸展運動的組數、次數、重量與休息時間，內建進度圖表，資料僅存裝置，免帳號、免網路。
 ```
 
 ### Full Description (4000 chars max)
 ```
-運動追蹤器是一款簡單、無障礙的應用程式，專為幫助您追蹤彈力帶肩部運動而設計。非常適合初學者和任何想要輕鬆記錄運動的人。
+運動日誌是一款簡單易用、注重無障礙設計的運動記錄應用程式，協助你建立專屬的運動計畫、記錄每一組訓練，並掌握長期進度。適合重量訓練、彈力帶運動、伸展與居家健身的使用者。
 
-🟡 黃色彈力帶運動
-追蹤 5 種專為最輕（黃色）彈力帶設計的基本肩部運動：
-• 肩推
-• 側平舉
-• 前平舉
-• 反向飛鳥
-• 聳肩
+📋 自訂運動計畫
+• 建立專屬的運動範本，自由安排運動項目與順序
+• 內建多種常見運動，涵蓋胸、背、肩、手臂、腿部與核心等部位
+• 也可新增自訂運動，並選擇圖示分類
+• 長按拖曳即可重新排序運動項目
 
-📊 簡單的次數追蹤
-• 大型、易於點擊的按鈕來計算您的次數
-• 查看每個運動的上次記錄次數
-• 一鍵儲存您的運動
+📊 記錄每一組訓練
+• 記錄組數、次數、重量（公斤／磅），支援輔助重量
+• 支援計時類運動（如棒式、農夫走路），可設定暖身倒數
+• 查看每項運動的上次紀錄，方便掌握進度
+• 未完成的運動會自動儲存草稿，下次可繼續進行
 
 ⏱️ 休息計時器
-• 儲存後自動開始 1 分鐘休息計時器
-• 休息時間結束時有音訊通知
-• 永遠不會忘記您的休息時間
+• 每組結束後自動開始休息倒數
+• 可依運動個別設定休息時間，或直接略過
+• 倒數結束會有音效提示，音量可自訂
+
+📈 進度圖表與統計
+• 依運動查看次數、重量隨時間變化的圖表
+• 估算單次最大重量（Est. 1RM）
+• 檢視總運動次數、本週次數、總時間與總次數等統計數據
+• 可選擇一週、一個月、一年或全部時間區間查看
+
+🗓️ 持續追蹤日曆
+• 建立清單追蹤特定運動或整套運動範本
+• 以週、雙週或月為單位檢視完成狀況
+• 可設定每日目標組數或次數
 
 ♿ 無障礙功能
-• 完整的螢幕閱讀器支援（VoiceOver 和 TalkBack）
-• 大字體和按鈕，方便閱讀
-• 高對比度設計
-• 專為年長用戶設計
+• 完整支援螢幕閱讀器（VoiceOver 與 TalkBack）
+• 大按鈕與高對比設計，方便長者與視力不便者使用
 
-🔒 您的隱私很重要
-• 所有資料都儲存在您的裝置上
-• 不需要帳戶
-• 不需要網路連線
-• 我們不會收集、傳輸或出售您的資料
-• 隨時匯出或刪除您的資料
+🔒 隱私優先
+• 所有資料僅儲存於你的裝置上
+• 不需要註冊帳號，也不需要網路連線
+• 不會收集、傳輸或出售任何個人資料
+• 可隨時將資料匯出備份，或一鍵刪除全部資料
 
-📤 資料控制
-• 匯出您的運動歷史以分享或備份
-• 一鍵刪除所有資料
-• 您完全擁有您的資料
-
-🌏 語言
+🌏 支援語言
 • English（英文）
 • 繁體中文
+• 簡體中文
+
+📖 開放原始碼
+本應用程式採用 MIT 授權條款開放原始碼，可在應用程式內查看所有第三方授權內容。
 
 ⚠️ 重要聲明
-• 本應用程式僅供資訊和追蹤用途
-• 開始任何運動計畫前，請諮詢醫療專業人員
-• 不用於診斷、治療、治癒或預防任何醫療狀況
-• 使用風險自負
+本應用程式僅供資訊記錄與追蹤用途，並非醫療建議。開始任何運動計畫前，請先諮詢醫療專業人員。本應用程式不用於診斷、治療、治癒或預防任何醫療狀況，使用時請自行評估並承擔風險。
 
-📖 開源軟體
-本應用程式是開源的，採用 MIT 授權條款。在應用程式內查看所有第三方授權。
-
-適合：
-• 開始彈力帶訓練的初學者
-• 尋找簡單運動追蹤器的年長者
-• 任何想要追蹤肩部運動的人
-• 重視隱私和簡單的用戶
-
-立即下載，開始追蹤您的肩部運動！
+適合對象：
+• 想要有系統記錄重量訓練或伸展運動的使用者
+• 需要簡單好用休息計時器的健身愛好者
+• 重視資料隱私、不希望被追蹤的使用者
+• 想長期追蹤運動習慣與進度的人
 ```
 
 ---

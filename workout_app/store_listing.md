@@ -151,6 +151,9 @@ Good for:
 • 需要簡單好用休息計時器的健身愛好者
 • 重視資料隱私、不希望被追蹤的使用者
 • 想長期追蹤運動習慣與進度的人
+
+支援網站：https://logicphile.com/support-zh-hant
+支援信箱：allan@logicphile.com
 ```
 
 ---

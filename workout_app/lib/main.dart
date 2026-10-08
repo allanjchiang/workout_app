@@ -12,12 +12,17 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:vibration/vibration.dart';
 import 'package:intl/intl.dart';
 import 'l10n/app_localizations.dart';
 import 'dev_notes.dart';
 import 'donations.dart';
+
+/// Fetched once per launch for the Settings version label, so rebuilds don't
+/// re-query the platform.
+final Future<PackageInfo> _packageInfoFuture = PackageInfo.fromPlatform();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11034,9 +11039,12 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 24),
             // Version info
             Center(
-              child: Text(
-                '${l10n.get('version')} 1.0.0',
-                style: TextStyle(fontSize: 16, color: Colors.grey.shade500),
+              child: FutureBuilder<PackageInfo>(
+                future: _packageInfoFuture,
+                builder: (context, snapshot) => Text(
+                  '${l10n.get('version')} ${snapshot.data?.version ?? ''}',
+                  style: TextStyle(fontSize: 16, color: Colors.grey.shade500),
+                ),
               ),
             ),
             const SizedBox(height: 8),

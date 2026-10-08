@@ -65,8 +65,7 @@ class _DonationSheetState extends State<_DonationSheet> {
     _subscription = _iap.purchaseStream.listen(
       _onPurchaseUpdate,
       onDone: () => _subscription?.cancel(),
-      onError: (error) =>
-          debugPrint('Donation purchase stream error: $error'),
+      onError: (error) => debugPrint('Donation purchase stream error: $error'),
     );
     unawaited(_init());
   }
@@ -134,9 +133,7 @@ class _DonationSheetState extends State<_DonationSheet> {
           }
           if (mounted) {
             setState(() => _purchasingId = null);
-            _showMessage(
-              AppLocalizations.of(context)!.get('donationThankYou'),
-            );
+            _showMessage(AppLocalizations.of(context)!.get('donationThankYou'));
             Navigator.of(context).maybePop();
           }
           break;
@@ -178,13 +175,16 @@ class _DonationSheetState extends State<_DonationSheet> {
     final colorScheme = Theme.of(context).colorScheme;
     final mutedTextColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
 
-    return SafeArea(
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E2A3A) : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+    // Container outside SafeArea so the sheet's background extends under the
+    // home indicator instead of leaving a strip of the barrier showing.
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+      child: SafeArea(
+        top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

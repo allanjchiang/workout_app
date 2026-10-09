@@ -37,6 +37,10 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Workout Tracker does not access your camera. This message is required because a bundled library references camera APIs.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Workout Tracker does not access your location. This message is required because a bundled library references location APIs.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Workout Tracker does not access your photo library. This message is required because a bundled library references photo APIs.</string>
 	<key>UIApplicationSceneManifest</key>

@@ -78,11 +78,6 @@ Good for:
 
 ## Chinese Traditional (zh-TW)
 
-> Updated 2026-09-22 to match the current app (general workout log, not just the
-> original 5-exercise yellow-band template) and the live Play Store app name
-> "運動日誌". See note below the English section about the app-name mismatch
-> across the launcher icon, in-app title, and this listing.
-
 ### App Name (30 chars max)
 ```
 運動日誌

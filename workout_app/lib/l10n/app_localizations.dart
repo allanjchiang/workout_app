@@ -526,6 +526,9 @@ class AppLocalizations {
     'timerBeepVolumeDesc':
         'Applies to rest, warm-up, and hold countdown sounds. 0 is silent.',
     'previewTimerBeep': 'Preview beep',
+    'duckOtherAudio': 'Lower other audio during beeps',
+    'duckOtherAudioDesc':
+        'Music gets quieter while a beep plays so you can hear it clearly, then returns to normal. Audiobook and podcast apps such as Audible may pause instead.',
     'appearance': 'Appearance',
     'theme': 'Theme',
     'systemDefault': 'System default',
@@ -944,6 +947,8 @@ class AppLocalizations {
     'timerBeepVolume': '計時提示音量',
     'timerBeepVolumeDesc': '適用於休息、暖身與維持倒數提示音。設為 0 則靜音。',
     'previewTimerBeep': '試聽提示音',
+    'duckOtherAudio': '提示音時降低其他音訊',
+    'duckOtherAudioDesc': '播放提示音時音樂會暫時變小聲，讓您聽得更清楚，之後恢復正常。Audible 等有聲書或播客應用程式可能會改為暫停。',
     'appearance': '外觀',
     'theme': '主題',
     'systemDefault': '跟隨系統',

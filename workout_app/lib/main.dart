@@ -28,8 +28,11 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   try {
+    final prefs = await SharedPreferences.getInstance();
     await AudioPlayer.global.setAudioContext(
-      timerBeepMixWithOthersAudioContext(),
+      timerBeepAudioContext(
+        duckOthers: prefs.getBool(kPrefTimerBeepDuckOtherAudio) ?? false,
+      ),
     );
   } catch (_) {
     // Beep audio context is re-applied per player before each sound.
@@ -228,13 +231,28 @@ String formatDurationMmSs(int totalSeconds) {
 /// Shared preferences key for timer / beep volume (0–100, default 85).
 const String kPrefTimerBeepVolume = 'timer_beep_volume';
 
-/// Audio context for timer beeps: mix over Audible/podcasts without pausing them.
-AudioContext timerBeepMixWithOthersAudioContext() {
+/// Shared preferences key for lowering other apps' audio during beeps (default off).
+const String kPrefTimerBeepDuckOtherAudio = 'timer_beep_duck_other_audio';
+
+/// Shared preferences key for per-exercise notes (JSON map of exerciseId → note).
+const String kExerciseNotesPrefsKey = 'exercise_notes_v1';
+
+/// Audio context for timer beeps. By default beeps mix over other audio
+/// (Audible, podcasts) without pausing it. With [duckOthers], music is lowered
+/// during each beep and restored afterwards; spoken-audio apps such as Audible
+/// may pause instead of ducking.
+AudioContext timerBeepAudioContext({bool duckOthers = false}) {
   return AudioContext(
-    android: AudioContextAndroid(audioFocus: AndroidAudioFocus.none),
+    android: AudioContextAndroid(
+      audioFocus: duckOthers
+          ? AndroidAudioFocus.gainTransientMayDuck
+          : AndroidAudioFocus.none,
+    ),
     iOS: AudioContextIOS(
       category: AVAudioSessionCategory.playback,
-      options: const {AVAudioSessionOptions.mixWithOthers},
+      options: duckOthers
+          ? const {AVAudioSessionOptions.duckOthers}
+          : const {AVAudioSessionOptions.mixWithOthers},
     ),
   );
 }
@@ -3665,7 +3683,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   late List<TemplateExercise> _orderedExercises;
 
   // Per-exercise notes (elderly-friendly). Persisted locally.
-  static const String _exerciseNotesPrefsKey = 'exercise_notes_v1';
+  static const String _exerciseNotesPrefsKey = kExerciseNotesPrefsKey;
   Map<String, String> _exerciseNotesByExerciseId = {};
 
   /// Keeps weight/reps controls in view after rest, or scrolls to the plan row when target sets are done.
@@ -4474,10 +4492,15 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     }
   }
 
-  /// Configure beeps to mix with other audio (Audible, podcasts) without pausing.
+  /// Configure beeps to mix with other audio, ducking it if the user opted in.
   Future<void> _setBeepAudioContext() async {
     try {
-      await audioPlayer.setAudioContext(timerBeepMixWithOthersAudioContext());
+      final prefs = await SharedPreferences.getInstance();
+      await audioPlayer.setAudioContext(
+        timerBeepAudioContext(
+          duckOthers: prefs.getBool(kPrefTimerBeepDuckOtherAudio) ?? false,
+        ),
+      );
     } catch (e) {
       // Ignore; beep will still play, may interrupt other audio on some devices
     }
@@ -10546,12 +10569,14 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   int _defaultRestSeconds = 60;
   double _timerBeepVolumePct = 85;
+  bool _timerBeepDuckOtherAudio = false;
 
   @override
   void initState() {
     super.initState();
     _loadDefaultRestSeconds();
     _loadTimerBeepVolume();
+    _loadTimerBeepDuckOtherAudio();
   }
 
   Future<void> _loadTimerBeepVolume() async {
@@ -10569,10 +10594,26 @@ class _SettingsPageState extends State<SettingsPage> {
     await prefs.setInt(kPrefTimerBeepVolume, clamped.round().clamp(0, 100));
   }
 
+  Future<void> _loadTimerBeepDuckOtherAudio() async {
+    final prefs = await SharedPreferences.getInstance();
+    final v = prefs.getBool(kPrefTimerBeepDuckOtherAudio);
+    if (mounted) {
+      setState(() => _timerBeepDuckOtherAudio = v ?? false);
+    }
+  }
+
+  Future<void> _setTimerBeepDuckOtherAudio(bool value) async {
+    setState(() => _timerBeepDuckOtherAudio = value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(kPrefTimerBeepDuckOtherAudio, value);
+  }
+
   Future<void> _previewTimerBeep() async {
     final p = AudioPlayer();
     try {
-      await p.setAudioContext(timerBeepMixWithOthersAudioContext());
+      await p.setAudioContext(
+        timerBeepAudioContext(duckOthers: _timerBeepDuckOtherAudio),
+      );
       await p.setVolume(_timerBeepVolumePct / 100.0);
       if (_timerBeepVolumePct <= 0) return;
       await p.play(AssetSource('audio/timer_beep.wav'));
@@ -10910,6 +10951,28 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      l10n.get('duckOtherAudio'),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      l10n.get('duckOtherAudioDesc'),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
+                      ),
+                    ),
+                    value: _timerBeepDuckOtherAudio,
+                    onChanged: _setTimerBeepDuckOtherAudio,
+                  ),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
@@ -11243,6 +11306,13 @@ class _SettingsPageState extends State<SettingsPage> {
       final consistencySelectedListId = prefs.getString(
         kConsistencySelectedListPrefsKey,
       );
+      final exerciseNotesJson = prefs.getString(kExerciseNotesPrefsKey);
+      final weightUnit = prefs.getString('weight_unit');
+      final themeMode = prefs.getString('theme_mode');
+      final timerBeepVolume = prefs.getInt(kPrefTimerBeepVolume);
+      final timerBeepDuckOtherAudio = prefs.getBool(
+        kPrefTimerBeepDuckOtherAudio,
+      );
 
       if ((templatesJson == null || templatesJson.isEmpty) &&
           (historyJson == null || historyJson.isEmpty)) {
@@ -11272,6 +11342,14 @@ class _SettingsPageState extends State<SettingsPage> {
             ? jsonDecode(consistencyListsJson)
             : [],
         'consistencySelectedListId': ?consistencySelectedListId,
+        'exerciseNotes':
+            (exerciseNotesJson != null && exerciseNotesJson.isNotEmpty)
+            ? jsonDecode(exerciseNotesJson)
+            : {},
+        'weightUnit': ?weightUnit,
+        'themeMode': ?themeMode,
+        'timerBeepVolume': ?timerBeepVolume,
+        'timerBeepDuckOtherAudio': ?timerBeepDuckOtherAudio,
       };
 
       // Create temporary file
@@ -11386,7 +11464,7 @@ class _SettingsPageState extends State<SettingsPage> {
       // Try to read content - prefer bytes (works on all platforms) over path
       String content;
       if (pickedFile.bytes != null) {
-        content = String.fromCharCodes(pickedFile.bytes!);
+        content = utf8.decode(pickedFile.bytes!);
       } else if (pickedFile.path != null) {
         final file = File(pickedFile.path!);
         content = await file.readAsString();
@@ -11442,6 +11520,34 @@ class _SettingsPageState extends State<SettingsPage> {
           kConsistencySelectedListPrefsKey,
           importedSelectedListId,
         );
+      }
+      // Restore exercise notes and app settings if present in backup
+      final importedNotes = backupData['exerciseNotes'];
+      if (importedNotes is Map) {
+        final notes = <String, String>{
+          for (final entry in importedNotes.entries)
+            if (entry.key is String && entry.value is String)
+              entry.key as String: entry.value as String,
+        };
+        await prefs.setString(kExerciseNotesPrefsKey, jsonEncode(notes));
+      }
+      final importedUnit = backupData['weightUnit'];
+      if (importedUnit == 'kg' || importedUnit == 'lbs') {
+        await prefs.setString('weight_unit', importedUnit as String);
+      }
+      final importedTheme = backupData['themeMode'];
+      if (importedTheme == 'system' ||
+          importedTheme == 'light' ||
+          importedTheme == 'dark') {
+        await prefs.setString('theme_mode', importedTheme as String);
+      }
+      final importedVolume = backupData['timerBeepVolume'];
+      if (importedVolume is int) {
+        await prefs.setInt(kPrefTimerBeepVolume, importedVolume.clamp(0, 100));
+      }
+      final importedDuck = backupData['timerBeepDuckOtherAudio'];
+      if (importedDuck is bool) {
+        await prefs.setBool(kPrefTimerBeepDuckOtherAudio, importedDuck);
       }
 
       if (context.mounted) {

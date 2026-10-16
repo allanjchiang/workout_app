@@ -19,6 +19,7 @@ import 'package:intl/intl.dart';
 import 'l10n/app_localizations.dart';
 import 'dev_notes.dart';
 import 'donations.dart';
+import 'timer_notifications.dart';
 
 /// Fetched once per launch for the Settings version label, so rebuilds don't
 /// re-query the platform.
@@ -4485,11 +4486,128 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         unawaited(_persistWorkoutDraft());
       }
     }
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused) {
+      _onAppBackgrounded();
+    }
     // After backgrounding, iOS/Android often deactivate the session or leave the
     // player in a bad state; re-apply before the next beep.
     if (state == AppLifecycleState.resumed) {
       _setBeepAudioContext();
+      _onAppResumed();
     }
+  }
+
+  /// Set while the app is backgrounded; timers are stopped and the time away
+  /// is replayed on resume (iOS suspends the app, so tick timers would freeze).
+  DateTime? _backgroundedAt;
+
+  /// True while replaying background time, so catch-up ticks stay silent.
+  bool _replayingBackgroundTime = false;
+
+  void _onAppBackgrounded() {
+    if (_backgroundedAt != null) return;
+    _backgroundedAt = DateTime.now();
+    _resumeWorkoutTimerAfterBackground = workoutTimer?.isActive ?? false;
+    workoutTimer?.cancel();
+    _scheduleTimerEndNotification();
+    // Phase timers are stopped but left non-null so resume knows which to restart.
+    if (restTimer?.isActive ?? false) {
+      restTimer!.cancel();
+      _resumeRestAfterBackground = true;
+    } else if (_durationWorkTimer?.isActive ?? false) {
+      _durationWorkTimer!.cancel();
+      _resumeWorkAfterBackground = true;
+    } else if (_warmupTimer?.isActive ?? false) {
+      _warmupTimer!.cancel();
+      _resumeWarmupAfterBackground = true;
+    }
+  }
+
+  bool _resumeWorkoutTimerAfterBackground = false;
+  bool _resumeRestAfterBackground = false;
+  bool _resumeWorkAfterBackground = false;
+  bool _resumeWarmupAfterBackground = false;
+
+  void _onAppResumed() {
+    final backgroundedAt = _backgroundedAt;
+    if (backgroundedAt == null) return;
+    _backgroundedAt = null;
+    unawaited(TimerNotifications.cancelTimerEnd());
+    final away = DateTime.now().difference(backgroundedAt).inSeconds;
+    if (!mounted) return;
+
+    if (_resumeRestAfterBackground) {
+      restTimer = Timer.periodic(const Duration(seconds: 1), _onRestTimerTick);
+    } else if (_resumeWorkAfterBackground) {
+      _durationWorkTimer = Timer.periodic(
+        const Duration(seconds: 1),
+        _onDurationWorkTick,
+      );
+    } else if (_resumeWarmupAfterBackground) {
+      _warmupTimer = Timer.periodic(const Duration(seconds: 1), _onWarmupTick);
+    }
+    _resumeRestAfterBackground = false;
+    _resumeWorkAfterBackground = false;
+    _resumeWarmupAfterBackground = false;
+
+    // Replay one tick per second away through the normal handlers so phase
+    // changes (warm-up → hold → rest → next hold) happen as if we never left.
+    _replayingBackgroundTime = true;
+    try {
+      for (var i = 0; i < away; i++) {
+        if (restTimer?.isActive ?? false) {
+          _onRestTimerTick(restTimer!);
+        } else if (_durationWorkTimer?.isActive ?? false) {
+          _onDurationWorkTick(_durationWorkTimer!);
+        } else if (_warmupTimer?.isActive ?? false) {
+          _onWarmupTick(_warmupTimer!);
+        } else {
+          break;
+        }
+      }
+    } finally {
+      _replayingBackgroundTime = false;
+    }
+
+    if (_resumeWorkoutTimerAfterBackground) {
+      _resumeWorkoutTimerAfterBackground = false;
+      setState(() => elapsedSeconds += away);
+      _startWorkoutTimer();
+    }
+    unawaited(_persistWorkoutDraft());
+  }
+
+  /// Notifies the user when the running rest / hold / warm-up ends, since no
+  /// beep can play while the app is suspended.
+  void _scheduleTimerEndNotification() {
+    final l10n = AppLocalizations.of(context)!;
+    int seconds;
+    String title;
+    if (restTimer?.isActive ?? false) {
+      seconds = restSeconds;
+      title = l10n.get('notifRestOverTitle');
+    } else if (_durationWorkTimer?.isActive ?? false) {
+      seconds = _workSecondsRemaining;
+      title = l10n.get('notifHoldOverTitle');
+    } else if (_warmupTimer?.isActive ?? false) {
+      seconds = _warmupSecondsRemaining;
+      title = l10n.get('notifWarmupOverTitle');
+    } else {
+      return;
+    }
+    final exerciseName = _orderedExercises.isEmpty
+        ? ''
+        : l10n.localizeExerciseName(
+            _orderedExercises[currentExerciseIndex].exercise.name,
+          );
+    unawaited(
+      TimerNotifications.scheduleTimerEnd(
+        inSeconds: seconds,
+        title: title,
+        body: exerciseName,
+      ),
+    );
   }
 
   /// Configure beeps to mix with other audio, ducking it if the user opted in.
@@ -4534,6 +4652,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(TimerNotifications.cancelTimerEnd());
     _draftAutosaveTimer?.cancel();
     if (!_suppressDraftSave) {
       unawaited(_persistWorkoutDraft());
@@ -4580,6 +4699,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
     final current = _orderedExercises[currentExerciseIndex];
     if (!current.durationBased) return;
     _stopDurationSession(clearRest: true);
+    unawaited(TimerNotifications.requestPermission());
     final workSeconds =
         (current.targetDurationSeconds ?? currentDurationSeconds).clamp(
           1,
@@ -4718,6 +4838,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   }
 
   Future<void> _warmupTickSounds(int? countdownAt, bool finished) async {
+    if (_replayingBackgroundTime) return;
     if (countdownAt != null) {
       await _playRestCountdownBeep(countdownAt);
       if (finished) {
@@ -5247,6 +5368,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
   }
 
   Future<void> _restTickAudio(int? countdownAt, bool finished) async {
+    if (_replayingBackgroundTime) return;
     if (countdownAt != null) {
       await _playRestCountdownBeep(countdownAt);
       if (finished) {
@@ -5275,6 +5397,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
       restSeconds = effective;
       _restCountdownPaused = false;
     });
+    unawaited(TimerNotifications.requestPermission());
     restTimer?.cancel();
     restTimer = Timer.periodic(const Duration(seconds: 1), _onRestTimerTick);
     if (effective >= 2 && effective <= 3) {
@@ -5356,6 +5479,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
 
   /// Hold finished (0s): work_1 chime.
   Future<void> _playWorkEndBeep() async {
+    if (_replayingBackgroundTime) return;
     try {
       await _playBeep(asset: _kBeepWork1);
     } catch (_) {
@@ -5369,6 +5493,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
 
   /// Rest / warm-up: same 1s chime at 3s, 2s, and 1s.
   Future<void> _playRestCountdownBeep(int secondsRemaining) async {
+    if (_replayingBackgroundTime) return;
     try {
       switch (secondsRemaining) {
         case 3:
@@ -5385,6 +5510,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
 
   /// Hold countdown: rest_1 at 3s, 2s, and 1s (same as rest/warm-up tier chime).
   Future<void> _playWorkCountdownBeep(int secondsRemaining) async {
+    if (_replayingBackgroundTime) return;
     try {
       switch (secondsRemaining) {
         case 3:

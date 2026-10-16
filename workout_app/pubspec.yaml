@@ -47,6 +47,8 @@ dependencies:
   package_info_plus: ^9.0.1
   in_app_purchase: ^3.3.0
   in_app_purchase_android: ^0.5.0
+  flutter_local_notifications: ^22.3.2
+  timezone: ^0.11.2
 
 # Pin path_provider_foundation to avoid objective_c.framework with wrong
 # arm64 slice (simulator) and minimum OS version issues when distributing to App Store.

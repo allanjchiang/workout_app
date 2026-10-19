@@ -2357,6 +2357,38 @@ class TemplatesPage extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: 20),
+              Text(
+                l10n.get('openSource'),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : null,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.get('licensedUnderMIT'),
+                style: TextStyle(
+                  fontSize: 15,
+                  color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => showLicensePage(
+                    context: context,
+                    applicationName: l10n.appTitle,
+                  ),
+                  icon: const Icon(Icons.description_outlined),
+                  label: Text(
+                    l10n.get('viewLicenses'),
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

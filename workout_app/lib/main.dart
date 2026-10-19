@@ -11244,6 +11244,44 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 minVerticalPadding: 20,
                 leading: Icon(
+                  Icons.description_outlined,
+                  size: 32,
+                  color: colorScheme.primary,
+                ),
+                title: Text(
+                  l10n.get('viewLicenses'),
+                  style: const TextStyle(fontSize: 20),
+                ),
+                subtitle: Text(l10n.get('licensedUnderMIT')),
+                trailing: const Icon(Icons.chevron_right, size: 32),
+                onTap: () => showLicensePage(
+                  context: context,
+                  applicationName: l10n.appTitle,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A2634) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: isDark
+                    ? null
+                    : [
+                        BoxShadow(
+                          color: Colors.grey.shade200,
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                minVerticalPadding: 20,
+                leading: Icon(
                   Icons.favorite_outline,
                   size: 32,
                   color: colorScheme.primary,
